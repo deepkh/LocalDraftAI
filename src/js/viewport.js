@@ -436,6 +436,7 @@
     }
 
     return {
+      capture: captureEditorViewport,
       consumeModeSwitchAnchor: consumeModeSwitchAnchor,
       prepareModeSwitchAnchor: prepareModeSwitchAnchor,
       remember: rememberEditorViewport,

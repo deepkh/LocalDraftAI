@@ -17,7 +17,9 @@
 ├── .agents
 │   └── skills
 │       ├── app.md
+│       ├── document-session.md
 │       ├── editor-actions.md
+│       ├── file-access.md
 │       ├── history.md
 │       ├── markdown-editor-html.md
 │       ├── markdown.md
@@ -34,9 +36,12 @@
     ├── styles.css
     └── js
         ├── app.js
+        ├── document-session.js
         ├── editor-actions.js
+        ├── file-store.js
         ├── history.js
         ├── markdown.js
+        ├── recent-files.js
         ├── resizer.js
         ├── utils.js
         └── viewport.js
@@ -49,6 +54,9 @@
 src/markdown_forge.html
 src/styles.css
 src/js/app.js
+src/js/document-session.js
+src/js/file-store.js
+src/js/recent-files.js
 src/js/markdown.js
 src/js/editor-actions.js
 src/js/history.js

@@ -9,7 +9,19 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand">Markdown Forge</div>
+      <div class="toolbar-row file-toolbar" role="toolbar" aria-label="File toolbar">
+        <div class="brand">Markdown Forge</div>
+        <div id="documentTitle" class="document-title" aria-live="polite">Untitled.md</div>
+        <div class="group" aria-label="File">
+          <button type="button" id="newFile" class="file-button" title="New document">New</button>
+          <button type="button" id="openFile" class="file-button" title="Open Markdown file">Open</button>
+          <button type="button" id="saveFile" class="file-button" title="Save document">Save</button>
+          <button type="button" id="saveAsFile" class="file-button" title="Save document as">Save As</button>
+          <select id="recentFiles" class="recent-select" title="Recent files" aria-label="Recent files">
+            <option value="">Recent</option>
+          </select>
+        </div>
+      </div>
       <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
         <div class="group" aria-label="Editor mode">
           <div class="segmented">
@@ -95,6 +107,9 @@
   <script src="js/utils.js"></script>
   <script src="js/markdown.js"></script>
   <script src="js/history.js"></script>
+  <script src="js/document-session.js"></script>
+  <script src="js/file-store.js"></script>
+  <script src="js/recent-files.js"></script>
   <script src="js/viewport.js"></script>
   <script src="js/editor-actions.js"></script>
   <script src="js/resizer.js"></script>

@@ -6,6 +6,7 @@
   function createHistory(context) {
     var historyStack = [];
     var historyIndex = -1;
+    var cleanValue = "";
     var maxHistoryEntries = 200;
     var isRestoringHistory = false;
 
@@ -20,6 +21,8 @@
     }
 
     function record(value) {
+      value = String(value || "");
+
       if (isRestoringHistory) {
         return;
       }
@@ -38,6 +41,29 @@
 
       historyIndex = historyStack.length - 1;
       updateControls();
+    }
+
+    function reset(value) {
+      value = String(value || "");
+      historyStack = [value];
+      historyIndex = 0;
+      cleanValue = value;
+      updateControls();
+    }
+
+    function markClean(value) {
+      value = String(value || "");
+      record(value);
+      cleanValue = value;
+      updateControls();
+    }
+
+    function isClean() {
+      if (historyIndex < 0) {
+        return cleanValue === "";
+      }
+
+      return historyStack[historyIndex] === cleanValue;
     }
 
     function placeCaretAtEnd(element) {
@@ -73,7 +99,10 @@
 
     return {
       applyStep: applyStep,
+      isClean: isClean,
+      markClean: markClean,
       record: record,
+      reset: reset,
       updateControls: updateControls
     };
   }
