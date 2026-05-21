@@ -8,7 +8,9 @@
   - Markdown mode shows plain Markdown text and only accepts `text/plain` paste.
 - The app keeps Markdown as the source text. WYSIWYG edits are converted to Markdown in the background, and Markdown edits update the preview immediately.
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
-- A top toolbar provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, and preview toggling.
+- The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
+- The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
+- File shortcuts are Ctrl/Cmd+N for New, Ctrl/Cmd+O for Open, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 
 ## Current Folder Layout
 

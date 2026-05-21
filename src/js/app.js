@@ -535,6 +535,36 @@
     }
   }
 
+  function handleFileShortcut(key, event) {
+    if (event.altKey) {
+      return false;
+    }
+
+    if (key === "n") {
+      event.preventDefault();
+      handleNewFile();
+      return true;
+    }
+
+    if (key === "o") {
+      event.preventDefault();
+      handleOpenFile();
+      return true;
+    }
+
+    if (key === "s") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        handleSaveAsFile();
+      } else {
+        handleSaveFile();
+      }
+      return true;
+    }
+
+    return false;
+  }
+
   function bindEvents() {
     newFileButton.addEventListener("click", handleNewFile);
     openFileButton.addEventListener("click", handleOpenFile);
@@ -634,6 +664,10 @@
       }
 
       var key = event.key.toLowerCase();
+
+      if (handleFileShortcut(key, event)) {
+        return;
+      }
 
       if (key === "z" && !event.altKey) {
         event.preventDefault();
