@@ -23,6 +23,10 @@
   var formatBlock = document.getElementById("formatBlock");
   var togglePreview = document.getElementById("togglePreview");
   var previewStatus = document.getElementById("previewStatus");
+  var aboutButton = document.getElementById("aboutButton");
+  var aboutOverlay = document.getElementById("aboutOverlay");
+  var aboutDialog = document.querySelector(".about-dialog");
+  var aboutClose = document.getElementById("aboutClose");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
   var undoButton = document.querySelector('[data-action="undo"]');
   var redoButton = document.querySelector('[data-action="redo"]');
@@ -158,6 +162,18 @@
     previewStatus.textContent = previewVisible ? "Live" : "Hidden";
   }
 
+  function openAboutDialog() {
+    aboutOverlay.hidden = false;
+    window.requestAnimationFrame(function () {
+      aboutDialog.focus();
+    });
+  }
+
+  function closeAboutDialog() {
+    aboutOverlay.hidden = true;
+    aboutButton.focus();
+  }
+
   function bindEvents() {
     wysiwygMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
     markdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
@@ -171,6 +187,20 @@
     });
 
     togglePreview.addEventListener("click", togglePreviewPane);
+    aboutButton.addEventListener("click", openAboutDialog);
+    aboutClose.addEventListener("click", closeAboutDialog);
+    aboutOverlay.addEventListener("click", function (event) {
+      if (event.target === aboutOverlay) {
+        closeAboutDialog();
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !aboutOverlay.hidden) {
+        event.preventDefault();
+        closeAboutDialog();
+      }
+    });
     resizer.bindEvents();
 
     formatBlock.addEventListener("change", function () {
