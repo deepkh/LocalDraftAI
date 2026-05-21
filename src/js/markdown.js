@@ -199,6 +199,49 @@
     return Array.prototype.some.call(node.childNodes, isMarkdownBlockElement);
   }
 
+  function isCodeLineElement(node) {
+    return (
+      node.nodeType === Node.ELEMENT_NODE &&
+      /^(div|p|li|tr)$/i.test(node.tagName)
+    );
+  }
+
+  function codeBlockText(node) {
+    var output = "";
+
+    function appendLineBreak() {
+      if (output && !/\n$/.test(output)) {
+        output += "\n";
+      }
+    }
+
+    function walk(current) {
+      if (current.nodeType === Node.TEXT_NODE) {
+        output += current.nodeValue || "";
+        return;
+      }
+
+      if (current.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      var tag = current.tagName.toLowerCase();
+      if (tag === "br") {
+        output += "\n";
+        return;
+      }
+
+      Array.prototype.forEach.call(current.childNodes, walk);
+
+      if (isCodeLineElement(current)) {
+        appendLineBreak();
+      }
+    }
+
+    walk(node);
+    return output.replace(/\r\n?/g, "\n");
+  }
+
   function blockChildrenToMarkdown(node, depth) {
     var parts = [];
     var inlineBuffer = "";
@@ -286,7 +329,7 @@
     }
 
     if (tag === "pre") {
-      return "```\n" + textContent(node).replace(/\n+$/g, "") + "\n```";
+      return "```\n" + codeBlockText(node).replace(/\n+$/g, "") + "\n```";
     }
 
     if (tag === "blockquote") {
@@ -385,11 +428,20 @@
       }
 
       var tag = node.tagName.toLowerCase();
-      var children = Array.prototype.map.call(node.childNodes, clean).join("");
 
       if (!allowed[tag]) {
-        return children;
+        return Array.prototype.map.call(node.childNodes, function (child) {
+          return clean(child);
+        }).join("");
       }
+
+      if (tag === "pre") {
+        return "<pre><code>" + escapeHtml(codeBlockText(node).replace(/\n+$/g, "")) + "</code></pre>";
+      }
+
+      var children = Array.prototype.map.call(node.childNodes, function (child) {
+        return clean(child);
+      }).join("");
 
       if (tag === "b") {
         tag = "strong";
@@ -414,7 +466,9 @@
       return "<" + tag + ">" + children + "</" + tag + ">";
     }
 
-    return Array.prototype.map.call(doc.body.childNodes, clean).join("");
+    return Array.prototype.map.call(doc.body.childNodes, function (child) {
+      return clean(child);
+    }).join("");
   }
 
   ME.markdown = {
