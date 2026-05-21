@@ -11,8 +11,11 @@
     var pendingModeSwitchAnchor = null;
     var latestEditorViewportAnchor = null;
     var viewportTrackTimer = 0;
+    var scrollSyncTimer = 0;
+    var isSyncingScroll = false;
     var wysiwygEditor = context.wysiwygEditor;
     var markdownEditor = context.markdownEditor;
+    var preview = context.preview;
 
     function hasInternalScroll(element) {
       return element.scrollHeight - element.clientHeight > 1;
@@ -46,12 +49,21 @@
       return topbar ? Math.max(topbar.getBoundingClientRect().bottom, 0) : 0;
     }
 
-    function getEditorViewportTop(element) {
+    function getElementViewportTop(element, stickyAware) {
       var rect = element.getBoundingClientRect();
       var styles = window.getComputedStyle(element);
       var paddingTop = parseFloat(styles.paddingTop) || 0;
+      var minTop = stickyAware ? getStickyViewportTop() : 0;
 
-      return Math.max(rect.top + paddingTop, getStickyViewportTop(), 0);
+      return Math.max(rect.top + paddingTop, minTop, 0);
+    }
+
+    function getEditorViewportTop(element) {
+      return getElementViewportTop(element, true);
+    }
+
+    function getPreviewViewportTop(element) {
+      return getElementViewportTop(element, false);
     }
 
     function getMarkdownLineHeight() {
@@ -79,8 +91,8 @@
       };
     }
 
-    function getWysiwygAnchorElements() {
-      return Array.prototype.slice.call(wysiwygEditor.querySelectorAll("[data-md-line]"));
+    function getLineAnchorElements(element) {
+      return Array.prototype.slice.call(element.querySelectorAll("[data-md-line]"));
     }
 
     function getWysiwygTextAnchorElements() {
@@ -138,7 +150,7 @@
 
     function getWysiwygTopBlockIndex() {
       var targetY = getEditorViewportTop(wysiwygEditor);
-      var lineAnchor = findTopViewportElement(getWysiwygAnchorElements(), targetY, elementMarkdownLine);
+      var lineAnchor = findTopViewportElement(getLineAnchorElements(wysiwygEditor), targetY, elementMarkdownLine);
       var textAnchor = lineAnchor || findTopViewportElement(getWysiwygTextAnchorElements(), targetY);
       var anchor = lineAnchor || textAnchor;
 
@@ -150,6 +162,23 @@
         blockIndex: lineAnchor ? lineAnchor.index : null,
         blockRatio: clamp((targetY - anchor.rect.top) / anchor.rect.height, 0, 1),
         line: lineAnchor ? lineAnchor.line : null,
+        textHint: elementTextHint(anchor.element)
+      };
+    }
+
+    function getPreviewTopBlockIndex() {
+      var targetY = getPreviewViewportTop(preview);
+      var anchor = findTopViewportElement(getLineAnchorElements(preview), targetY, elementMarkdownLine);
+
+      if (!anchor) {
+        return null;
+      }
+
+      return {
+        mode: "preview",
+        blockRatio: clamp((targetY - anchor.rect.top) / anchor.rect.height, 0, 1),
+        line: anchor.line,
+        scrollRatio: getScrollRatio(preview),
         textHint: elementTextHint(anchor.element)
       };
     }
@@ -246,7 +275,7 @@
     }
 
     function restoreMarkdownScroll(anchor) {
-      var resolvedLine = anchor && anchor.mode === "wysiwyg" ? findMarkdownLineByTextHint(anchor) : null;
+      var resolvedLine = anchor && anchor.mode !== "markdown" ? findMarkdownLineByTextHint(anchor) : null;
 
       if (resolvedLine == null && anchor && typeof anchor.line === "number") {
         resolvedLine = anchor.line;
@@ -280,8 +309,7 @@
       restoreScrollRatio(markdownEditor, anchor ? anchor.scrollRatio : 0);
     }
 
-    function findWysiwygBlockForLine(line) {
-      var elements = getWysiwygAnchorElements();
+    function findBlockForLine(elements, line) {
       var selected = null;
 
       elements.forEach(function (element) {
@@ -305,17 +333,17 @@
       return selected ? selected.element : elements[0] || null;
     }
 
-    function restoreWysiwygScroll(anchor) {
+    function restoreElementScroll(anchor, element, viewportTop) {
       if (anchor && typeof anchor.line === "number") {
-        var block = findWysiwygBlockForLine(anchor.line);
+        var block = findBlockForLine(getLineAnchorElements(element), anchor.line);
 
         if (block) {
           var blockRect = block.getBoundingClientRect();
-          var blockOffset = blockRect.top - getEditorViewportTop(wysiwygEditor);
+          var blockOffset = blockRect.top - viewportTop(element);
           var targetOffset = blockOffset + (anchor.blockRatio || 0) * blockRect.height;
 
-          if (hasInternalScroll(wysiwygEditor)) {
-            wysiwygEditor.scrollTop += targetOffset;
+          if (hasInternalScroll(element)) {
+            element.scrollTop += targetOffset;
           } else {
             window.scrollTo(window.scrollX, window.scrollY + targetOffset);
           }
@@ -323,7 +351,15 @@
         }
       }
 
-      restoreScrollRatio(wysiwygEditor, anchor ? anchor.scrollRatio : 0);
+      restoreScrollRatio(element, anchor ? anchor.scrollRatio : 0);
+    }
+
+    function restoreWysiwygScroll(anchor) {
+      restoreElementScroll(anchor, wysiwygEditor, getEditorViewportTop);
+    }
+
+    function restorePreviewScroll(anchor) {
+      restoreElementScroll(anchor, preview, getPreviewViewportTop);
     }
 
     function restoreEditorViewport(anchor) {
@@ -332,6 +368,55 @@
       } else {
         restoreWysiwygScroll(anchor);
       }
+    }
+
+    function withScrollSyncGuard(callback) {
+      window.cancelAnimationFrame(scrollSyncTimer);
+      isSyncingScroll = true;
+      callback();
+      scrollSyncTimer = window.requestAnimationFrame(function () {
+        isSyncingScroll = false;
+      });
+    }
+
+    function syncPreviewToEditor() {
+      if (isSyncingScroll) {
+        return;
+      }
+
+      var anchor = captureEditorViewport();
+      latestEditorViewportAnchor = anchor;
+
+      withScrollSyncGuard(function () {
+        restorePreviewScroll(anchor);
+      });
+    }
+
+    function syncEditorToPreview() {
+      if (isSyncingScroll) {
+        return;
+      }
+
+      var anchor = getPreviewTopBlockIndex();
+
+      if (!anchor) {
+        return;
+      }
+
+      withScrollSyncGuard(function () {
+        restoreEditorViewport(anchor);
+      });
+      latestEditorViewportAnchor = captureEditorViewport();
+    }
+
+    function schedulePreviewToEditorSync() {
+      window.cancelAnimationFrame(viewportTrackTimer);
+      viewportTrackTimer = window.requestAnimationFrame(syncPreviewToEditor);
+    }
+
+    function scheduleEditorToPreviewSync() {
+      window.cancelAnimationFrame(viewportTrackTimer);
+      viewportTrackTimer = window.requestAnimationFrame(syncEditorToPreview);
     }
 
     function prepareModeSwitchAnchor() {
@@ -355,6 +440,8 @@
       prepareModeSwitchAnchor: prepareModeSwitchAnchor,
       remember: rememberEditorViewport,
       restore: restoreEditorViewport,
+      scheduleEditorSync: scheduleEditorToPreviewSync,
+      schedulePreviewSync: schedulePreviewToEditorSync,
       scheduleTracking: scheduleViewportTracking
     };
   }

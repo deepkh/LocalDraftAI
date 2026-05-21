@@ -90,6 +90,7 @@
     .app {
       display: grid;
       grid-template-rows: auto 1fr;
+      height: 100%;
       min-height: 100%;
     }
 
@@ -175,6 +176,7 @@
       column-gap: 0;
       row-gap: 14px;
       min-height: 0;
+      overflow: hidden;
       padding: 14px;
     }
 

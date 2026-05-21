@@ -218,8 +218,9 @@
     });
 
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
-    wysiwygEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
-    markdownEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
+    wysiwygEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
+    markdownEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
+    preview.addEventListener("scroll", viewport.scheduleEditorSync, { passive: true });
 
     wysiwygEditor.addEventListener("input", scheduleSyncFromWysiwyg);
     wysiwygEditor.addEventListener("keyup", actions.updateFormatSelect);
@@ -296,6 +297,7 @@
       getActiveMode: function () { return activeMode; },
       getMarkdownText: function () { return markdownText; },
       markdownEditor: markdownEditor,
+      preview: preview,
       wysiwygEditor: wysiwygEditor
     });
 
