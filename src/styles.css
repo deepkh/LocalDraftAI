@@ -428,6 +428,15 @@
       overflow-wrap: anywhere;
     }
 
+    .wysiwyg img,
+    .preview img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 0.8em 0;
+      border-radius: 6px;
+    }
+
     .preview-pane {
       display: grid;
       grid-template-rows: auto 1fr;

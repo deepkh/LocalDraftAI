@@ -6,6 +6,7 @@
   var escapeHtml = utils.escapeHtml;
   var escapeAttribute = utils.escapeAttribute;
   var sanitizeUrl = utils.sanitizeUrl;
+  var sanitizeImageUrl = utils.sanitizeImageUrl;
   var textContent = utils.textContent;
   var cleanMarkdownSpacing = utils.cleanMarkdownSpacing;
   var prefixLines = utils.prefixLines;
@@ -26,12 +27,49 @@
     };
   }
 
-  function renderInline(value) {
+  function markdownImageAlt(value) {
+    return String(value || "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/[\[\]]/g, "")
+      .trim();
+  }
+
+  function imageDisplaySource(src, options) {
+    var safeSrc = sanitizeImageUrl(src);
+    var displaySrc;
+
+    if (!safeSrc) {
+      return null;
+    }
+
+    displaySrc = safeSrc;
+    if (options && typeof options.resolveImageUrl === "function") {
+      displaySrc = sanitizeImageUrl(options.resolveImageUrl(safeSrc) || safeSrc) || safeSrc;
+    }
+
+    return {
+      displaySrc: displaySrc,
+      markdownSrc: safeSrc
+    };
+  }
+
+  function renderInline(value, options) {
     var tokens = createTokenStore();
     var text = String(value || "");
 
     text = text.replace(/`([^`\n]+)`/g, function (_, code) {
       return tokens.save("<code>" + escapeHtml(code) + "</code>");
+    });
+
+    text = text.replace(/!\[([^\]\n]*)\]\(([^)\s]+)\)/g, function (match, alt, src) {
+      var image = imageDisplaySource(src, options);
+      if (!image) {
+        return tokens.save(escapeHtml(match));
+      }
+
+      return tokens.save(
+        '<img src="' + escapeAttribute(image.displaySrc) + '" alt="' + escapeAttribute(alt) + '" data-md-src="' + escapeAttribute(image.markdownSrc) + '">'
+      );
     });
 
     text = text.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, function (match, label, href) {
@@ -73,7 +111,7 @@
     return ' data-md-line="' + Math.max(0, lineIndex) + '"';
   }
 
-  function renderMarkdown(markdown, baseLine) {
+  function renderMarkdown(markdown, baseLine, options) {
     var lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
     var lineOffset = baseLine || 0;
     var html = [];
@@ -108,7 +146,7 @@
       var heading = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
       if (heading) {
         var level = heading[1].length;
-        html.push("<h" + level + blockAttrs(lineOffset + i) + ">" + renderInline(heading[2]) + "</h" + level + ">");
+        html.push("<h" + level + blockAttrs(lineOffset + i) + ">" + renderInline(heading[2], options) + "</h" + level + ">");
         i += 1;
         continue;
       }
@@ -124,7 +162,7 @@
           }
           i += 1;
         }
-        html.push("<blockquote" + blockAttrs(quoteLine) + ">" + renderMarkdown(quoteLines.join("\n"), quoteLine) + "</blockquote>");
+        html.push("<blockquote" + blockAttrs(quoteLine) + ">" + renderMarkdown(quoteLines.join("\n"), quoteLine, options) + "</blockquote>");
         continue;
       }
 
@@ -139,7 +177,7 @@
           i += 1;
         }
         html.push("<ul" + blockAttrs(bulletLine) + ">" + bulletItems.map(function (item) {
-          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text) + "</li>";
+          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text, options) + "</li>";
         }).join("") + "</ul>");
         continue;
       }
@@ -155,7 +193,7 @@
           i += 1;
         }
         html.push("<ol" + blockAttrs(orderedLine) + ">" + orderedItems.map(function (item) {
-          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text) + "</li>";
+          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text, options) + "</li>";
         }).join("") + "</ol>");
         continue;
       }
@@ -169,7 +207,7 @@
 
       if (paragraph.length) {
         html.push("<p" + blockAttrs(paragraphLine) + ">" + paragraph.map(function (paragraphText, index) {
-          return "<span" + blockAttrs(paragraphLine + index) + ">" + renderInline(paragraphText) + "</span>";
+          return "<span" + blockAttrs(paragraphLine + index) + ">" + renderInline(paragraphText, options) + "</span>";
         }).join("<br>") + "</p>");
       } else {
         i += 1;
@@ -320,6 +358,12 @@
       return href ? "[" + label + "](" + href + ")" : label;
     }
 
+    if (tag === "img") {
+      var src = sanitizeImageUrl(node.getAttribute("data-md-src") || node.getAttribute("src") || "");
+      var alt = markdownImageAlt(node.getAttribute("alt") || "");
+      return src ? "![" + alt + "](" + src + ")" : "";
+    }
+
     if (inline) {
       return inlineNodesToMarkdown(node);
     }
@@ -409,6 +453,7 @@
       h4: true,
       h5: true,
       h6: true,
+      img: true,
       i: true,
       li: true,
       ol: true,
@@ -461,6 +506,15 @@
           return children;
         }
         return '<a href="' + escapeAttribute(href) + '">' + children + "</a>";
+      }
+
+      if (tag === "img") {
+        var src = sanitizeImageUrl(node.getAttribute("src") || "");
+        var alt = markdownImageAlt(node.getAttribute("alt") || "");
+        if (!src) {
+          return "";
+        }
+        return '<img src="' + escapeAttribute(src) + '" alt="' + escapeAttribute(alt) + '">';
       }
 
       return "<" + tag + ">" + children + "</" + tag + ">";

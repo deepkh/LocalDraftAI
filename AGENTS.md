@@ -7,6 +7,8 @@
   - WYSIWYG mode supports rich text editing and `text/html` paste.
   - Markdown mode shows plain Markdown text and only accepts `text/plain` paste.
 - The app keeps Markdown as the source text. WYSIWYG edits are converted to Markdown in the background, and Markdown edits update the preview immediately.
+- Markdown image syntax renders in the editor and preview.
+- Pasted, dropped, or inserted local images are copied into an `assets/` folder inside a user-selected workspace folder and inserted as relative Markdown links.
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
 - The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
 - The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
@@ -18,6 +20,7 @@
 .
 ├── .agents
 │   └── skills
+│       ├── asset-store.md
 │       ├── app.md
 │       ├── document-session.md
 │       ├── editor-actions.md
@@ -38,6 +41,7 @@
     ├── styles.css
     └── js
         ├── app.js
+        ├── asset-store.js
         ├── document-session.js
         ├── editor-actions.js
         ├── file-store.js
@@ -56,6 +60,7 @@
 src/markdown_forge.html
 src/styles.css
 src/js/app.js
+src/js/asset-store.js
 src/js/document-session.js
 src/js/file-store.js
 src/js/recent-files.js
@@ -71,6 +76,7 @@ src/js/utils.js
 
 - Keep subsystem routing in `.agents/skills/`.
 - Use the matching file there when a change touches the relevant area.
+- Use `.agents/skills/asset-store.md` when a change touches local image workspace storage.
 - Add or update a small skill file when a new subsystem needs routing guidance.
 
 ## Load Only Relevant Detail

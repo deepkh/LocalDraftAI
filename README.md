@@ -16,6 +16,9 @@ A small local Markdown editor that runs in the browser.
 - Edit in WYSIWYG mode or plain Markdown mode.
 - Paste rich HTML into the WYSIWYG editor.
 - Paste plain text into the Markdown editor.
+- Render Markdown image syntax such as `![Alt](assets/a.png)` in the editor and preview.
+- Paste, drop, or insert PNG, JPEG, WebP, and GIF images in WYSIWYG workflows.
+- Store inserted local images in an `assets/` folder inside a user-chosen workspace folder, then add relative Markdown links such as `![photo](assets/photo.png)`.
 - See a live Markdown preview beside the editor.
 - Hide or show the preview pane.
 - Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
@@ -25,6 +28,7 @@ A small local Markdown editor that runs in the browser.
 - Use file shortcuts: Ctrl/Cmd+N for New, Ctrl/Cmd+O for Open, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 
 Browsers without the File System Access API keep the editor working, but file controls are disabled.
+Local image storage also requires browser file and folder access. The first pasted, dropped, or inserted local image asks for a workspace folder, and Markdown Forge creates or reuses that folder's `assets/` directory.
 
 ## Run It
 
@@ -44,6 +48,7 @@ src/
 ├── styles.css
 └── js/
     ├── app.js
+    ├── asset-store.js
     ├── document-session.js
     ├── editor-actions.js
     ├── file-store.js

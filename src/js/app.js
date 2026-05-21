@@ -4,6 +4,7 @@
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
   var markdown = ME.markdown;
   var fileStore = ME.fileStore;
+  var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
 
   var activeSession = null;
@@ -37,6 +38,7 @@
   var saveAsFileButton = document.getElementById("saveAsFile");
   var recentFilesSelect = document.getElementById("recentFiles");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
+  var insertImageButton = document.querySelector('[data-action="image"]');
   var undoButton = document.querySelector('[data-action="undo"]');
   var redoButton = document.querySelector('[data-action="redo"]');
 
@@ -60,8 +62,30 @@
     return fileStore && fileStore.isSupported();
   }
 
+  function isImagePickerSupported() {
+    return assetStore && assetStore.isImagePickerSupported();
+  }
+
+  function resolveImageUrl(src) {
+    if (
+      activeSession &&
+      activeSession.assetObjectUrls &&
+      activeSession.assetObjectUrls[src]
+    ) {
+      return activeSession.assetObjectUrls[src];
+    }
+
+    return src;
+  }
+
+  function renderMarkdownForSession(markdownText) {
+    return markdown.renderMarkdown(markdownText, 0, {
+      resolveImageUrl: resolveImageUrl
+    });
+  }
+
   function renderPreview() {
-    var html = markdown.renderMarkdown(getMarkdownText());
+    var html = renderMarkdownForSession(getMarkdownText());
     preview.innerHTML = html || '<p class="preview-empty">Preview</p>';
   }
 
@@ -126,6 +150,27 @@
     return session;
   }
 
+  function revokeAssetObjectUrls(session) {
+    if (!session || !session.assetObjectUrls || !window.URL || typeof window.URL.revokeObjectURL !== "function") {
+      return;
+    }
+
+    Object.keys(session.assetObjectUrls).forEach(function (src) {
+      window.URL.revokeObjectURL(session.assetObjectUrls[src]);
+    });
+    session.assetObjectUrls = {};
+  }
+
+  function registerAssetObjectUrl(session, relativePath, file) {
+    if (!session || !relativePath || !window.URL || typeof window.URL.createObjectURL !== "function") {
+      return relativePath;
+    }
+
+    session.assetObjectUrls = session.assetObjectUrls || {};
+    session.assetObjectUrls[relativePath] = window.URL.createObjectURL(file);
+    return session.assetObjectUrls[relativePath];
+  }
+
   function resetScrollPositions() {
     wysiwygEditor.scrollTop = 0;
     markdownEditor.scrollTop = 0;
@@ -154,9 +199,13 @@
       activeSession.scrollState = viewport.capture();
     }
 
+    if (activeSession && activeSession !== session) {
+      revokeAssetObjectUrls(activeSession);
+    }
+
     activeSession = session;
     markdownEditor.value = activeSession.markdownText;
-    wysiwygEditor.innerHTML = markdown.renderMarkdown(activeSession.markdownText);
+    wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
     wysiwygNeedsSync = false;
     renderPreview();
     updateCounts();
@@ -248,7 +297,7 @@
     updateCounts();
 
     if (getActiveMode() === "wysiwyg") {
-      wysiwygEditor.innerHTML = markdown.renderMarkdown(activeSession.markdownText);
+      wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
       wysiwygNeedsSync = false;
       wysiwygEditor.focus();
       placeCaretAtEnd(wysiwygEditor);
@@ -291,7 +340,7 @@
     activeSession.activeMode = mode;
 
     if (getActiveMode() === "wysiwyg") {
-      wysiwygEditor.innerHTML = markdown.renderMarkdown(activeSession.markdownText);
+      wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
       wysiwygNeedsSync = false;
     } else {
       markdownEditor.value = activeSession.markdownText;
@@ -399,6 +448,13 @@
       control.disabled = !supported;
     });
 
+    if (insertImageButton) {
+      insertImageButton.disabled = !isImagePickerSupported();
+      insertImageButton.title = isImagePickerSupported()
+        ? "Insert image"
+        : "Image insertion requires browser file and folder access";
+    }
+
     if (!supported) {
       recentFilesSelect.disabled = true;
       recentFilesSelect.title = "File access is not supported in this browser";
@@ -422,6 +478,83 @@
     }
 
     window.alert(action + " failed. " + (error && error.message ? error.message : ""));
+  }
+
+  function showAssetError(action, error) {
+    if (assetStore && assetStore.isAbortError(error)) {
+      return;
+    }
+
+    window.alert(action + " failed. " + (error && error.message ? error.message : ""));
+  }
+
+  async function saveImagesForInsertion(session, files, options) {
+    var images = [];
+    var i;
+    var relativePath;
+    var file;
+
+    if (!assetStore || !assetStore.isStorageSupported()) {
+      throw new Error("Image storage is not supported in this browser.");
+    }
+
+    for (i = 0; i < files.length; i += 1) {
+      file = files[i];
+      relativePath = await assetStore.saveImageFile(session, file, {
+        prefix: options.prefix
+      });
+      images.push({
+        alt: options.alt || assetStore.imageAlt(file, options.fallbackAlt),
+        displaySrc: registerAssetObjectUrl(session, relativePath, file),
+        src: relativePath
+      });
+    }
+
+    return images;
+  }
+
+  async function storeAndInsertImages(files, options) {
+    var session = activeSession;
+    var selection = options.selection || actions.captureSelection();
+    var images;
+
+    if (!session || !files || !files.length) {
+      return;
+    }
+
+    try {
+      images = await saveImagesForInsertion(session, files, options);
+      if (activeSession !== session) {
+        return;
+      }
+      actions.insertMarkdownImages(images, selection);
+    } catch (error) {
+      showAssetError(options.action || "Insert image", error);
+      focusActiveEditor();
+    }
+  }
+
+  async function handleInsertImage() {
+    var selection = actions.captureSelection();
+    var file;
+
+    if (!assetStore || !assetStore.isImagePickerSupported()) {
+      showAssetError("Insert image", new Error("Image selection is not supported in this browser."));
+      return;
+    }
+
+    try {
+      file = await assetStore.chooseImageFile();
+      await storeAndInsertImages([file], {
+        action: "Insert image",
+        fallbackAlt: "image",
+        prefix: "image",
+        selection: selection
+      });
+    } catch (error) {
+      showAssetError("Insert image", error);
+      focusActiveEditor();
+    }
   }
 
   function handleNewFile() {
@@ -565,6 +698,56 @@
     return false;
   }
 
+  function transferHasImages(dataTransfer) {
+    return Boolean(assetStore && assetStore.hasImageItems(dataTransfer));
+  }
+
+  function imageFilesFromTransfer(dataTransfer) {
+    return assetStore ? assetStore.imageFilesFromTransfer(dataTransfer) : [];
+  }
+
+  function dropSelection(event) {
+    if (getActiveMode() === "wysiwyg") {
+      actions.placeWysiwygCaretAtPoint(event.clientX, event.clientY);
+    } else {
+      markdownEditor.focus();
+    }
+
+    return actions.captureSelection();
+  }
+
+  function handleEditorDragOver(event) {
+    if (!transferHasImages(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleEditorDrop(event) {
+    var files;
+    var selection;
+
+    if (!transferHasImages(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    files = imageFilesFromTransfer(event.dataTransfer);
+    if (!files.length) {
+      return;
+    }
+
+    selection = dropSelection(event);
+    storeAndInsertImages(files, {
+      action: "Drop image",
+      fallbackAlt: "dropped image",
+      prefix: "dropped",
+      selection: selection
+    });
+  }
+
   function bindEvents() {
     newFileButton.addEventListener("click", handleNewFile);
     openFileButton.addEventListener("click", handleOpenFile);
@@ -610,7 +793,12 @@
 
     toolbarButtons.forEach(function (button) {
       button.addEventListener("click", function () {
-        actions.applyToolbarAction(button.getAttribute("data-action"));
+        var action = button.getAttribute("data-action");
+        if (action === "image") {
+          handleInsertImage();
+          return;
+        }
+        actions.applyToolbarAction(action);
       });
     });
 
@@ -625,7 +813,21 @@
 
     wysiwygEditor.addEventListener("paste", function (event) {
       var data = event.clipboardData;
+      var imageFiles;
       if (!data) {
+        return;
+      }
+
+      if (transferHasImages(data)) {
+        imageFiles = imageFilesFromTransfer(data);
+        event.preventDefault();
+        storeAndInsertImages(imageFiles, {
+          action: "Paste image",
+          alt: "pasted image",
+          fallbackAlt: "pasted image",
+          prefix: "pasted",
+          selection: actions.captureSelection()
+        });
         return;
       }
 
@@ -654,6 +856,11 @@
       event.preventDefault();
       actions.insertTextIntoTextarea(data.getData("text/plain") || "");
     });
+
+    wysiwygEditor.addEventListener("dragover", handleEditorDragOver);
+    wysiwygEditor.addEventListener("drop", handleEditorDrop);
+    markdownEditor.addEventListener("dragover", handleEditorDragOver);
+    markdownEditor.addEventListener("drop", handleEditorDrop);
 
     document.addEventListener("selectionchange", actions.updateFormatSelect);
 

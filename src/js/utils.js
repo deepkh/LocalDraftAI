@@ -16,17 +16,56 @@
     return escapeHtml(value).replace(/`/g, "&#96;");
   }
 
-  function sanitizeUrl(value) {
+  function sanitizeUrlWithProtocols(value, protocols) {
     var url = String(value || "").trim();
+    var compact = url.replace(/[\u0000-\u001f\u007f\s]+/g, "");
+    var protocolMatch;
+    var protocol;
+
     if (!url) {
       return "";
     }
 
-    if (/^(https?:|mailto:|tel:)/i.test(url) || /^[#/]/.test(url)) {
+    if (/[\u0000-\u001f\u007f]/.test(url) || /[\\]/.test(url)) {
+      return "";
+    }
+
+    if (/^(javascript|data|vbscript):/i.test(compact)) {
+      return "";
+    }
+
+    protocolMatch = compact.match(/^([a-z][a-z0-9+.-]*):/i);
+    if (protocolMatch) {
+      protocol = protocolMatch[1].toLowerCase();
+      return protocols[protocol] ? url : "";
+    }
+
+    if (/^#/.test(url) || /^\/(?!\/)/.test(url) || /^\.{1,2}\//.test(url)) {
+      return url;
+    }
+
+    if (/^[A-Za-z0-9._~-]/.test(url)) {
       return url;
     }
 
     return "";
+  }
+
+  function sanitizeUrl(value) {
+    return sanitizeUrlWithProtocols(value, {
+      http: true,
+      https: true,
+      mailto: true,
+      tel: true
+    });
+  }
+
+  function sanitizeImageUrl(value) {
+    return sanitizeUrlWithProtocols(value, {
+      blob: true,
+      http: true,
+      https: true
+    });
   }
 
   function textContent(node) {
@@ -61,6 +100,7 @@
   ME.utils = {
     escapeHtml: escapeHtml,
     escapeAttribute: escapeAttribute,
+    sanitizeImageUrl: sanitizeImageUrl,
     sanitizeUrl: sanitizeUrl,
     textContent: textContent,
     cleanMarkdownSpacing: cleanMarkdownSpacing,
