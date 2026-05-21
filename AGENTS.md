@@ -87,4 +87,5 @@ src/js/utils.js
 ## Documentation Rule
 
 - Keep documentation simple, human readable, and consistent with the current static HTML/CSS/JavaScript implementation.
+- For every code change, update `README.md` and `AGENTS.md` in the same run so user-facing behavior, project layout, important paths, and routing rules stay current.
 - Update the folder layout in this file when files are added, removed, or moved.

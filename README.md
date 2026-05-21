@@ -12,12 +12,18 @@ A small local Markdown editor that runs in the browser.
 
 ## What It Does
 
+- Keeps the active document in a document session with its own title, dirty state, editor mode, scroll state, and undo/redo history.
 - Edit in WYSIWYG mode or plain Markdown mode.
 - Paste rich HTML into the WYSIWYG editor.
 - Paste plain text into the Markdown editor.
 - See a live Markdown preview beside the editor.
 - Hide or show the preview pane.
-- Use common toolbar actions for headings, bold, italic, code, lists, quotes, links, undo, and redo.
+- Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
+- Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, and About.
+- Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
+- Reopen recent files from an IndexedDB-backed recent-file list.
+
+Browsers without the File System Access API keep the editor working, but file controls are disabled.
 
 ## Run It
 
@@ -37,9 +43,12 @@ src/
 ├── styles.css
 └── js/
     ├── app.js
+    ├── document-session.js
     ├── editor-actions.js
+    ├── file-store.js
     ├── history.js
     ├── markdown.js
+    ├── recent-files.js
     ├── resizer.js
     ├── utils.js
     └── viewport.js
