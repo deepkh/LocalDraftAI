@@ -1,0 +1,4 @@
+# `src/styles.css`
+
+- Change layout, spacing, colors, responsive behavior, pane presentation, toolbar appearance, and editor or preview typography here.
+- Use this file when the work affects the visual design system.

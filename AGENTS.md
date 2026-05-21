@@ -1,28 +1,82 @@
 # AGENTS.md
 
-## Project purpose
+## Project Purpose
 
-- A local based markdown editor.
-- Left hand side view port has: 1. WYSWYG editor and support Rich text / HTML (text/html) copy paste. 2. Markdown editor only suport Plain text (text/plain) copy and paste. There is a button to switching these two editor. When user in WYSWYG editor, it would convert the WYSWYG to markdown text background. When in markdown text editor mode, only the plan text is being show.
-- Right hand side view port has: Instant makrdown viewer, view only. Will read the markdown plan text from left hand side editor. There is a button to hide / show this markdown viewer
-- There is a general tool bar including the popular functiobn for a WYSWYG editor need. 
+- A local, browser-based Markdown editor.
+- The left pane has two editing modes:
+  - WYSIWYG mode supports rich text editing and `text/html` paste.
+  - Markdown mode shows plain Markdown text and only accepts `text/plain` paste.
+- The app keeps Markdown as the source text. WYSIWYG edits are converted to Markdown in the background, and Markdown edits update the preview immediately.
+- The right pane is a live, read-only Markdown preview. It can be shown or hidden.
+- A top toolbar provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, and preview toggling.
 
-## Load only relevant detail
-
-## Important paths
+## Current Folder Layout
 
 ```text
-src/markdown_editor.html
+.
+├── .agents
+│   └── skills
+│       ├── app.md
+│       ├── editor-actions.md
+│       ├── history.md
+│       ├── markdown-editor-html.md
+│       ├── markdown.md
+│       ├── resizer.md
+│       ├── styles.md
+│       ├── utils.md
+│       └── viewport.md
+├── assets
+├── AGENTS.md
+├── LICENSE
+├── README.md
+└── src
+    ├── markdown_forge.html
+    ├── styles.css
+    └── js
+        ├── app.js
+        ├── editor-actions.js
+        ├── history.js
+        ├── markdown.js
+        ├── resizer.js
+        ├── utils.js
+        └── viewport.js
 ```
 
-## Safety rules
+## Important Paths
+
+```text
+.agents/skills/
+src/markdown_forge.html
+src/styles.css
+src/js/app.js
+src/js/markdown.js
+src/js/editor-actions.js
+src/js/history.js
+src/js/viewport.js
+src/js/resizer.js
+src/js/utils.js
+```
+
+## Skill Routing
+
+- Keep subsystem routing in `.agents/skills/`.
+- Use the matching file there when a change touches the relevant area.
+- Add or update a small skill file when a new subsystem needs routing guidance.
+
+## Load Only Relevant Detail
+
+- Read only the files directly related to the requested change before editing.
+- Prefer `rg` and `rg --files` when searching the project.
+- Keep diffs small and reviewable.
+
+## Safety Rules
 
 - Ask before destructive commands such as deleting files or rewriting git history.
-- Prefer small, reviewable diffs.
 - Do not add dependencies unless asked.
 - Do not update `requirements.txt` unless asked.
+- Preserve the dependency-free static app structure unless the user asks for a build system.
 
-## Skill routing
+## Documentation Rule
 
-## Documentation rule
-
+- Keep documentation simple, human readable, and consistent with the current static HTML/CSS/JavaScript implementation.
+- Update the folder layout in this file when files are added, removed, or moved.
