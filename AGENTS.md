@@ -16,7 +16,12 @@
 - The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, Focus mode, and About with the MIT license.
 - The tab strip provides scroll controls, clickable open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
 - The app warns before closing a dirty tab or before refresh/close discards unsaved changes in any open document.
-- The AI Assistant works only in Markdown mode and only replaces selected text after a review dialog. It is available from the toolbar and from the Markdown editor context menu when text is selected.
+- The AI Assistant works in WYSIWYG mode and Markdown mode, and replaces selected text after a review dialog. It is available from the toolbar and from the editor context menu when text is selected.
+- The AI Assistant has a settings dialog for choosing local mock mode or an OpenAI-compatible server with a server URL defaulting to `http://127.0.0.1:11434/v1/`, model listing from `/models` into a visible dropdown, optional API key, and connection testing that accepts reachable reasoning-only completion responses.
+- The AI Assistant review dialog shows a compact action log with mode, endpoint, model, the configured action timeout, elapsed time, and error-specific suggestions.
+- The AI Assistant shows toolbar and menu status for mock mode, connection checks, connected servers, server errors, auth errors, and running actions.
+- The AI Assistant toolbar menu is positioned as a floating viewport menu so toolbar overflow does not clip it.
+- Local AI server testing may require serving the app from a local HTTP origin instead of opening it as `file://`, or setting an Ollama CORS environment variable such as `OLLAMA_ORIGINS=*`, because some servers reject browser requests with `Origin: null`.
 - File shortcuts are Ctrl/Cmd+N for New tab, Ctrl/Cmd+O for Open into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Tab shortcuts are Ctrl/Cmd+W for Close tab, Ctrl/Cmd+PageUp/PageDown for previous/next tab, Ctrl/Cmd+Shift+PageUp/PageDown for moving the active tab left/right, and Ctrl/Cmd+1 through Ctrl/Cmd+9 for tab positions.
 - Focus mode shortcuts are Ctrl/Cmd+Shift+F to toggle Focus mode and Escape to exit Focus mode.
@@ -57,6 +62,8 @@
 │       ├── ai-assistant.js
 │       ├── ai-context-menu.js
 │       ├── ai-provider.js
+│       ├── ai-settings.js
+│       ├── ai-status.js
 │       ├── document-session.js
 │       ├── editor-actions.js
 │       ├── file-store.js
@@ -72,6 +79,11 @@
 └── tests
     └── unit
         ├── ai-actions.test.js
+        ├── ai-context-menu.test.js
+        ├── ai-provider.test.js
+        ├── ai-settings.test.js
+        ├── ai-status.test.js
+        ├── markdown-ai-guards.test.js
         └── tab-manager.test.js
 ```
 
@@ -89,6 +101,8 @@ src/js/ai-actions.js
 src/js/ai-assistant.js
 src/js/ai-context-menu.js
 src/js/ai-provider.js
+src/js/ai-settings.js
+src/js/ai-status.js
 src/js/document-session.js
 src/js/file-store.js
 src/js/recent-files.js
@@ -102,6 +116,9 @@ src/js/viewport.js
 src/js/resizer.js
 src/js/utils.js
 tests/unit/ai-actions.test.js
+tests/unit/ai-provider.test.js
+tests/unit/ai-settings.test.js
+tests/unit/ai-status.test.js
 tests/unit/tab-manager.test.js
 ```
 
@@ -109,7 +126,7 @@ tests/unit/tab-manager.test.js
 
 - Keep subsystem routing in `.agents/skills/`.
 - Use the matching file there when a change touches the relevant area.
-- Use `.agents/skills/ai-assistant.md` when a change touches AI Assistant menus, selected-text AI workflows, provider calls, review/apply behavior, or local mock AI transforms.
+- Use `.agents/skills/ai-assistant.md` when a change touches AI Assistant menus, selected-text AI workflows, provider calls, AI settings, AI status display, review/apply behavior, or local mock AI transforms.
 - Use `.agents/skills/asset-store.md` when a change touches local image workspace storage.
 - Use `.agents/skills/tab-manager.md` when a change touches in-memory tab ownership, active tab selection, tab closing, or file-handle lookup across tabs.
 - Add or update a small skill file when a new subsystem needs routing guidance.

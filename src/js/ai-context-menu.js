@@ -66,19 +66,16 @@
     }
 
     function show(event, range) {
-      currentRange = {
-        start: range.start,
-        end: range.end,
-        text: range.text
-      };
+      currentRange = Object.assign({}, range);
       fitToViewport(event.clientX, event.clientY);
     }
 
     function handleContextMenu(event) {
-      var range = guards.selectedRange(markdownEditor);
+      var range = options.captureSelection ? options.captureSelection() : guards.selectedRange(markdownEditor);
 
       if (!guards.canShowContextMenu({
         event: event,
+        editor: options.wysiwygEditor,
         mode: options.getActiveMode(),
         range: range,
         textarea: markdownEditor
@@ -92,7 +89,7 @@
         var range = currentRange;
         hide();
         options.onAction(action.id, {
-          range: range,
+          selection: range,
           source: "context"
         });
       });
@@ -114,6 +111,9 @@
 
     function bindEvents() {
       markdownEditor.addEventListener("contextmenu", handleContextMenu);
+      if (options.wysiwygEditor) {
+        options.wysiwygEditor.addEventListener("contextmenu", handleContextMenu);
+      }
       document.addEventListener("pointerdown", handleDocumentPointerDown);
       document.addEventListener("keydown", handleEscape);
       window.addEventListener("scroll", hide, { passive: true });

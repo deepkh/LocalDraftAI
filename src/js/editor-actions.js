@@ -18,11 +18,14 @@
     }
 
     function selectedTextareaRange() {
+      var value = markdownEditor.value.slice(markdownEditor.selectionStart, markdownEditor.selectionEnd);
+
       return {
         mode: "markdown",
         start: markdownEditor.selectionStart,
         end: markdownEditor.selectionEnd,
-        value: markdownEditor.value.slice(markdownEditor.selectionStart, markdownEditor.selectionEnd)
+        text: value,
+        value: value
       };
     }
 
@@ -257,6 +260,8 @@
     function captureSelection() {
       var selection;
       var range;
+      var container;
+      var text;
 
       if (context.getActiveMode() === "markdown") {
         return selectedTextareaRange();
@@ -271,9 +276,14 @@
       }
 
       range = selection.getRangeAt(0);
+      container = document.createElement("div");
+      container.appendChild(range.cloneContents());
+      text = ME.markdown.htmlToMarkdown(container) || selection.toString();
       return {
         mode: "wysiwyg",
-        range: isSelectionInsideWysiwyg(range) ? range.cloneRange() : null
+        range: isSelectionInsideWysiwyg(range) ? range.cloneRange() : null,
+        text: text,
+        value: text
       };
     }
 

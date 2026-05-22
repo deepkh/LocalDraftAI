@@ -22,11 +22,23 @@
   }
 
   function hasTextSelection(range) {
-    return Boolean(range && range.end > range.start && String(range.text || "").trim());
+    if (!range) {
+      return false;
+    }
+
+    if (range.mode === "wysiwyg") {
+      return Boolean(String(range.text || "").trim());
+    }
+
+    return Boolean(range.end > range.start && String(range.text || "").trim());
+  }
+
+  function canUseAiSelection(mode, range) {
+    return (mode === "markdown" || mode === "wysiwyg") && hasTextSelection(range);
   }
 
   function canUseMarkdownSelection(mode, range) {
-    return mode === "markdown" && hasTextSelection(range);
+    return canUseAiSelection(mode, range);
   }
 
   function canShowContextMenu(options) {
@@ -34,12 +46,16 @@
 
     return Boolean(
       options.event &&
-      options.event.target === options.textarea &&
-      canUseMarkdownSelection(options.mode, options.range)
+      canUseAiSelection(options.mode, options.range) &&
+      (
+        (options.mode === "markdown" && options.event.target === options.textarea) ||
+        (options.mode === "wysiwyg" && options.editor && options.editor.contains(options.event.target))
+      )
     );
   }
 
   ME.markdownAiGuards = {
+    canUseAiSelection: canUseAiSelection,
     canShowContextMenu: canShowContextMenu,
     canUseMarkdownSelection: canUseMarkdownSelection,
     hasTextSelection: hasTextSelection,

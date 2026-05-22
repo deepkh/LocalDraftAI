@@ -1,0 +1,275 @@
+const assert = require("node:assert/strict");
+
+function createStorage() {
+  return {
+    values: {},
+    getItem(key) {
+      return this.values[key] || "";
+    },
+    removeItem(key) {
+      delete this.values[key];
+    },
+    setItem(key, value) {
+      this.values[key] = String(value);
+    }
+  };
+}
+
+global.window = {
+  AbortController: global.AbortController,
+  localStorage: createStorage()
+};
+
+require("../../src/js/ai-actions.js");
+require("../../src/js/markdown-repair.js");
+require("../../src/js/ai-provider.js");
+
+const providerApi = window.MarkdownEditor.aiProvider;
+
+async function runTest(name, callback) {
+  try {
+    await callback();
+    console.log("ok - " + name);
+  } catch (error) {
+    console.error("not ok - " + name);
+    throw error;
+  }
+}
+
+function resetSettings() {
+  window.localStorage.values = {};
+  delete window.MarkdownForgeAIConfig;
+  delete window.fetch;
+}
+
+(async function () {
+  await runTest("runs local mock action when no endpoint is configured", async function () {
+    var provider;
+    var result;
+
+    resetSettings();
+    provider = providerApi.create();
+    result = await provider.run("correctGrammar", "teh value");
+
+    assert.equal(result, "the value");
+  });
+
+  await runTest("sends OpenAI-compatible action requests with configured settings", async function () {
+    var provider;
+    var request;
+    var result;
+
+    resetSettings();
+    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
+    window.localStorage.setItem("markdownForge.ai.apiKey", "test-key");
+    window.fetch = async function (url, options) {
+      request = {
+        body: JSON.parse(options.body),
+        headers: options.headers,
+        url: url
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            choices: [
+              {
+                message: {
+                  content: "```markdown\nFixed text\n```"
+                }
+              }
+            ]
+          };
+        }
+      };
+    };
+
+    provider = providerApi.create();
+    result = await provider.run("improveWording", "text");
+
+    assert.equal(result, "Fixed text");
+    assert.equal(request.url, "http://localhost:11434/v1/chat/completions");
+    assert.equal(request.headers.Authorization, "Bearer test-key");
+    assert.equal(request.body.model, "qwen3:4b");
+    assert.equal(request.body.stream, false);
+    assert.match(request.body.messages[0].content, /Improve the wording/);
+  });
+
+  await runTest("tests configured provider connections", async function () {
+    var provider;
+    var request;
+    var result;
+
+    resetSettings();
+    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
+    window.fetch = async function (url, options) {
+      request = {
+        body: JSON.parse(options.body),
+        url: url
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            choices: [
+              {
+                message: {
+                  content: "OK"
+                }
+              }
+            ]
+          };
+        }
+      };
+    };
+
+    provider = providerApi.create();
+    result = await provider.testConnection();
+
+    assert.equal(result.endpoint, "http://localhost:11434/v1/chat/completions");
+    assert.equal(result.model, "qwen3:4b");
+    assert.equal(request.url, "http://localhost:11434/v1/chat/completions");
+    assert.equal(request.body.max_tokens, 8);
+  });
+
+  await runTest("accepts reasoning-only connection test responses", async function () {
+    var provider;
+    var result;
+
+    resetSettings();
+    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
+    window.fetch = async function () {
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            choices: [
+              {
+                message: {
+                  content: "",
+                  reasoning: "Thinking about the connection test."
+                }
+              }
+            ]
+          };
+        }
+      };
+    };
+
+    provider = providerApi.create();
+    result = await provider.testConnection();
+
+    assert.equal(result.endpoint, "http://localhost:11434/v1/chat/completions");
+    assert.equal(result.model, "qwen3:4b");
+  });
+
+  await runTest("lists models from a server base URL", async function () {
+    var provider;
+    var request;
+    var models;
+
+    resetSettings();
+    window.fetch = async function (url, options) {
+      request = {
+        method: options.method,
+        url: url
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            object: "list",
+            data: [
+              { id: "qwen3:4b" },
+              { id: "gemma4:e4b" }
+            ]
+          };
+        }
+      };
+    };
+
+    provider = providerApi.create();
+    models = await provider.listModels({
+      endpoint: "http://127.0.0.1:11434/v1/"
+    });
+
+    assert.equal(request.url, "http://127.0.0.1:11434/v1/models");
+    assert.equal(request.method, "GET");
+    assert.deepEqual(models, ["qwen3:4b", "gemma4:e4b"]);
+  });
+
+  await runTest("saves and clears provider settings", function () {
+    resetSettings();
+
+    providerApi.saveSettings({
+      apiKey: "secret",
+      endpoint: " http://localhost:11434/v1/chat/completions ",
+      mode: "server",
+      model: " qwen3:4b "
+    });
+
+    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "http://localhost:11434/v1/chat/completions");
+    assert.equal(window.localStorage.getItem("markdownForge.ai.model"), "qwen3:4b");
+    assert.equal(window.localStorage.getItem("markdownForge.ai.apiKey"), "secret");
+
+    providerApi.saveSettings({
+      endpoint: "http://127.0.0.1:11434/v1/",
+      mode: "server",
+      model: "qwen3:4b"
+    });
+
+    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "http://127.0.0.1:11434/v1/chat/completions");
+
+    providerApi.clearSettings();
+
+    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "");
+    assert.equal(window.localStorage.getItem("markdownForge.ai.model"), "");
+    assert.equal(window.localStorage.getItem("markdownForge.ai.apiKey"), "");
+  });
+
+  await runTest("exposes the configured AI action timeout", function () {
+    var provider = providerApi.create();
+
+    assert.equal(providerApi.actionTimeoutMs(), 550000);
+    assert.equal(provider.actionTimeoutMs(), 550000);
+  });
+
+  await runTest("exposes HTTP status on provider errors", async function () {
+    var provider;
+
+    resetSettings();
+    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.fetch = async function () {
+      return {
+        ok: false,
+        status: 403,
+        text: async function () {
+          return "forbidden";
+        }
+      };
+    };
+
+    provider = providerApi.create();
+
+    await assert.rejects(
+      function () {
+        return provider.testConnection();
+      },
+      function (error) {
+        assert.equal(error.code, "http_error");
+        assert.equal(error.status, 403);
+        return true;
+      }
+    );
+  });
+}());

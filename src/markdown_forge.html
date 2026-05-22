@@ -55,6 +55,7 @@
         </div>
         <div class="group ai-toolbar-group" aria-label="AI Assistant">
           <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false" title="AI Assistant">AI Assistant</button>
+          <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
           <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
         </div>
         <div class="group" aria-label="History">
@@ -153,6 +154,7 @@ SOFTWARE.</pre>
         </div>
         <div class="ai-review-body">
           <div id="aiReviewStatus" class="ai-review-status" aria-live="polite"></div>
+          <div id="aiReviewLog" class="ai-review-log" aria-live="polite"></div>
           <div class="ai-review-grid">
             <section class="ai-review-panel" aria-label="Original selection">
               <h3>Original Selection</h3>
@@ -167,6 +169,53 @@ SOFTWARE.</pre>
         <div class="ai-review-actions">
           <button type="button" id="aiReviewCancel" class="file-button">Cancel</button>
           <button type="button" id="aiReviewApply" class="file-button">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiSettingsOverlay" class="ai-settings-overlay" hidden>
+      <div id="aiSettingsDialog" class="ai-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="aiSettingsTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="aiSettingsTitle">AI Assistant Settings</h2>
+          <button type="button" id="aiSettingsClose" class="icon-text ai-settings-close" aria-label="Close AI settings">×</button>
+        </div>
+        <form id="aiSettingsForm" class="ai-settings-body">
+          <fieldset class="ai-settings-mode">
+            <legend>Provider mode</legend>
+            <label>
+              <input type="radio" name="aiProviderMode" id="aiModeMock" value="mock">
+              Local mock mode
+            </label>
+            <label>
+              <input type="radio" name="aiProviderMode" id="aiModeServer" value="server">
+              OpenAI-compatible server
+            </label>
+          </fieldset>
+          <label class="ai-settings-field">
+            Server URL
+            <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1/">
+          </label>
+          <div class="ai-settings-field">
+            Model
+            <div class="ai-settings-model-row">
+              <input type="text" id="aiModelInput" list="aiModelOptions" autocomplete="off" spellcheck="false" placeholder="Choose or type a model">
+              <button type="button" id="aiModelListButton" class="file-button">List Models</button>
+            </div>
+            <select id="aiModelSelect" class="ai-model-select" aria-label="Choose loaded AI model" disabled>
+              <option value="">No models loaded</option>
+            </select>
+            <datalist id="aiModelOptions"></datalist>
+          </div>
+          <label class="ai-settings-field">
+            API Key
+            <input type="password" id="aiApiKeyInput" autocomplete="off" spellcheck="false" placeholder="optional">
+          </label>
+          <div id="aiSettingsStatus" class="ai-settings-status" aria-live="polite"></div>
+        </form>
+        <div class="ai-settings-actions">
+          <button type="button" id="aiSettingsTest" class="file-button">Test Connection</button>
+          <button type="button" id="aiSettingsCancel" class="file-button">Cancel</button>
+          <button type="button" id="aiSettingsSave" class="file-button">Save</button>
         </div>
       </div>
     </div>
@@ -187,6 +236,8 @@ SOFTWARE.</pre>
   <script src="js/markdown-repair.js"></script>
   <script src="js/markdown-ai-guards.js"></script>
   <script src="js/ai-provider.js"></script>
+  <script src="js/ai-status.js"></script>
+  <script src="js/ai-settings.js"></script>
   <script src="js/ai-context-menu.js"></script>
   <script src="js/ai-assistant.js"></script>
   <script src="js/app.js"></script>

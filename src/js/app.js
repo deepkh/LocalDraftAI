@@ -34,16 +34,34 @@
   var aboutDialog = document.querySelector(".about-dialog");
   var aboutClose = document.getElementById("aboutClose");
   var aiAssistantButton = document.getElementById("aiAssistantButton");
+  var aiStatusBadge = document.getElementById("aiStatusBadge");
   var aiToolbarMenu = document.getElementById("aiToolbarMenu");
   var aiReviewOverlay = document.getElementById("aiReviewOverlay");
   var aiReviewDialog = document.getElementById("aiReviewDialog");
   var aiReviewTitle = document.getElementById("aiReviewTitle");
   var aiReviewStatus = document.getElementById("aiReviewStatus");
+  var aiReviewLog = document.getElementById("aiReviewLog");
   var aiOriginalText = document.getElementById("aiOriginalText");
   var aiResultText = document.getElementById("aiResultText");
   var aiReviewApply = document.getElementById("aiReviewApply");
   var aiReviewCancel = document.getElementById("aiReviewCancel");
   var aiReviewClose = document.getElementById("aiReviewClose");
+  var aiSettingsOverlay = document.getElementById("aiSettingsOverlay");
+  var aiSettingsDialog = document.getElementById("aiSettingsDialog");
+  var aiSettingsForm = document.getElementById("aiSettingsForm");
+  var aiModeMock = document.getElementById("aiModeMock");
+  var aiModeServer = document.getElementById("aiModeServer");
+  var aiEndpointInput = document.getElementById("aiEndpointInput");
+  var aiModelInput = document.getElementById("aiModelInput");
+  var aiModelListButton = document.getElementById("aiModelListButton");
+  var aiModelOptions = document.getElementById("aiModelOptions");
+  var aiModelSelect = document.getElementById("aiModelSelect");
+  var aiApiKeyInput = document.getElementById("aiApiKeyInput");
+  var aiSettingsStatus = document.getElementById("aiSettingsStatus");
+  var aiSettingsTest = document.getElementById("aiSettingsTest");
+  var aiSettingsSave = document.getElementById("aiSettingsSave");
+  var aiSettingsCancel = document.getElementById("aiSettingsCancel");
+  var aiSettingsClose = document.getElementById("aiSettingsClose");
   var documentTitle = document.getElementById("documentTitle");
   var newFileButton = document.getElementById("newFile");
   var openFileButton = document.getElementById("openFile");
@@ -1667,20 +1685,44 @@
       applyButton: aiReviewApply,
       cancelButton: aiReviewCancel,
       closeButton: aiReviewClose,
+      captureSelection: actions.captureSelection,
       focusActiveEditor: focusActiveEditor,
       getActiveMode: getActiveMode,
       getActiveSessionId: function () {
         var session = getActiveSession();
         return session ? session.id : null;
       },
+      insertHtmlAtSelection: actions.insertHtmlAtSelection,
       markdownEditor: markdownEditor,
       originalText: aiOriginalText,
+      renderMarkdownToHtml: renderMarkdownForSession,
       resultText: aiResultText,
+      wysiwygEditor: wysiwygEditor,
       reviewDialog: aiReviewDialog,
+      reviewLog: aiReviewLog,
       reviewOverlay: aiReviewOverlay,
       reviewStatus: aiReviewStatus,
       reviewTitle: aiReviewTitle,
       setMarkdown: setMarkdown,
+      settings: {
+        apiKeyInput: aiApiKeyInput,
+        cancelButton: aiSettingsCancel,
+        closeButton: aiSettingsClose,
+        dialog: aiSettingsDialog,
+        endpointInput: aiEndpointInput,
+        form: aiSettingsForm,
+        modeMock: aiModeMock,
+        modeServer: aiModeServer,
+        modelInput: aiModelInput,
+        modelListButton: aiModelListButton,
+        modelOptions: aiModelOptions,
+        modelSelect: aiModelSelect,
+        overlay: aiSettingsOverlay,
+        saveButton: aiSettingsSave,
+        statusElement: aiSettingsStatus,
+        testButton: aiSettingsTest
+      },
+      statusBadge: aiStatusBadge,
       toolbarButton: aiAssistantButton,
       toolbarMenu: aiToolbarMenu
     });

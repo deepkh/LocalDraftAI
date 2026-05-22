@@ -26,7 +26,12 @@ A small local Markdown editor that runs in the browser.
 - Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
 - Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
 - Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
-- Use the AI Assistant toolbar menu or Markdown-editor right-click menu to rewrite selected Markdown after reviewing the result.
+- Use the AI Assistant toolbar menu or editor right-click menu to rewrite selected text after reviewing the result.
+- Configure AI Assistant provider mode, endpoint, model, and API key from the AI Settings dialog.
+- Load OpenAI-compatible model names into a visible AI Settings model dropdown.
+- Read AI action details in the review dialog, including mode, endpoint, model, elapsed time, timeout, and recovery suggestions.
+- See the AI Assistant status in the toolbar and menu, including mock mode, connection checks, connected state, server errors, auth errors, and running actions.
+- Open the AI Assistant toolbar menu as a floating menu so it stays visible below the toolbar.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - Reopen files or remove entries from an IndexedDB-backed recent-file list.
 - View the MIT license from the About dialog.
@@ -48,6 +53,26 @@ src/markdown_forge.html
 
 No install step is needed.
 
+If you use a local AI server and the browser reports a connection or CORS error, serve the app from a local HTTP origin instead of opening it as `file://`:
+
+```text
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000/src/markdown_forge.html
+```
+
+For Ollama, you can also allow browser origins from the Ollama side by setting:
+
+```text
+OLLAMA_ORIGINS=*
+```
+
+Restart Ollama after changing the environment variable.
+
 ## Project Layout
 
 ```text
@@ -64,6 +89,8 @@ src/
     ├── ai-assistant.js
     ├── ai-context-menu.js
     ├── ai-provider.js
+    ├── ai-settings.js
+    ├── ai-status.js
     ├── document-session.js
     ├── editor-actions.js
     ├── file-store.js
@@ -79,18 +106,49 @@ src/
 tests/
 └── unit/
     ├── ai-actions.test.js
+    ├── ai-context-menu.test.js
+    ├── ai-provider.test.js
+    ├── ai-settings.test.js
+    ├── ai-status.test.js
+    ├── markdown-ai-guards.test.js
     └── tab-manager.test.js
 ```
 
 ## AI Provider
 
-The AI Assistant uses local mock transforms by default. To use an OpenAI-compatible local or remote provider, set these browser `localStorage` keys before running an AI action:
+The AI Assistant uses local mock transforms by default and labels mock results in the review dialog. The toolbar status badge and AI menu show whether Markdown Forge is using mock mode, checking a configured server, connected, running, or blocked by a reachable provider error.
+
+Configure the provider from the app:
+
+1. Open `src/markdown_forge.html` in Chrome or another supported browser.
+2. Open the **AI Assistant** menu.
+3. Click **Settings**.
+4. Choose **Local mock mode** or **OpenAI-compatible server**.
+5. For server mode, enter the server URL and optional API key.
+6. Click **List Models** and choose a model from the dropdown, or type a model name manually.
+7. Click **Test Connection**.
+8. Click **Save**.
+9. Switch to WYSIWYG or Markdown mode, select text, right-click or open the AI Assistant menu, choose an AI action, review the result, then click **Apply**.
+
+Example local server settings:
 
 ```text
-markdownForge.ai.endpoint
-markdownForge.ai.model
-markdownForge.ai.apiKey
+Server URL: http://127.0.0.1:11434/v1/
+Model: qwen3:4b
+API Key: optional
 ```
+
+Example remote server settings:
+
+```text
+Server URL: https://your-server.example.com/v1/
+Model: your-model-name
+API Key: your-api-key
+```
+
+To return to local mock mode, open **AI Assistant** > **Settings**, choose **Local mock mode**, and click **Save**. Settings are stored in browser `localStorage` under `markdownForge.ai.endpoint`, `markdownForge.ai.model`, and `markdownForge.ai.apiKey`.
+
+The settings dialog defaults the server URL to `http://127.0.0.1:11434/v1/`, lists models from `/models`, and sends AI requests to `/chat/completions`. Connection tests accept reachable OpenAI-compatible completion responses, including reasoning-only test responses from local models, while AI actions still require returned Markdown content. Connection tests and AI actions use request timeouts so an unreachable server does not leave the UI hanging. During each AI action, the review dialog shows a compact activity log with request details, the selected editor mode, the configured action timeout, elapsed time, and error-specific suggestions.
 
 ## Tests
 
@@ -98,6 +156,9 @@ Run the dependency-free unit tests with:
 
 ```text
 node tests/unit/ai-actions.test.js
+node tests/unit/ai-provider.test.js
+node tests/unit/ai-settings.test.js
+node tests/unit/ai-status.test.js
 node tests/unit/tab-manager.test.js
 ```
 
