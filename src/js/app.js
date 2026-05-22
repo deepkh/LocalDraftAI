@@ -33,6 +33,17 @@
   var aboutOverlay = document.getElementById("aboutOverlay");
   var aboutDialog = document.querySelector(".about-dialog");
   var aboutClose = document.getElementById("aboutClose");
+  var aiAssistantButton = document.getElementById("aiAssistantButton");
+  var aiToolbarMenu = document.getElementById("aiToolbarMenu");
+  var aiReviewOverlay = document.getElementById("aiReviewOverlay");
+  var aiReviewDialog = document.getElementById("aiReviewDialog");
+  var aiReviewTitle = document.getElementById("aiReviewTitle");
+  var aiReviewStatus = document.getElementById("aiReviewStatus");
+  var aiOriginalText = document.getElementById("aiOriginalText");
+  var aiResultText = document.getElementById("aiResultText");
+  var aiReviewApply = document.getElementById("aiReviewApply");
+  var aiReviewCancel = document.getElementById("aiReviewCancel");
+  var aiReviewClose = document.getElementById("aiReviewClose");
   var documentTitle = document.getElementById("documentTitle");
   var newFileButton = document.getElementById("newFile");
   var openFileButton = document.getElementById("openFile");
@@ -52,6 +63,7 @@
   var viewport;
   var actions;
   var resizer;
+  var aiAssistant;
   var suppressNextTabClick = false;
   var tabDrag = {
     active: false,
@@ -379,6 +391,10 @@
       return;
     }
 
+    if (aiAssistant) {
+      aiAssistant.hideTransientUi();
+    }
+
     viewportAnchor = viewport.consumeModeSwitchAnchor();
 
     if (getActiveMode() === "wysiwyg") {
@@ -457,6 +473,8 @@
 
   function renderRecentFiles(records) {
     var placeholder = document.createElement("option");
+    var openGroup;
+    var removeGroup;
 
     recentRecords = records || [];
     recentFilesSelect.innerHTML = "";
@@ -464,12 +482,29 @@
     placeholder.textContent = recentRecords.length ? "Recent" : "No recent";
     recentFilesSelect.appendChild(placeholder);
 
-    recentRecords.forEach(function (record) {
-      var option = document.createElement("option");
-      option.value = String(record.id);
-      option.textContent = record.name || "Untitled.md";
-      recentFilesSelect.appendChild(option);
-    });
+    if (recentRecords.length) {
+      openGroup = document.createElement("optgroup");
+      openGroup.label = "Open";
+      removeGroup = document.createElement("optgroup");
+      removeGroup.label = "Remove from Recent";
+
+      recentRecords.forEach(function (record) {
+        var openOption = document.createElement("option");
+        var removeOption = document.createElement("option");
+        var name = record.name || "Untitled.md";
+
+        openOption.value = "open:" + String(record.id);
+        openOption.textContent = name;
+        openGroup.appendChild(openOption);
+
+        removeOption.value = "remove:" + String(record.id);
+        removeOption.textContent = "Remove " + name;
+        removeGroup.appendChild(removeOption);
+      });
+
+      recentFilesSelect.appendChild(openGroup);
+      recentFilesSelect.appendChild(removeGroup);
+    }
 
     recentFilesSelect.value = "";
     recentFilesSelect.disabled = !isFileAccessSupported() || !recentRecords.length;
@@ -534,7 +569,7 @@
       return;
     }
 
-    recentFilesSelect.title = "Recent files";
+    recentFilesSelect.title = "Open or remove recent files";
   }
 
   function handleBeforeUnload(event) {
@@ -1223,14 +1258,11 @@
     }
   }
 
-  async function handleRecentFileOpen() {
-    var recentId = recentFilesSelect.value;
+  async function handleRecentFileOpen(recentId) {
     var record = findRecentRecord(recentId);
     var fileData;
     var existingSession;
     var session;
-
-    recentFilesSelect.value = "";
 
     if (!recentId || !record) {
       return;
@@ -1262,6 +1294,47 @@
       await refreshRecentFiles();
       showFileError("Open recent file", error);
     }
+  }
+
+  async function handleRecentFileRemove(recentId) {
+    var record = findRecentRecord(recentId);
+    var name = record ? record.name || "Untitled.md" : "this entry";
+
+    if (!recentId || !record || !recentStore || !recentStore.isSupported()) {
+      return;
+    }
+
+    if (!window.confirm("Remove " + name + " from Recent files?")) {
+      return;
+    }
+
+    try {
+      await recentStore.remove(record.id);
+      await refreshRecentFiles();
+    } catch (error) {
+      await refreshRecentFiles();
+      showFileError("Remove recent file", error);
+    }
+  }
+
+  async function handleRecentFileChange() {
+    var value = recentFilesSelect.value;
+    var parts;
+
+    recentFilesSelect.value = "";
+
+    if (!value) {
+      return;
+    }
+
+    parts = value.split(":");
+
+    if (parts[0] === "remove") {
+      await handleRecentFileRemove(parts[1]);
+      return;
+    }
+
+    await handleRecentFileOpen(parts[1]);
   }
 
   function handleFileShortcut(key, event) {
@@ -1404,7 +1477,7 @@
     openFileButton.addEventListener("click", handleOpenFile);
     saveFileButton.addEventListener("click", handleSaveFile);
     saveAsFileButton.addEventListener("click", handleSaveAsFile);
-    recentFilesSelect.addEventListener("change", handleRecentFileOpen);
+    recentFilesSelect.addEventListener("change", handleRecentFileChange);
 
     wysiwygMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
     markdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
@@ -1430,7 +1503,9 @@
     });
 
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && !aboutOverlay.hidden) {
+      if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
+        event.preventDefault();
+      } else if (event.key === "Escape" && !aboutOverlay.hidden) {
         event.preventDefault();
         closeAboutDialog();
       } else if (event.key === "Escape" && focusModeEnabled) {
@@ -1588,6 +1663,28 @@
       workspace: workspace
     });
 
+    aiAssistant = ME.aiAssistant.create({
+      applyButton: aiReviewApply,
+      cancelButton: aiReviewCancel,
+      closeButton: aiReviewClose,
+      focusActiveEditor: focusActiveEditor,
+      getActiveMode: getActiveMode,
+      getActiveSessionId: function () {
+        var session = getActiveSession();
+        return session ? session.id : null;
+      },
+      markdownEditor: markdownEditor,
+      originalText: aiOriginalText,
+      resultText: aiResultText,
+      reviewDialog: aiReviewDialog,
+      reviewOverlay: aiReviewOverlay,
+      reviewStatus: aiReviewStatus,
+      reviewTitle: aiReviewTitle,
+      setMarkdown: setMarkdown,
+      toolbarButton: aiAssistantButton,
+      toolbarMenu: aiToolbarMenu
+    });
+
     tabs = ME.tabManager.create({
       createSession: createSession
     });
@@ -1598,6 +1695,7 @@
     tabs.addSession(initialSession, { activate: false });
     setActiveSession(initialSession, { restoreScroll: false });
     bindEvents();
+    aiAssistant.bindEvents();
     updateFileControls();
     refreshRecentFiles();
     resizer.updateValue(workspace.querySelector(".editor-pane").getBoundingClientRect().width);

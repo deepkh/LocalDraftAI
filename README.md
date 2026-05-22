@@ -26,8 +26,10 @@ A small local Markdown editor that runs in the browser.
 - Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
 - Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
 - Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
+- Use the AI Assistant toolbar menu or Markdown-editor right-click menu to rewrite selected Markdown after reviewing the result.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
-- Reopen recent files from an IndexedDB-backed recent-file list.
+- Reopen files or remove entries from an IndexedDB-backed recent-file list.
+- View the MIT license from the About dialog.
 - Warn before closing a dirty tab or refreshing/closing the browser with dirty documents.
 - Use file shortcuts: Ctrl/Cmd+N for a new tab, Ctrl/Cmd+O to open a file into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Use tab shortcuts: Ctrl/Cmd+W closes the active tab, Ctrl/Cmd+PageUp/PageDown switches tabs, Ctrl/Cmd+Shift+PageUp/PageDown reorders the active tab, and Ctrl/Cmd+1 through Ctrl/Cmd+9 jumps to a tab by position.
@@ -58,11 +60,17 @@ src/
 └── js/
     ├── app.js
     ├── asset-store.js
+    ├── ai-actions.js
+    ├── ai-assistant.js
+    ├── ai-context-menu.js
+    ├── ai-provider.js
     ├── document-session.js
     ├── editor-actions.js
     ├── file-store.js
     ├── history.js
     ├── markdown.js
+    ├── markdown-ai-guards.js
+    ├── markdown-repair.js
     ├── recent-files.js
     ├── resizer.js
     ├── tab-manager.js
@@ -70,14 +78,26 @@ src/
     └── viewport.js
 tests/
 └── unit/
+    ├── ai-actions.test.js
     └── tab-manager.test.js
+```
+
+## AI Provider
+
+The AI Assistant uses local mock transforms by default. To use an OpenAI-compatible local or remote provider, set these browser `localStorage` keys before running an AI action:
+
+```text
+markdownForge.ai.endpoint
+markdownForge.ai.model
+markdownForge.ai.apiKey
 ```
 
 ## Tests
 
-Run the dependency-free unit test with:
+Run the dependency-free unit tests with:
 
 ```text
+node tests/unit/ai-actions.test.js
 node tests/unit/tab-manager.test.js
 ```
 

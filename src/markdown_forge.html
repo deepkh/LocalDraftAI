@@ -19,7 +19,7 @@
           <button type="button" id="openFile" class="file-button" title="Open Markdown file (Ctrl/Cmd+O)">Open</button>
           <button type="button" id="saveFile" class="file-button" title="Save document (Ctrl/Cmd+S)">Save</button>
           <button type="button" id="saveAsFile" class="file-button" title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
-          <select id="recentFiles" class="recent-select" title="Recent files" aria-label="Recent files">
+          <select id="recentFiles" class="recent-select" title="Open or remove recent files" aria-label="Open or remove recent files">
             <option value="">Recent</option>
           </select>
         </div>
@@ -52,6 +52,10 @@
         <div class="group" aria-label="Insert">
           <button type="button" class="icon-text" data-action="link" title="Link" aria-label="Link">[]</button>
           <button type="button" class="icon-text" data-action="image" title="Insert image" aria-label="Insert image">Img</button>
+        </div>
+        <div class="group ai-toolbar-group" aria-label="AI Assistant">
+          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false" title="AI Assistant">AI Assistant</button>
+          <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
         </div>
         <div class="group" aria-label="History">
           <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo">&lt;-</button>
@@ -113,6 +117,56 @@
           <p>Markdown Forge is a local, browser-based Markdown editor.</p>
           <p>Author: deepkh</p>
           <p>GitHub repository: <a href="https://github.com/deepkh/MarkdownForge" target="_blank" rel="noreferrer noopener">https://github.com/deepkh/MarkdownForge</a></p>
+          <details class="license-details">
+            <summary>MIT License</summary>
+            <pre>MIT License
+
+Copyright (c) 2026 Markdown Editor contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiReviewOverlay" class="ai-review-overlay" hidden>
+      <div id="aiReviewDialog" class="ai-review-dialog" role="dialog" aria-modal="true" aria-labelledby="aiReviewTitle" tabindex="-1">
+        <div class="ai-review-header">
+          <h2 id="aiReviewTitle">Review AI Result</h2>
+          <button type="button" id="aiReviewClose" class="icon-text ai-review-close" aria-label="Close AI review">×</button>
+        </div>
+        <div class="ai-review-body">
+          <div id="aiReviewStatus" class="ai-review-status" aria-live="polite"></div>
+          <div class="ai-review-grid">
+            <section class="ai-review-panel" aria-label="Original selection">
+              <h3>Original Selection</h3>
+              <pre id="aiOriginalText"></pre>
+            </section>
+            <section class="ai-review-panel" aria-label="AI result">
+              <h3>AI Result</h3>
+              <textarea id="aiResultText" spellcheck="false"></textarea>
+            </section>
+          </div>
+        </div>
+        <div class="ai-review-actions">
+          <button type="button" id="aiReviewCancel" class="file-button">Cancel</button>
+          <button type="button" id="aiReviewApply" class="file-button">Apply</button>
         </div>
       </div>
     </div>
@@ -129,6 +183,12 @@
   <script src="js/viewport.js"></script>
   <script src="js/editor-actions.js"></script>
   <script src="js/resizer.js"></script>
+  <script src="js/ai-actions.js"></script>
+  <script src="js/markdown-repair.js"></script>
+  <script src="js/markdown-ai-guards.js"></script>
+  <script src="js/ai-provider.js"></script>
+  <script src="js/ai-context-menu.js"></script>
+  <script src="js/ai-assistant.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
