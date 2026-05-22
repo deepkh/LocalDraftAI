@@ -472,6 +472,21 @@
     return window.confirm("Discard unsaved changes to " + activeSession.title + "?");
   }
 
+  function handleBeforeUnload(event) {
+    if (!activeSession) {
+      return;
+    }
+
+    flushActiveEditor();
+
+    if (!activeSession.dirty) {
+      return;
+    }
+
+    event.preventDefault();
+    event.returnValue = "Discard unsaved changes to " + activeSession.title + "?";
+  }
+
   function showFileError(action, error) {
     if (fileStore && fileStore.isAbortError(error)) {
       return;
@@ -803,6 +818,7 @@
     });
 
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
+    window.addEventListener("beforeunload", handleBeforeUnload);
     wysiwygEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
     markdownEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
     preview.addEventListener("scroll", viewport.scheduleEditorSync, { passive: true });

@@ -25,6 +25,7 @@ A small local Markdown editor that runs in the browser.
 - Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, and About.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - Reopen recent files from an IndexedDB-backed recent-file list.
+- Warn before New, Open, Recent, refresh, or close discards unsaved changes to the active document.
 - Use file shortcuts: Ctrl/Cmd+N for New, Ctrl/Cmd+O for Open, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 
 Browsers without the File System Access API keep the editor working, but file controls are disabled.

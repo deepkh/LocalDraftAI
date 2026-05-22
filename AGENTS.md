@@ -12,6 +12,7 @@
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
 - The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
 - The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
+- The app warns before New, Open, Recent, refresh, or close discards unsaved changes to the active document.
 - File shortcuts are Ctrl/Cmd+N for New, Ctrl/Cmd+O for Open, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 
 ## Current Folder Layout
