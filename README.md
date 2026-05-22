@@ -22,14 +22,16 @@ A small local Markdown editor that runs in the browser.
 - Store inserted local images in an `assets/` folder inside a user-chosen workspace folder, then add relative Markdown links such as `![photo](assets/photo.png)`.
 - See a live Markdown preview beside the editor.
 - Hide or show the preview pane.
+- Toggle Focus mode to collapse the file toolbar and formatting controls while keeping the tab strip docked above the editor and preview.
 - Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
 - Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
-- Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, and About.
+- Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - Reopen recent files from an IndexedDB-backed recent-file list.
 - Warn before closing a dirty tab or refreshing/closing the browser with dirty documents.
 - Use file shortcuts: Ctrl/Cmd+N for a new tab, Ctrl/Cmd+O to open a file into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Use tab shortcuts: Ctrl/Cmd+W closes the active tab, Ctrl/Cmd+PageUp/PageDown switches tabs, Ctrl/Cmd+Shift+PageUp/PageDown reorders the active tab, and Ctrl/Cmd+1 through Ctrl/Cmd+9 jumps to a tab by position.
+- Use Focus mode shortcuts: Ctrl/Cmd+Shift+F toggles Focus mode, and Escape exits Focus mode.
 
 Browsers without the File System Access API keep the editor working, but file controls are disabled.
 Local image storage also requires browser file and folder access. The first pasted, dropped, or inserted local image asks for a workspace folder, and Markdown Forge creates or reuses that folder's `assets/` directory.

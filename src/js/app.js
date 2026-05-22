@@ -10,6 +10,7 @@
   var tabs = null;
   var recentRecords = [];
   var previewVisible = true;
+  var focusModeEnabled = false;
   var syncTimer = 0;
   var wysiwygNeedsSync = false;
 
@@ -26,6 +27,7 @@
   var charCount = document.getElementById("charCount");
   var formatBlock = document.getElementById("formatBlock");
   var togglePreview = document.getElementById("togglePreview");
+  var toggleFocusMode = document.getElementById("toggleFocusMode");
   var previewStatus = document.getElementById("previewStatus");
   var aboutButton = document.getElementById("aboutButton");
   var aboutOverlay = document.getElementById("aboutOverlay");
@@ -416,6 +418,29 @@
     togglePreview.setAttribute("aria-pressed", String(previewVisible));
     togglePreview.title = previewVisible ? "Hide preview" : "Show preview";
     previewStatus.textContent = previewVisible ? "Live" : "Hidden";
+  }
+
+  function setFocusMode(enabled) {
+    focusModeEnabled = Boolean(enabled);
+    document.body.classList.toggle("focus-mode", focusModeEnabled);
+
+    if (toggleFocusMode) {
+      toggleFocusMode.textContent = focusModeEnabled ? "Exit Focus" : "Focus";
+      toggleFocusMode.setAttribute("aria-pressed", String(focusModeEnabled));
+      toggleFocusMode.title = focusModeEnabled
+        ? "Exit focus mode (Esc)"
+        : "Focus mode (Ctrl/Cmd+Shift+F)";
+    }
+
+    if (viewport && viewport.remember) {
+      window.requestAnimationFrame(function () {
+        viewport.remember();
+      });
+    }
+  }
+
+  function toggleFocusModeState() {
+    setFocusMode(!focusModeEnabled);
   }
 
   function openAboutDialog() {
@@ -1393,6 +1418,9 @@
     });
 
     togglePreview.addEventListener("click", togglePreviewPane);
+    if (toggleFocusMode) {
+      toggleFocusMode.addEventListener("click", toggleFocusModeState);
+    }
     aboutButton.addEventListener("click", openAboutDialog);
     aboutClose.addEventListener("click", closeAboutDialog);
     aboutOverlay.addEventListener("click", function (event) {
@@ -1405,6 +1433,9 @@
       if (event.key === "Escape" && !aboutOverlay.hidden) {
         event.preventDefault();
         closeAboutDialog();
+      } else if (event.key === "Escape" && focusModeEnabled) {
+        event.preventDefault();
+        setFocusMode(false);
       }
     });
     resizer.bindEvents();
@@ -1499,6 +1530,12 @@
       }
 
       var key = event.key.toLowerCase();
+
+      if (event.shiftKey && key === "f") {
+        event.preventDefault();
+        toggleFocusModeState();
+        return;
+      }
 
       if (handleFileShortcut(key, event)) {
         return;

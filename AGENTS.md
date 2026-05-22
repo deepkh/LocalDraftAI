@@ -11,12 +11,14 @@
 - Markdown image syntax renders in the editor and preview.
 - Pasted, dropped, or inserted local images are copied into an `assets/` folder inside a user-selected workspace folder and inserted as relative Markdown links.
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
+- Focus mode hides the file toolbar and formatting controls behind a small floating Exit Focus button while keeping the tab strip docked above the editor and preview so open documents remain accessible.
 - The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
-- The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
+- The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, Focus mode, and About.
 - The tab strip provides scroll controls, clickable open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
 - The app warns before closing a dirty tab or before refresh/close discards unsaved changes in any open document.
 - File shortcuts are Ctrl/Cmd+N for New tab, Ctrl/Cmd+O for Open into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Tab shortcuts are Ctrl/Cmd+W for Close tab, Ctrl/Cmd+PageUp/PageDown for previous/next tab, Ctrl/Cmd+Shift+PageUp/PageDown for moving the active tab left/right, and Ctrl/Cmd+1 through Ctrl/Cmd+9 for tab positions.
+- Focus mode shortcuts are Ctrl/Cmd+Shift+F to toggle Focus mode and Escape to exit Focus mode.
 
 ## Current Folder Layout
 
