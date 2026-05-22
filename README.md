@@ -43,6 +43,9 @@ No install step is needed.
 ## Project Layout
 
 ```text
+assets/
+├── MarkdownForge.ico
+└── markdown-forge-snapshot.png
 src/
 ├── markdown_forge.html
 ├── styles.css

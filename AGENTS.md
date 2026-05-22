@@ -18,6 +18,9 @@
 
 ```text
 .
+├── assets
+│   ├── MarkdownForge.ico
+│   └── markdown-forge-snapshot.png
 ├── .agents
 │   └── skills
 │       ├── asset-store.md
@@ -32,7 +35,6 @@
 │       ├── styles.md
 │       ├── utils.md
 │       └── viewport.md
-├── assets
 ├── AGENTS.md
 ├── LICENSE
 ├── README.md
@@ -57,6 +59,7 @@
 
 ```text
 .agents/skills/
+assets/MarkdownForge.ico
 src/markdown_forge.html
 src/styles.css
 src/js/app.js
