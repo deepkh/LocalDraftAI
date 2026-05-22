@@ -23,6 +23,11 @@
             <option value="">Recent</option>
           </select>
         </div>
+        <div class="group ai-toolbar-group" aria-label="AI Assistant">
+          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false" title="AI Assistant">AI Assistant</button>
+          <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
+          <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
+        </div>
       </div>
       <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
         <div class="group" aria-label="Editor mode">
@@ -46,17 +51,14 @@
         <div class="group" aria-label="Blocks">
           <button type="button" class="icon-text" data-action="unorderedList" title="Bulleted list" aria-label="Bulleted list">-</button>
           <button type="button" class="icon-text" data-action="orderedList" title="Numbered list" aria-label="Numbered list">1.</button>
+          <button type="button" class="icon-text" data-action="outdentList" title="Outdent list item (Shift+Tab)" aria-label="Outdent list item">&lt;&lt;</button>
+          <button type="button" class="icon-text" data-action="indentList" title="Indent list item (Tab)" aria-label="Indent list item">&gt;&gt;</button>
           <button type="button" class="icon-text" data-action="blockquote" title="Blockquote" aria-label="Blockquote">&gt;</button>
           <button type="button" class="icon-text" data-action="codeBlock" title="Code block" aria-label="Code block">{}</button>
         </div>
         <div class="group" aria-label="Insert">
           <button type="button" class="icon-text" data-action="link" title="Link" aria-label="Link">[]</button>
           <button type="button" class="icon-text" data-action="image" title="Insert image" aria-label="Insert image">Img</button>
-        </div>
-        <div class="group ai-toolbar-group" aria-label="AI Assistant">
-          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false" title="AI Assistant">AI Assistant</button>
-          <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
-          <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
         </div>
         <div class="group" aria-label="History">
           <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo">&lt;-</button>

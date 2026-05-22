@@ -5,7 +5,7 @@
 
   var ACTIONS = {
     correctGrammar: {
-      label: "Correct Grammar",
+      label: "Grammar Correction",
       promptType: "grammar",
       requiresSelection: true,
       prompt: [

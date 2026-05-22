@@ -23,13 +23,14 @@ A small local Markdown editor that runs in the browser.
 - See a live Markdown preview beside the editor.
 - Hide or show the preview pane.
 - Toggle Focus mode to collapse the file toolbar and formatting controls while keeping the tab strip docked above the editor and preview.
-- Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
+- Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, Recent files, the AI Assistant menu, and AI connection status.
 - Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
-- Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
-- Use the AI Assistant toolbar menu or editor right-click menu to rewrite selected text after reviewing the result.
+- Use the second toolbar row for headings, bold, italic, code, nested lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
+- Use the AI Assistant toolbar menu or editor right-click menu for actions such as Grammar Correction after reviewing the result.
 - Configure AI Assistant provider mode, endpoint, model, and API key from the AI Settings dialog.
 - Load OpenAI-compatible model names into a visible AI Settings model dropdown.
 - Read AI action details in the review dialog, including mode, endpoint, model, elapsed time, timeout, and recovery suggestions.
+- Keep the AI review dialog open during processing unless the close button is clicked.
 - See the AI Assistant status in the toolbar and menu, including mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - Open the AI Assistant toolbar menu as a floating menu so it stays visible below the toolbar.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
@@ -38,6 +39,7 @@ A small local Markdown editor that runs in the browser.
 - Warn before closing a dirty tab or refreshing/closing the browser with dirty documents.
 - Use file shortcuts: Ctrl/Cmd+N for a new tab, Ctrl/Cmd+O to open a file into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Use tab shortcuts: Ctrl/Cmd+W closes the active tab, Ctrl/Cmd+PageUp/PageDown switches tabs, Ctrl/Cmd+Shift+PageUp/PageDown reorders the active tab, and Ctrl/Cmd+1 through Ctrl/Cmd+9 jumps to a tab by position.
+- Use Tab and Shift+Tab inside the editor to indent and outdent list items.
 - Use Focus mode shortcuts: Ctrl/Cmd+Shift+F toggles Focus mode, and Escape exits Focus mode.
 
 Browsers without the File System Access API keep the editor working, but file controls are disabled.
@@ -106,11 +108,14 @@ src/
 tests/
 └── unit/
     ├── ai-actions.test.js
+    ├── ai-assistant.test.js
     ├── ai-context-menu.test.js
     ├── ai-provider.test.js
+    ├── editor-actions.test.js
     ├── ai-settings.test.js
     ├── ai-status.test.js
     ├── markdown-ai-guards.test.js
+    ├── markdown.test.js
     └── tab-manager.test.js
 ```
 

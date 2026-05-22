@@ -389,6 +389,7 @@
       resultText.value = "";
       resultText.disabled = true;
       applyButton.disabled = true;
+      cancelButton.disabled = true;
       reviewOverlay.hidden = false;
       window.requestAnimationFrame(function () {
         reviewDialog.focus();
@@ -409,6 +410,7 @@
       resultText.disabled = false;
       resultText.value = reviewState.result;
       applyButton.disabled = false;
+      cancelButton.disabled = false;
       resultText.focus();
     }
 
@@ -427,6 +429,7 @@
       appendReviewLog(errorSuggestion(error), "warning");
       resultText.disabled = true;
       applyButton.disabled = true;
+      cancelButton.disabled = false;
       reviewDialog.focus();
     }
 
@@ -437,6 +440,7 @@
       originalText.textContent = "";
       clearReviewLog();
       applyButton.disabled = true;
+      cancelButton.disabled = false;
       context.focusActiveEditor();
     }
 
@@ -539,11 +543,6 @@
     function closeTransientUi() {
       var handled = false;
 
-      if (!reviewOverlay.hidden) {
-        closeReview();
-        handled = true;
-      }
-
       if (!toolbarMenu.hidden) {
         closeToolbarMenu();
         handled = true;
@@ -576,12 +575,6 @@
 
       window.addEventListener("resize", positionToolbarMenu);
       window.addEventListener("scroll", positionToolbarMenu, { passive: true });
-
-      reviewOverlay.addEventListener("click", function (event) {
-        if (event.target === reviewOverlay) {
-          closeReview();
-        }
-      });
 
       applyButton.addEventListener("click", applyReview);
       cancelButton.addEventListener("click", closeReview);

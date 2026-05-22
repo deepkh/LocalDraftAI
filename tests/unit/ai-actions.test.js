@@ -22,7 +22,7 @@ runTest("defines all phase 1 AI actions", function () {
   const labels = aiActions.groups().flatMap((group) => group.actions.map((action) => action.label));
 
   assert.deepEqual(labels, [
-    "Correct Grammar",
+    "Grammar Correction",
     "Improve Wording",
     "Make Professional",
     "Summarize",

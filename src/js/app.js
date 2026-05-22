@@ -1599,6 +1599,20 @@
       setMarkdown(markdownEditor.value, "textarea");
     });
 
+    wysiwygEditor.addEventListener("keydown", function (event) {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        actions.applyToolbarAction(event.shiftKey ? "outdentList" : "indentList");
+      }
+    });
+
+    markdownEditor.addEventListener("keydown", function (event) {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        actions.applyToolbarAction(event.shiftKey ? "outdentList" : "indentList");
+      }
+    });
+
     markdownEditor.addEventListener("paste", function (event) {
       var data = event.clipboardData;
       if (!data) {

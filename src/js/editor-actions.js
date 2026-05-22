@@ -64,6 +64,18 @@
       markdownEditor.focus();
     }
 
+    function indentMarkdownLines(lines) {
+      return lines.split("\n").map(function (line) {
+        return line.trim() ? "  " + line : line;
+      }).join("\n");
+    }
+
+    function outdentMarkdownLines(lines) {
+      return lines.split("\n").map(function (line) {
+        return line.replace(/^(?: {1,2}|\t)/, "");
+      }).join("\n");
+    }
+
     function applyMarkdownFormat(value) {
       replaceCurrentLines(function (lines) {
         return lines.split("\n").map(function (line) {
@@ -119,7 +131,8 @@
       if (action === "unorderedList") {
         replaceCurrentLines(function (lines) {
           return lines.split("\n").map(function (line) {
-            return /^\s*[-*+]\s+/.test(line) ? line.replace(/^\s*[-*+]\s+/, "") : "- " + line;
+            var match = line.match(/^(\s*)[-*+]\s+(.*)$/);
+            return match ? match[1] + match[2] : line.replace(/^(\s*)/, "$1- ");
           }).join("\n");
         });
         return;
@@ -127,10 +140,29 @@
 
       if (action === "orderedList") {
         replaceCurrentLines(function (lines) {
-          return lines.split("\n").map(function (line, index) {
-            return /^\s*\d+[.)]\s+/.test(line) ? line.replace(/^\s*\d+[.)]\s+/, "") : (index + 1) + ". " + line;
+          var order = 1;
+          return lines.split("\n").map(function (line) {
+            var match = line.match(/^(\s*)\d+[.)]\s+(.*)$/);
+            if (match) {
+              return match[1] + match[2];
+            }
+            return line.replace(/^(\s*)/, function (indent) {
+              var marker = indent + order + ". ";
+              order += 1;
+              return marker;
+            });
           }).join("\n");
         });
+        return;
+      }
+
+      if (action === "indentList") {
+        replaceCurrentLines(indentMarkdownLines);
+        return;
+      }
+
+      if (action === "outdentList") {
+        replaceCurrentLines(outdentMarkdownLines);
         return;
       }
 
@@ -200,6 +232,10 @@
         execWysiwyg("insertUnorderedList");
       } else if (action === "orderedList") {
         execWysiwyg("insertOrderedList");
+      } else if (action === "indentList") {
+        execWysiwyg("indent");
+      } else if (action === "outdentList") {
+        execWysiwyg("outdent");
       } else if (action === "blockquote") {
         execWysiwyg("formatBlock", "BLOCKQUOTE");
       } else if (action === "codeBlock") {

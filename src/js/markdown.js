@@ -111,6 +111,74 @@
     return ' data-md-line="' + Math.max(0, lineIndex) + '"';
   }
 
+  function listLineInfo(line) {
+    var match = String(line || "").match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/);
+    var marker;
+
+    if (!match) {
+      return null;
+    }
+
+    marker = match[2];
+    return {
+      indent: match[1].replace(/\t/g, "  ").length,
+      ordered: /^\d/.test(marker),
+      text: match[3]
+    };
+  }
+
+  function renderListBlock(lines, start, lineOffset, options) {
+    var first = listLineInfo(lines[start]);
+    var tag = first.ordered ? "ol" : "ul";
+    var startIndent = first.indent;
+    var i = start;
+    var items = [];
+
+    while (i < lines.length) {
+      var info = listLineInfo(lines[i]);
+      var itemHtml;
+
+      if (!info || info.indent < startIndent) {
+        break;
+      }
+
+      if (info.indent > startIndent) {
+        if (!items.length) {
+          break;
+        }
+        var nested = renderListBlock(lines, i, lineOffset, options);
+        items[items.length - 1] += nested.html;
+        i = nested.end;
+        continue;
+      }
+
+      if (info.ordered !== first.ordered) {
+        break;
+      }
+
+      itemHtml = "<li" + blockAttrs(lineOffset + i) + ">" + renderInline(info.text, options);
+      i += 1;
+
+      while (i < lines.length) {
+        var next = listLineInfo(lines[i]);
+        if (!next || next.indent <= startIndent) {
+          break;
+        }
+        var child = renderListBlock(lines, i, lineOffset, options);
+        itemHtml += child.html;
+        i = child.end;
+      }
+
+      itemHtml += "</li>";
+      items.push(itemHtml);
+    }
+
+    return {
+      html: "<" + tag + blockAttrs(lineOffset + start) + ">" + items.join("") + "</" + tag + ">",
+      end: i
+    };
+  }
+
   function renderMarkdown(markdown, baseLine, options) {
     var lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
     var lineOffset = baseLine || 0;
@@ -166,35 +234,10 @@
         continue;
       }
 
-      if (/^\s*([-*+])\s+/.test(line)) {
-        var bulletItems = [];
-        var bulletLine = lineOffset + i;
-        while (i < lines.length && /^\s*([-*+])\s+/.test(lines[i])) {
-          bulletItems.push({
-            line: lineOffset + i,
-            text: lines[i].replace(/^\s*([-*+])\s+/, "")
-          });
-          i += 1;
-        }
-        html.push("<ul" + blockAttrs(bulletLine) + ">" + bulletItems.map(function (item) {
-          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text, options) + "</li>";
-        }).join("") + "</ul>");
-        continue;
-      }
-
-      if (/^\s*\d+[.)]\s+/.test(line)) {
-        var orderedItems = [];
-        var orderedLine = lineOffset + i;
-        while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
-          orderedItems.push({
-            line: lineOffset + i,
-            text: lines[i].replace(/^\s*\d+[.)]\s+/, "")
-          });
-          i += 1;
-        }
-        html.push("<ol" + blockAttrs(orderedLine) + ">" + orderedItems.map(function (item) {
-          return "<li" + blockAttrs(item.line) + ">" + renderInline(item.text, options) + "</li>";
-        }).join("") + "</ol>");
+      if (listLineInfo(line)) {
+        var listBlock = renderListBlock(lines, i, lineOffset, options);
+        html.push(listBlock.html);
+        i = listBlock.end;
         continue;
       }
 

@@ -12,18 +12,20 @@
 - Pasted, dropped, or inserted local images are copied into an `assets/` folder inside a user-selected workspace folder and inserted as relative Markdown links.
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
 - Focus mode hides the file toolbar and formatting controls behind a small floating Exit Focus button while keeping the tab strip docked above the editor and preview so open documents remain accessible.
-- The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files with removable entries.
-- The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, Focus mode, and About with the MIT license.
+- The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, Recent files with removable entries, the AI Assistant menu, and AI connection status.
+- The second toolbar row provides common editor actions such as headings, bold, italic, code, nested list indent/outdent, blockquotes, links, undo, redo, mode switching, preview toggling, Focus mode, and About with the MIT license.
 - The tab strip provides scroll controls, clickable open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
 - The app warns before closing a dirty tab or before refresh/close discards unsaved changes in any open document.
-- The AI Assistant works in WYSIWYG mode and Markdown mode, and replaces selected text after a review dialog. It is available from the toolbar and from the editor context menu when text is selected.
+- The AI Assistant works in WYSIWYG mode and Markdown mode, offers actions such as Grammar Correction, and replaces selected text after a review dialog. It is available from the toolbar and from the editor context menu when text is selected.
 - The AI Assistant has a settings dialog for choosing local mock mode or an OpenAI-compatible server with a server URL defaulting to `http://127.0.0.1:11434/v1/`, model listing from `/models` into a visible dropdown, optional API key, and connection testing that accepts reachable reasoning-only completion responses.
 - The AI Assistant review dialog shows a compact action log with mode, endpoint, model, the configured action timeout, elapsed time, and error-specific suggestions.
+- The AI Assistant review dialog stays open during processing unless the close button is clicked.
 - The AI Assistant shows toolbar and menu status for mock mode, connection checks, connected servers, server errors, auth errors, and running actions.
 - The AI Assistant toolbar menu is positioned as a floating viewport menu so toolbar overflow does not clip it.
 - Local AI server testing may require serving the app from a local HTTP origin instead of opening it as `file://`, or setting an Ollama CORS environment variable such as `OLLAMA_ORIGINS=*`, because some servers reject browser requests with `Origin: null`.
 - File shortcuts are Ctrl/Cmd+N for New tab, Ctrl/Cmd+O for Open into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Tab shortcuts are Ctrl/Cmd+W for Close tab, Ctrl/Cmd+PageUp/PageDown for previous/next tab, Ctrl/Cmd+Shift+PageUp/PageDown for moving the active tab left/right, and Ctrl/Cmd+1 through Ctrl/Cmd+9 for tab positions.
+- List shortcuts are Tab and Shift+Tab inside the editor for indenting and outdenting nested list items.
 - Focus mode shortcuts are Ctrl/Cmd+Shift+F to toggle Focus mode and Escape to exit Focus mode.
 
 ## Current Folder Layout
@@ -79,11 +81,14 @@
 └── tests
     └── unit
         ├── ai-actions.test.js
+        ├── ai-assistant.test.js
         ├── ai-context-menu.test.js
         ├── ai-provider.test.js
+        ├── editor-actions.test.js
         ├── ai-settings.test.js
         ├── ai-status.test.js
         ├── markdown-ai-guards.test.js
+        ├── markdown.test.js
         └── tab-manager.test.js
 ```
 
@@ -116,9 +121,12 @@ src/js/viewport.js
 src/js/resizer.js
 src/js/utils.js
 tests/unit/ai-actions.test.js
+tests/unit/ai-assistant.test.js
+tests/unit/editor-actions.test.js
 tests/unit/ai-provider.test.js
 tests/unit/ai-settings.test.js
 tests/unit/ai-status.test.js
+tests/unit/markdown.test.js
 tests/unit/tab-manager.test.js
 ```
 
