@@ -13,7 +13,7 @@
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
 - The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
 - The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
-- The tab strip provides scroll controls, open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
+- The tab strip provides scroll controls, clickable open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
 - The app warns before closing a dirty tab or before refresh/close discards unsaved changes in any open document.
 - File shortcuts are Ctrl/Cmd+N for New tab, Ctrl/Cmd+O for Open into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
 - Tab shortcuts are Ctrl/Cmd+W for Close tab, Ctrl/Cmd+PageUp/PageDown for previous/next tab, Ctrl/Cmd+Shift+PageUp/PageDown for moving the active tab left/right, and Ctrl/Cmd+1 through Ctrl/Cmd+9 for tab positions.

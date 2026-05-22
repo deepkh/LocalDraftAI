@@ -949,7 +949,10 @@
       wrap.addEventListener("pointerup", handleTabPointerUp);
       wrap.addEventListener("pointercancel", handleTabPointerCancel);
 
-      tab.addEventListener("click", function (event) {
+      wrap.addEventListener("click", function (event) {
+        if (event.target.closest(".tab-close")) {
+          return;
+        }
         if (suppressNextTabClick) {
           event.preventDefault();
           return;

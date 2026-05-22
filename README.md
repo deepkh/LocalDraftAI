@@ -23,7 +23,7 @@ A small local Markdown editor that runs in the browser.
 - See a live Markdown preview beside the editor.
 - Hide or show the preview pane.
 - Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, and Recent files.
-- Use the tab strip to switch documents, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
+- Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
 - Use the second toolbar row for headings, bold, italic, code, lists, quotes, links, undo, redo, mode switching, preview, and About.
 - Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - Reopen recent files from an IndexedDB-backed recent-file list.
