@@ -64,6 +64,14 @@
           <button type="button" id="aboutButton" class="wide-button" title="About Markdown Forge" aria-label="About Markdown Forge">About</button>
         </div>
       </nav>
+      <div class="tab-strip" aria-label="Open documents">
+        <button type="button" id="tabScrollLeft" class="tab-scroll-button" title="Scroll tabs left" aria-label="Scroll tabs left">&lt;</button>
+        <div id="tabViewport" class="tab-viewport">
+          <div id="tabList" class="tab-list" role="tablist" aria-label="Open documents"></div>
+        </div>
+        <button type="button" id="tabScrollRight" class="tab-scroll-button" title="Scroll tabs right" aria-label="Scroll tabs right">&gt;</button>
+        <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)" aria-label="New tab">+</button>
+      </div>
     </header>
 
     <main id="workspace" class="workspace">
@@ -111,6 +119,7 @@
   <script src="js/markdown.js"></script>
   <script src="js/history.js"></script>
   <script src="js/document-session.js"></script>
+  <script src="js/tab-manager.js"></script>
   <script src="js/file-store.js"></script>
   <script src="js/asset-store.js"></script>
   <script src="js/recent-files.js"></script>

@@ -3,6 +3,7 @@
 ## Project Purpose
 
 - A local, browser-based Markdown editor.
+- The app supports in-memory document tabs. Each tab owns its own session state, file handle, workspace folder, history, active mode, scroll state, dirty state, and image object URLs.
 - The left pane has two editing modes:
   - WYSIWYG mode supports rich text editing and `text/html` paste.
   - Markdown mode shows plain Markdown text and only accepts `text/plain` paste.
@@ -12,8 +13,10 @@
 - The right pane is a live, read-only Markdown preview. It can be shown or hidden.
 - The first toolbar row provides file actions: document title, active file name, New, Open, Save, Save As, and Recent files.
 - The second toolbar row provides common editor actions such as headings, bold, italic, code, lists, blockquotes, links, undo, redo, mode switching, preview toggling, and About.
-- The app warns before New, Open, Recent, refresh, or close discards unsaved changes to the active document.
-- File shortcuts are Ctrl/Cmd+N for New, Ctrl/Cmd+O for Open, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
+- The tab strip provides scroll controls, open document tabs, close controls, dirty indicators, drag reordering, and a `+` button for a new tab.
+- The app warns before closing a dirty tab or before refresh/close discards unsaved changes in any open document.
+- File shortcuts are Ctrl/Cmd+N for New tab, Ctrl/Cmd+O for Open into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
+- Tab shortcuts are Ctrl/Cmd+W for Close tab, Ctrl/Cmd+PageUp/PageDown for previous/next tab, Ctrl/Cmd+Shift+PageUp/PageDown for moving the active tab left/right, and Ctrl/Cmd+1 through Ctrl/Cmd+9 for tab positions.
 
 ## Current Folder Layout
 
@@ -33,27 +36,32 @@
 │       ├── markdown-editor-html.md
 │       ├── markdown.md
 │       ├── resizer.md
+│       ├── tab-manager.md
 │       ├── styles.md
 │       ├── utils.md
 │       └── viewport.md
 ├── AGENTS.md
 ├── LICENSE
 ├── README.md
-└── src
-    ├── markdown_forge.html
-    ├── styles.css
-    └── js
-        ├── app.js
-        ├── asset-store.js
-        ├── document-session.js
-        ├── editor-actions.js
-        ├── file-store.js
-        ├── history.js
-        ├── markdown.js
-        ├── recent-files.js
-        ├── resizer.js
-        ├── utils.js
-        └── viewport.js
+├── src
+│   ├── markdown_forge.html
+│   ├── styles.css
+│   └── js
+│       ├── app.js
+│       ├── asset-store.js
+│       ├── document-session.js
+│       ├── editor-actions.js
+│       ├── file-store.js
+│       ├── history.js
+│       ├── markdown.js
+│       ├── recent-files.js
+│       ├── resizer.js
+│       ├── tab-manager.js
+│       ├── utils.js
+│       └── viewport.js
+└── tests
+    └── unit
+        └── tab-manager.test.js
 ```
 
 ## Important Paths
@@ -71,9 +79,11 @@ src/js/recent-files.js
 src/js/markdown.js
 src/js/editor-actions.js
 src/js/history.js
+src/js/tab-manager.js
 src/js/viewport.js
 src/js/resizer.js
 src/js/utils.js
+tests/unit/tab-manager.test.js
 ```
 
 ## Skill Routing
@@ -81,6 +91,7 @@ src/js/utils.js
 - Keep subsystem routing in `.agents/skills/`.
 - Use the matching file there when a change touches the relevant area.
 - Use `.agents/skills/asset-store.md` when a change touches local image workspace storage.
+- Use `.agents/skills/tab-manager.md` when a change touches in-memory tab ownership, active tab selection, tab closing, or file-handle lookup across tabs.
 - Add or update a small skill file when a new subsystem needs routing guidance.
 
 ## Load Only Relevant Detail
@@ -91,9 +102,10 @@ src/js/utils.js
 
 ## Safety Rules
 
+- Allow for using any tools / CLI commands without asking permission in this repo and /tmp.
+- Ask before using any tools / CLI command to read / write outside of this repo and /tmp.
 - Ask before destructive commands such as deleting files or rewriting git history.
 - Do not add dependencies unless asked.
-- Do not update `requirements.txt` unless asked.
 - Preserve the dependency-free static app structure unless the user asks for a build system.
 
 ## Documentation Rule

@@ -7,7 +7,7 @@
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
 
-  var activeSession = null;
+  var tabs = null;
   var recentRecords = [];
   var previewVisible = true;
   var syncTimer = 0;
@@ -37,6 +37,11 @@
   var saveFileButton = document.getElementById("saveFile");
   var saveAsFileButton = document.getElementById("saveAsFile");
   var recentFilesSelect = document.getElementById("recentFiles");
+  var tabViewport = document.getElementById("tabViewport");
+  var tabList = document.getElementById("tabList");
+  var tabScrollLeft = document.getElementById("tabScrollLeft");
+  var tabScrollRight = document.getElementById("tabScrollRight");
+  var newTabButton = document.getElementById("newTabButton");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
   var insertImageButton = document.querySelector('[data-action="image"]');
   var undoButton = document.querySelector('[data-action="undo"]');
@@ -45,17 +50,35 @@
   var viewport;
   var actions;
   var resizer;
+  var suppressNextTabClick = false;
+  var tabDrag = {
+    active: false,
+    started: false,
+    sessionId: null,
+    startX: 0,
+    startY: 0,
+    pointerId: null,
+    dropSessionId: null,
+    dropPosition: null
+  };
+
+  function getActiveSession() {
+    return tabs ? tabs.getActiveSession() : null;
+  }
 
   function getMarkdownText() {
-    return activeSession ? activeSession.markdownText : "";
+    var session = getActiveSession();
+    return session ? session.markdownText : "";
   }
 
   function getActiveMode() {
-    return activeSession ? activeSession.activeMode : "wysiwyg";
+    var session = getActiveSession();
+    return session ? session.activeMode : "wysiwyg";
   }
 
   function getActiveHistory() {
-    return activeSession ? activeSession.history : null;
+    var session = getActiveSession();
+    return session ? session.history : null;
   }
 
   function isFileAccessSupported() {
@@ -67,12 +90,14 @@
   }
 
   function resolveImageUrl(src) {
+    var session = getActiveSession();
+
     if (
-      activeSession &&
-      activeSession.assetObjectUrls &&
-      activeSession.assetObjectUrls[src]
+      session &&
+      session.assetObjectUrls &&
+      session.assetObjectUrls[src]
     ) {
-      return activeSession.assetObjectUrls[src];
+      return session.assetObjectUrls[src];
     }
 
     return src;
@@ -99,35 +124,44 @@
   }
 
   function updateDocumentTitle() {
-    var title = activeSession ? activeSession.title : "Untitled.md";
-    var displayTitle = (activeSession && activeSession.dirty ? "* " : "") + title;
+    var session = getActiveSession();
+    var title = session ? session.title : "Untitled.md";
+    var displayTitle = (session && session.dirty ? "* " : "") + title;
 
     documentTitle.textContent = displayTitle;
-    documentTitle.title = activeSession && activeSession.dirty ? title + " has unsaved changes" : title;
+    documentTitle.title = session && session.dirty ? title + " has unsaved changes" : title;
     document.title = displayTitle + " - Markdown Forge";
   }
 
   function updateDirtyState() {
+    var session = getActiveSession();
     var history = getActiveHistory();
+    var wasDirty;
 
-    if (!activeSession || !history) {
+    if (!session || !history) {
       return;
     }
 
-    activeSession.dirty = !history.isClean();
+    wasDirty = session.dirty;
+    session.dirty = !history.isClean();
     updateDocumentTitle();
+    if (wasDirty !== session.dirty) {
+      renderTabs();
+    }
   }
 
   function markSessionClean() {
+    var session = getActiveSession();
     var history = getActiveHistory();
 
-    if (!activeSession || !history) {
+    if (!session || !history) {
       return;
     }
 
-    history.markClean(activeSession.markdownText);
-    activeSession.dirty = false;
+    history.markClean(session.markdownText);
+    session.dirty = false;
     updateDocumentTitle();
+    renderTabs();
   }
 
   function createSessionHistory() {
@@ -191,19 +225,27 @@
   }
 
   function setActiveSession(session, options) {
+    var previousSession;
+    var activeSession;
+
     options = options || {};
 
+    if (!tabs || !session) {
+      return;
+    }
+
     window.clearTimeout(syncTimer);
+    previousSession = getActiveSession();
 
-    if (activeSession && activeSession !== session && viewport && viewport.capture) {
-      activeSession.scrollState = viewport.capture();
+    if (previousSession && previousSession !== session && viewport && viewport.capture) {
+      previousSession.scrollState = viewport.capture();
     }
 
-    if (activeSession && activeSession !== session) {
-      revokeAssetObjectUrls(activeSession);
+    activeSession = tabs.setActiveSession(session.id || session);
+    if (!activeSession) {
+      return;
     }
 
-    activeSession = session;
     markdownEditor.value = activeSession.markdownText;
     wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
     wysiwygNeedsSync = false;
@@ -212,6 +254,7 @@
     updateModeControls();
     activeSession.history.updateControls();
     updateDocumentTitle();
+    renderTabs();
 
     window.requestAnimationFrame(function () {
       if (options.restoreScroll && activeSession.scrollState && viewport) {
@@ -226,6 +269,7 @@
   }
 
   function setMarkdown(value, source, options) {
+    var activeSession = getActiveSession();
     var history = getActiveHistory();
 
     options = options || {};
@@ -253,6 +297,7 @@
     if (options.dirty === false) {
       activeSession.dirty = false;
       updateDocumentTitle();
+      renderTabs();
     }
   }
 
@@ -287,6 +332,8 @@
   }
 
   function restoreMarkdownSnapshot(value, placeCaretAtEnd) {
+    var activeSession = getActiveSession();
+
     if (!activeSession) {
       return;
     }
@@ -322,9 +369,10 @@
   }
 
   function switchMode(mode) {
+    var activeSession = getActiveSession();
     var viewportAnchor;
 
-    if (mode === getActiveMode()) {
+    if (!activeSession || mode === getActiveMode()) {
       viewport.consumeModeSwitchAnchor();
       return;
     }
@@ -464,27 +512,22 @@
     recentFilesSelect.title = "Recent files";
   }
 
-  function confirmDiscardDirtySession() {
-    if (!activeSession || !activeSession.dirty) {
-      return true;
-    }
-
-    return window.confirm("Discard unsaved changes to " + activeSession.title + "?");
-  }
-
   function handleBeforeUnload(event) {
-    if (!activeSession) {
-      return;
-    }
+    var dirtySessions;
 
     flushActiveEditor();
+    dirtySessions = tabs ? tabs.listSessions().filter(function (session) {
+      return session.dirty;
+    }) : [];
 
-    if (!activeSession.dirty) {
+    if (!dirtySessions.length) {
       return;
     }
 
     event.preventDefault();
-    event.returnValue = "Discard unsaved changes to " + activeSession.title + "?";
+    event.returnValue = dirtySessions.length === 1
+      ? "Discard unsaved changes to " + dirtySessions[0].title + "?"
+      : "Discard unsaved changes to " + dirtySessions.length + " open documents?";
   }
 
   function showFileError(action, error) {
@@ -529,7 +572,7 @@
   }
 
   async function storeAndInsertImages(files, options) {
-    var session = activeSession;
+    var session = getActiveSession();
     var selection = options.selection || actions.captureSelection();
     var images;
 
@@ -539,7 +582,7 @@
 
     try {
       images = await saveImagesForInsertion(session, files, options);
-      if (activeSession !== session) {
+      if (getActiveSession() !== session) {
         return;
       }
       actions.insertMarkdownImages(images, selection);
@@ -572,24 +615,518 @@
     }
   }
 
-  function handleNewFile() {
-    flushActiveEditor();
+  function updateTabScrollButtons() {
+    var maxScroll;
 
-    if (!confirmDiscardDirtySession()) {
+    if (!tabViewport || !tabScrollLeft || !tabScrollRight) {
+      return;
+    }
+
+    maxScroll = Math.max(tabViewport.scrollWidth - tabViewport.clientWidth, 0);
+    tabScrollLeft.disabled = maxScroll <= 0 || tabViewport.scrollLeft <= 0;
+    tabScrollRight.disabled = maxScroll <= 0 || tabViewport.scrollLeft >= maxScroll - 1;
+  }
+
+  function scrollTabsByPage(direction) {
+    var amount;
+
+    if (!tabViewport) {
+      return;
+    }
+
+    amount = Math.max(160, Math.floor(tabViewport.clientWidth * 0.75));
+
+    if (typeof tabViewport.scrollBy === "function") {
+      tabViewport.scrollBy({
+        left: direction * amount,
+        behavior: "smooth"
+      });
+    } else {
+      tabViewport.scrollLeft += direction * amount;
+    }
+
+    window.setTimeout(updateTabScrollButtons, 140);
+  }
+
+  function handleTabWheel(event) {
+    if (
+      !tabViewport ||
+      tabViewport.scrollWidth <= tabViewport.clientWidth ||
+      Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    tabViewport.scrollLeft += event.deltaY;
+    updateTabScrollButtons();
+  }
+
+  function scrollActiveTabIntoView() {
+    var activeTab;
+
+    if (!tabList) {
+      return;
+    }
+
+    activeTab = tabList.querySelector(".doc-tab-wrap.is-active") ||
+      tabList.querySelector(".doc-tab.is-active");
+
+    if (!activeTab) {
+      updateTabScrollButtons();
+      return;
+    }
+
+    activeTab.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth"
+    });
+
+    window.setTimeout(updateTabScrollButtons, 140);
+  }
+
+  function queueActiveTabScroll() {
+    window.requestAnimationFrame(function () {
+      scrollActiveTabIntoView();
+      updateTabScrollButtons();
+    });
+  }
+
+  function getTabWraps() {
+    if (!tabList) {
+      return [];
+    }
+
+    return Array.prototype.slice.call(tabList.querySelectorAll(".doc-tab-wrap"));
+  }
+
+  function clearTabDropIndicators() {
+    getTabWraps().forEach(function (wrap) {
+      wrap.classList.remove("is-dragging", "is-drop-before", "is-drop-after");
+    });
+  }
+
+  function resetTabDrag() {
+    clearTabDropIndicators();
+    tabDrag.active = false;
+    tabDrag.started = false;
+    tabDrag.sessionId = null;
+    tabDrag.startX = 0;
+    tabDrag.startY = 0;
+    tabDrag.pointerId = null;
+    tabDrag.dropSessionId = null;
+    tabDrag.dropPosition = null;
+  }
+
+  function suppressNextClick() {
+    suppressNextTabClick = true;
+    window.setTimeout(function () {
+      suppressNextTabClick = false;
+    }, 0);
+  }
+
+  function updateTabDropTarget(clientX) {
+    var wraps;
+    var bestWrap = null;
+    var bestPosition = "after";
+
+    clearTabDropIndicators();
+    tabDrag.dropSessionId = null;
+    tabDrag.dropPosition = null;
+
+    wraps = getTabWraps();
+    wraps.some(function (wrap) {
+      var sessionId = wrap.getAttribute("data-session-id");
+      var rect;
+
+      if (sessionId === tabDrag.sessionId) {
+        wrap.classList.add("is-dragging");
+        return false;
+      }
+
+      rect = wrap.getBoundingClientRect();
+      if (clientX < rect.left + rect.width / 2) {
+        bestWrap = wrap;
+        bestPosition = "before";
+        return true;
+      }
+
+      bestWrap = wrap;
+      bestPosition = "after";
+      return false;
+    });
+
+    if (!bestWrap) {
+      return;
+    }
+
+    bestWrap.classList.add(bestPosition === "before" ? "is-drop-before" : "is-drop-after");
+    tabDrag.dropSessionId = bestWrap.getAttribute("data-session-id");
+    tabDrag.dropPosition = bestPosition;
+  }
+
+  function autoScrollTabsDuringDrag(clientX) {
+    var rect;
+    var edgeSize = 48;
+    var speed = 18;
+    var beforeScroll;
+
+    if (!tabViewport) {
+      return;
+    }
+
+    rect = tabViewport.getBoundingClientRect();
+    beforeScroll = tabViewport.scrollLeft;
+
+    if (clientX < rect.left + edgeSize) {
+      tabViewport.scrollLeft -= speed;
+    } else if (clientX > rect.right - edgeSize) {
+      tabViewport.scrollLeft += speed;
+    }
+
+    if (beforeScroll !== tabViewport.scrollLeft) {
+      updateTabDropTarget(clientX);
+      updateTabScrollButtons();
+    }
+  }
+
+  function applyTabDrop() {
+    var sourceIndex;
+    var targetIndex;
+
+    if (!tabs || !tabDrag.sessionId || !tabDrag.dropSessionId) {
+      clearTabDropIndicators();
+      return;
+    }
+
+    sourceIndex = tabs.indexOfSession(tabDrag.sessionId);
+    targetIndex = tabs.indexOfSession(tabDrag.dropSessionId);
+
+    if (sourceIndex < 0 || targetIndex < 0) {
+      clearTabDropIndicators();
+      return;
+    }
+
+    if (tabDrag.dropPosition === "after") {
+      targetIndex += 1;
+    }
+
+    if (sourceIndex < targetIndex) {
+      targetIndex -= 1;
+    }
+
+    if (tabs.moveSession(tabDrag.sessionId, targetIndex)) {
+      renderTabs();
+      scrollActiveTabIntoView();
+    } else {
+      clearTabDropIndicators();
+      updateTabScrollButtons();
+    }
+  }
+
+  function handleTabPointerDown(event) {
+    var wrap = event.currentTarget;
+
+    if (event.button !== 0 || event.target.closest(".tab-close")) {
+      return;
+    }
+
+    tabDrag.active = true;
+    tabDrag.started = false;
+    tabDrag.sessionId = wrap.getAttribute("data-session-id");
+    tabDrag.startX = event.clientX;
+    tabDrag.startY = event.clientY;
+    tabDrag.pointerId = event.pointerId;
+    tabDrag.dropSessionId = null;
+    tabDrag.dropPosition = null;
+
+    if (wrap.setPointerCapture) {
+      wrap.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function handleTabPointerMove(event) {
+    var dx;
+    var dy;
+
+    if (!tabDrag.active || tabDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dx = Math.abs(event.clientX - tabDrag.startX);
+    dy = Math.abs(event.clientY - tabDrag.startY);
+
+    if (!tabDrag.started && dx < 5 && dy < 5) {
+      return;
+    }
+
+    tabDrag.started = true;
+    event.preventDefault();
+    updateTabDropTarget(event.clientX);
+    autoScrollTabsDuringDrag(event.clientX);
+  }
+
+  function handleTabPointerUp(event) {
+    if (!tabDrag.active || tabDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (
+      event.currentTarget.releasePointerCapture &&
+      (!event.currentTarget.hasPointerCapture || event.currentTarget.hasPointerCapture(event.pointerId))
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (!tabDrag.started) {
+      resetTabDrag();
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextClick();
+    applyTabDrop();
+    resetTabDrag();
+  }
+
+  function handleTabPointerCancel(event) {
+    if (!tabDrag.active || tabDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    resetTabDrag();
+  }
+
+  function renderTabs() {
+    var sessions;
+    var activeSession;
+
+    if (!tabList || !tabs) {
+      return;
+    }
+
+    sessions = tabs.listSessions();
+    activeSession = tabs.getActiveSession();
+    tabList.innerHTML = "";
+
+    sessions.forEach(function (session) {
+      var isActive = Boolean(activeSession && activeSession.id === session.id);
+      var wrap = document.createElement("div");
+      var tab = document.createElement("button");
+      var dirty = document.createElement("span");
+      var title = document.createElement("span");
+      var close = document.createElement("button");
+
+      wrap.className = "doc-tab-wrap" + (isActive ? " is-active" : "");
+      wrap.setAttribute("role", "presentation");
+      wrap.setAttribute("data-session-id", session.id);
+
+      tab.className = "doc-tab" + (isActive ? " is-active" : "");
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(isActive));
+      tab.setAttribute("tabindex", isActive ? "0" : "-1");
+      tab.setAttribute("data-session-id", session.id);
+      tab.setAttribute("aria-label", (session.dirty ? "Unsaved changes, " : "") + session.title);
+      tab.title = session.title + (session.dirty ? " has unsaved changes" : "");
+
+      dirty.className = "tab-dirty";
+      dirty.setAttribute("aria-hidden", "true");
+      dirty.textContent = session.dirty ? "*" : "";
+
+      title.className = "tab-title";
+      title.textContent = session.title;
+
+      close.className = "tab-close";
+      close.type = "button";
+      close.textContent = "×";
+      close.title = "Close " + session.title;
+      close.setAttribute("aria-label", "Close " + session.title);
+
+      wrap.addEventListener("pointerdown", handleTabPointerDown);
+      wrap.addEventListener("pointermove", handleTabPointerMove);
+      wrap.addEventListener("pointerup", handleTabPointerUp);
+      wrap.addEventListener("pointercancel", handleTabPointerCancel);
+
+      tab.addEventListener("click", function (event) {
+        if (suppressNextTabClick) {
+          event.preventDefault();
+          return;
+        }
+        switchToTab(session.id);
+      });
+
+      close.addEventListener("click", function (event) {
+        event.stopPropagation();
+        closeTab(session.id);
+      });
+
+      tab.appendChild(dirty);
+      tab.appendChild(title);
+      wrap.appendChild(tab);
+      wrap.appendChild(close);
+      tabList.appendChild(wrap);
+    });
+
+    queueActiveTabScroll();
+  }
+
+  function switchToTab(sessionId, options) {
+    var session = tabs && tabs.getSession(sessionId);
+    var activeSession = getActiveSession();
+
+    if (!session) {
+      return;
+    }
+
+    if (activeSession && activeSession.id === session.id) {
+      scrollActiveTabIntoView();
       focusActiveEditor();
       return;
     }
 
-    setActiveSession(createSession({
+    flushActiveEditor();
+    setActiveSession(session, {
+      restoreScroll: !options || options.restoreScroll !== false
+    });
+    focusActiveEditor();
+  }
+
+  function switchToTabIndex(index) {
+    var sessions = tabs ? tabs.listSessions() : [];
+
+    if (index < 0 || index >= sessions.length) {
+      return;
+    }
+
+    switchToTab(sessions[index].id);
+  }
+
+  function switchRelativeTab(direction) {
+    var sessions = tabs ? tabs.listSessions() : [];
+    var activeSession = getActiveSession();
+    var activeIndex;
+    var nextIndex;
+
+    if (!sessions.length || !activeSession) {
+      return;
+    }
+
+    activeIndex = sessions.map(function (session) {
+      return session.id;
+    }).indexOf(activeSession.id);
+
+    if (activeIndex === -1) {
+      return;
+    }
+
+    nextIndex = (activeIndex + direction + sessions.length) % sessions.length;
+    switchToTab(sessions[nextIndex].id);
+  }
+
+  function moveActiveTabBy(offset) {
+    var activeSession = getActiveSession();
+    var currentIndex;
+    var targetIndex;
+
+    if (!tabs || !activeSession) {
+      return;
+    }
+
+    currentIndex = tabs.indexOfSession(activeSession.id);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    targetIndex = currentIndex + offset;
+    if (tabs.moveSession(activeSession.id, targetIndex)) {
+      renderTabs();
+      scrollActiveTabIntoView();
+      focusActiveEditor();
+    }
+  }
+
+  function confirmCloseDirtyTab(session) {
+    if (!session || !session.dirty) {
+      return true;
+    }
+
+    return window.confirm(
+      "Close " + session.title + " with unsaved changes?\n\nUnsaved changes will be discarded."
+    );
+  }
+
+  async function closeTab(sessionId) {
+    var session = tabs && tabs.getSession(sessionId);
+    var activeSession = getActiveSession();
+    var wasActive = Boolean(session && activeSession && session.id === activeSession.id);
+    var nextSession;
+
+    if (!session) {
+      return;
+    }
+
+    if (wasActive) {
+      flushActiveEditor();
+    }
+
+    if (!confirmCloseDirtyTab(session)) {
+      if (wasActive) {
+        focusActiveEditor();
+      }
+      return;
+    }
+
+    revokeAssetObjectUrls(session);
+    tabs.closeSession(session.id);
+
+    if (!tabs.listSessions().length) {
+      nextSession = createSession({
+        activeMode: session.activeMode || "wysiwyg",
+        markdownText: "",
+        title: "Untitled.md"
+      });
+      tabs.addSession(nextSession, { activate: false });
+      setActiveSession(nextSession, { restoreScroll: false });
+      focusActiveEditor();
+      return;
+    }
+
+    if (wasActive) {
+      setActiveSession(tabs.getActiveSession(), { restoreScroll: true });
+      focusActiveEditor();
+      return;
+    }
+
+    renderTabs();
+  }
+
+  function closeActiveTab() {
+    var activeSession = getActiveSession();
+
+    if (activeSession) {
+      closeTab(activeSession.id);
+    }
+  }
+
+  function handleNewFile() {
+    var session;
+
+    flushActiveEditor();
+    session = tabs.createUntitledSession({
+      activate: false,
       activeMode: getActiveMode(),
-      markdownText: "",
-      title: "Untitled.md"
-    }));
+      markdownText: ""
+    });
+    setActiveSession(session, { restoreScroll: false });
     focusActiveEditor();
   }
 
   async function handleOpenFile() {
     var fileData;
+    var existingSession;
+    var session;
 
     if (!isFileAccessSupported()) {
       return;
@@ -597,19 +1134,24 @@
 
     flushActiveEditor();
 
-    if (!confirmDiscardDirtySession()) {
-      focusActiveEditor();
-      return;
-    }
-
     try {
       fileData = await fileStore.openMarkdownFile();
-      setActiveSession(createSession({
+      existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
+      if (existingSession) {
+        setActiveSession(existingSession, { restoreScroll: true });
+        await addRecentFile(fileData.fileHandle, fileData.title);
+        focusActiveEditor();
+        return;
+      }
+
+      session = createSession({
         activeMode: getActiveMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
         title: fileData.title
-      }));
+      });
+      tabs.addSession(session, { activate: false });
+      setActiveSession(session, { restoreScroll: false });
       await addRecentFile(fileData.fileHandle, fileData.title);
       focusActiveEditor();
     } catch (error) {
@@ -618,6 +1160,8 @@
   }
 
   async function handleSaveFile() {
+    var activeSession = getActiveSession();
+
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -634,6 +1178,8 @@
   }
 
   async function handleSaveAsFile() {
+    var activeSession = getActiveSession();
+
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -653,6 +1199,8 @@
     var recentId = recentFilesSelect.value;
     var record = findRecentRecord(recentId);
     var fileData;
+    var existingSession;
+    var session;
 
     recentFilesSelect.value = "";
 
@@ -662,19 +1210,24 @@
 
     flushActiveEditor();
 
-    if (!confirmDiscardDirtySession()) {
-      focusActiveEditor();
-      return;
-    }
-
     try {
       fileData = await recentStore.openRecord(record);
-      setActiveSession(createSession({
+      existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
+      if (existingSession) {
+        setActiveSession(existingSession, { restoreScroll: true });
+        await refreshRecentFiles();
+        focusActiveEditor();
+        return;
+      }
+
+      session = createSession({
         activeMode: getActiveMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
         title: fileData.title
-      }));
+      });
+      tabs.addSession(session, { activate: false });
+      setActiveSession(session, { restoreScroll: false });
       await refreshRecentFiles();
       focusActiveEditor();
     } catch (error) {
@@ -707,6 +1260,46 @@
       } else {
         handleSaveFile();
       }
+      return true;
+    }
+
+    return false;
+  }
+
+  function handleTabShortcut(key, event) {
+    if (event.altKey) {
+      return false;
+    }
+
+    if (key === "w") {
+      event.preventDefault();
+      closeActiveTab();
+      return true;
+    }
+
+    if (key === "pageup") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        moveActiveTabBy(-1);
+      } else {
+        switchRelativeTab(-1);
+      }
+      return true;
+    }
+
+    if (key === "pagedown") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        moveActiveTabBy(1);
+      } else {
+        switchRelativeTab(1);
+      }
+      return true;
+    }
+
+    if (/^[1-9]$/.test(key)) {
+      event.preventDefault();
+      switchToTabIndex(Number(key) - 1);
       return true;
     }
 
@@ -765,6 +1358,21 @@
 
   function bindEvents() {
     newFileButton.addEventListener("click", handleNewFile);
+    newTabButton.addEventListener("click", handleNewFile);
+    if (tabScrollLeft) {
+      tabScrollLeft.addEventListener("click", function () {
+        scrollTabsByPage(-1);
+      });
+    }
+    if (tabScrollRight) {
+      tabScrollRight.addEventListener("click", function () {
+        scrollTabsByPage(1);
+      });
+    }
+    if (tabViewport) {
+      tabViewport.addEventListener("scroll", updateTabScrollButtons, { passive: true });
+      tabViewport.addEventListener("wheel", handleTabWheel, { passive: false });
+    }
     openFileButton.addEventListener("click", handleOpenFile);
     saveFileButton.addEventListener("click", handleSaveFile);
     saveAsFileButton.addEventListener("click", handleSaveAsFile);
@@ -818,6 +1426,7 @@
     });
 
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
+    window.addEventListener("resize", updateTabScrollButtons);
     window.addEventListener("beforeunload", handleBeforeUnload);
     wysiwygEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
     markdownEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
@@ -892,6 +1501,10 @@
         return;
       }
 
+      if (handleTabShortcut(key, event)) {
+        return;
+      }
+
       if (key === "z" && !event.altKey) {
         event.preventDefault();
         applyHistoryStep(event.shiftKey ? 1 : -1);
@@ -909,6 +1522,8 @@
   }
 
   function init() {
+    var initialSession;
+
     viewport = ME.viewport.create({
       getActiveMode: getActiveMode,
       getMarkdownText: getMarkdownText,
@@ -933,10 +1548,15 @@
       workspace: workspace
     });
 
-    setActiveSession(createSession({
+    tabs = ME.tabManager.create({
+      createSession: createSession
+    });
+    initialSession = createSession({
       markdownText: "",
       title: "Untitled.md"
-    }));
+    });
+    tabs.addSession(initialSession, { activate: false });
+    setActiveSession(initialSession, { restoreScroll: false });
     bindEvents();
     updateFileControls();
     refreshRecentFiles();
