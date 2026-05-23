@@ -40,6 +40,23 @@
       markdownEditor.focus();
     }
 
+    function insertTextareaBlock(block) {
+      var range = selectedTextareaRange();
+      var before = markdownEditor.value.slice(0, range.start);
+      var after = markdownEditor.value.slice(range.end);
+      var prefix = before && !/\n\n$/.test(before) ? (/\n$/.test(before) ? "\n" : "\n\n") : "";
+      var suffix = after && !/^\n\n/.test(after) ? (/^\n/.test(after) ? "\n" : "\n\n") : "";
+      var replacement = prefix + block + suffix;
+      var selectionStart = range.start + prefix.length;
+      var selectionEnd = selectionStart + block.length;
+
+      markdownEditor.setRangeText(replacement, range.start, range.end, "end");
+      markdownEditor.selectionStart = selectionStart;
+      markdownEditor.selectionEnd = selectionEnd;
+      context.setMarkdown(markdownEditor.value, "textarea");
+      markdownEditor.focus();
+    }
+
     function lineRange() {
       var value = markdownEditor.value;
       var start = markdownEditor.selectionStart;
@@ -103,6 +120,11 @@
 
       if (action === "codeBlock") {
         wrapTextareaSelection("```\n", "\n```", "code");
+        return;
+      }
+
+      if (action === "horizontalRule") {
+        insertTextareaBlock("---");
         return;
       }
 
@@ -244,6 +266,8 @@
         wrapWysiwygSelectionWithCode();
       } else if (action === "link") {
         createWysiwygLink();
+      } else if (action === "horizontalRule") {
+        insertWysiwygHorizontalRule();
       }
     }
 
@@ -290,6 +314,66 @@
       wysiwygEditor.focus();
       restoreWysiwygSelection(savedSelection);
       document.execCommand("insertHTML", false, html);
+      context.scheduleSyncFromWysiwyg();
+    }
+
+    function wysiwygBlockForRange(range) {
+      var node = range && range.startContainer;
+
+      if (node && node.nodeType === Node.TEXT_NODE) {
+        node = node.parentNode;
+      }
+
+      while (node && node !== wysiwygEditor) {
+        if (
+          node.nodeType === Node.ELEMENT_NODE &&
+          /^(blockquote|div|h[1-6]|li|ol|p|pre|ul)$/i.test(node.tagName)
+        ) {
+          return node;
+        }
+        node = node.parentNode;
+      }
+
+      return null;
+    }
+
+    function insertWysiwygHorizontalRule() {
+      var selection;
+      var range;
+      var block;
+      var hr = document.createElement("hr");
+      var after = document.createElement("p");
+      var caret = document.createRange();
+
+      wysiwygEditor.focus();
+      selection = window.getSelection();
+      range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+
+      if (!isSelectionInsideWysiwyg(range)) {
+        range = document.createRange();
+        range.selectNodeContents(wysiwygEditor);
+        range.collapse(false);
+      }
+
+      block = wysiwygBlockForRange(range);
+      if (block && block.parentNode) {
+        if (!range.collapsed) {
+          range.deleteContents();
+        }
+        block.parentNode.insertBefore(hr, block.nextSibling);
+      } else {
+        range.deleteContents();
+        range.insertNode(hr);
+      }
+
+      after.appendChild(document.createElement("br"));
+      hr.parentNode.insertBefore(after, hr.nextSibling);
+      caret.setStart(after, 0);
+      caret.collapse(true);
+
+      selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(caret);
       context.scheduleSyncFromWysiwyg();
     }
 

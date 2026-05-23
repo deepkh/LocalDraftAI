@@ -105,3 +105,23 @@ runTest("list toggles preserve indentation", function () {
 
   assert.equal(setup.markdownEditor.value, "  - Child");
 });
+
+runTest("inserts a horizontal rule as a separated Markdown block", function () {
+  const setup = createActions("Before\nAfter");
+
+  setup.markdownEditor.selectionStart = "Before".length;
+  setup.markdownEditor.selectionEnd = "Before".length;
+  setup.actions.applyToolbarAction("horizontalRule");
+
+  assert.equal(setup.markdownEditor.value, "Before\n\n---\n\nAfter");
+});
+
+runTest("replaces selected Markdown with a horizontal rule", function () {
+  const setup = createActions("Before\nselected\nAfter");
+
+  setup.markdownEditor.selectionStart = "Before\n".length;
+  setup.markdownEditor.selectionEnd = "Before\nselected".length;
+  setup.actions.applyToolbarAction("horizontalRule");
+
+  assert.equal(setup.markdownEditor.value, "Before\n\n---\n\nAfter");
+});

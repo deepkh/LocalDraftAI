@@ -23,6 +23,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
 - **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text.
 - **Live preview**: preview rendered Markdown beside the editor.
+- **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, and horizontal rules.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.

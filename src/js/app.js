@@ -73,6 +73,7 @@
   var tabScrollLeft = document.getElementById("tabScrollLeft");
   var tabScrollRight = document.getElementById("tabScrollRight");
   var newTabButton = document.getElementById("newTabButton");
+  var editorToolbar = document.querySelector(".toolbar");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
   var insertImageButton = document.querySelector('[data-action="image"]');
   var undoButton = document.querySelector('[data-action="undo"]');
@@ -1594,14 +1595,25 @@
     });
 
     toolbarButtons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        var action = button.getAttribute("data-action");
-        if (action === "image") {
-          handleInsertImage();
-          return;
-        }
-        actions.applyToolbarAction(action);
+      button.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
       });
+    });
+
+    editorToolbar.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-action]");
+      var action;
+
+      if (!button || !editorToolbar.contains(button)) {
+        return;
+      }
+
+      action = button.getAttribute("data-action");
+      if (action === "image") {
+        handleInsertImage();
+        return;
+      }
+      actions.applyToolbarAction(action);
     });
 
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });

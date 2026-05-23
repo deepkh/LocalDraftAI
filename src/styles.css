@@ -703,6 +703,14 @@
       margin: 0 0 0.8em;
     }
 
+    .wysiwyg hr,
+    .preview hr {
+      height: 1px;
+      margin: 1.1em 0;
+      border: 0;
+      background: var(--border-strong);
+    }
+
     .wysiwyg ul,
     .wysiwyg ol,
     .preview ul,

@@ -97,11 +97,17 @@
     return /^\s*$/.test(line);
   }
 
+  function isThematicBreak(line) {
+    var match = String(line || "").match(/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/);
+    return !!match;
+  }
+
   function isBlockStart(line) {
     return (
       /^```/.test(line) ||
       /^(#{1,6})\s+/.test(line) ||
       /^>\s?/.test(line) ||
+      isThematicBreak(line) ||
       /^\s*([-*+])\s+/.test(line) ||
       /^\s*\d+[.)]\s+/.test(line)
     );
@@ -219,6 +225,12 @@
         continue;
       }
 
+      if (isThematicBreak(line)) {
+        html.push("<hr" + blockAttrs(lineOffset + i) + ">");
+        i += 1;
+        continue;
+      }
+
       if (/^>\s?/.test(line)) {
         var quoteLines = [];
         var quoteLine = lineOffset + i;
@@ -273,7 +285,7 @@
       return false;
     }
 
-    return /^(blockquote|div|h[1-6]|li|ol|p|pre|section|article|ul)$/i.test(node.tagName);
+    return /^(blockquote|div|h[1-6]|hr|li|ol|p|pre|section|article|ul)$/i.test(node.tagName);
   }
 
   function hasMarkdownBlockChildren(node) {
@@ -415,6 +427,10 @@
       return "#".repeat(Number(tag.charAt(1))) + " " + inlineNodesToMarkdown(node).trim();
     }
 
+    if (tag === "hr") {
+      return "---";
+    }
+
     if (tag === "pre") {
       return "```\n" + codeBlockText(node).replace(/\n+$/g, "") + "\n```";
     }
@@ -496,6 +512,7 @@
       h4: true,
       h5: true,
       h6: true,
+      hr: true,
       img: true,
       i: true,
       li: true,
@@ -541,6 +558,10 @@
 
       if (tag === "br") {
         return "<br>";
+      }
+
+      if (tag === "hr") {
+        return "<hr>";
       }
 
       if (tag === "a") {

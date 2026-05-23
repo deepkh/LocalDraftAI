@@ -28,3 +28,15 @@ runTest("renders nested ordered lists from indented Markdown", function () {
 
   assert.match(html, /<ol data-md-line="0"><li data-md-line="0">Parent<ol data-md-line="1"><li data-md-line="1">Child<\/li><\/ol><\/li><li data-md-line="2">Next<\/li><\/ol>/);
 });
+
+runTest("renders Markdown thematic breaks as horizontal rules", function () {
+  const html = markdown.renderMarkdown("Before\n\n---\n\nAfter");
+
+  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p>\n<hr data-md-line="2">\n<p data-md-line="4"><span data-md-line="4">After<\/span><\/p>/);
+});
+
+runTest("splits paragraphs when a thematic break appears between lines", function () {
+  const html = markdown.renderMarkdown("Before\n---\nAfter");
+
+  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p>\n<hr data-md-line="1">\n<p data-md-line="2"><span data-md-line="2">After<\/span><\/p>/);
+});

@@ -88,6 +88,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
 - WYSIWYG mode supports rich HTML paste.
 - Markdown mode should accept plain Markdown text.
+- Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, and horizontal rules.
 - The right pane is a read-only live preview and can be hidden.
 - AI actions should operate on selected text and show a review dialog before applying changes.
 - AI provider mode should support local mock mode and OpenAI-compatible server mode.
