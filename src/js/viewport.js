@@ -11,11 +11,12 @@
     var pendingModeSwitchAnchor = null;
     var latestEditorViewportAnchor = null;
     var viewportTrackTimer = 0;
-    var scrollSyncTimer = 0;
-    var isSyncingScroll = false;
+    var scrollSource = null;
+    var scrollSourceTimer = 0;
     var wysiwygEditor = context.wysiwygEditor;
     var markdownEditor = context.markdownEditor;
     var preview = context.preview;
+    var scrollSourceReleaseDelay = 120;
 
     function hasInternalScroll(element) {
       return element.scrollHeight - element.clientHeight > 1;
@@ -370,30 +371,52 @@
       }
     }
 
-    function withScrollSyncGuard(callback) {
-      window.cancelAnimationFrame(scrollSyncTimer);
-      isSyncingScroll = true;
+    function holdScrollSource(source) {
+      scrollSource = source;
+      window.clearTimeout(scrollSourceTimer);
+      scrollSourceTimer = window.setTimeout(function () {
+        scrollSource = null;
+        scrollSourceTimer = 0;
+      }, scrollSourceReleaseDelay);
+    }
+
+    function isFeedbackScroll(kind) {
+      if (scrollSource === "programmatic") {
+        return true;
+      }
+
+      return (scrollSource === "editor" && kind === "preview") ||
+        (scrollSource === "preview" && kind === "editor");
+    }
+
+    function withScrollSource(source, callback) {
+      holdScrollSource(source);
       callback();
-      scrollSyncTimer = window.requestAnimationFrame(function () {
-        isSyncingScroll = false;
-      });
+    }
+
+    function suppressPreviewFeedback() {
+      holdScrollSource("editor");
+    }
+
+    function suppressScrollSync() {
+      holdScrollSource("programmatic");
     }
 
     function syncPreviewToEditor() {
-      if (isSyncingScroll) {
+      if (isFeedbackScroll("editor")) {
         return;
       }
 
       var anchor = captureEditorViewport();
       latestEditorViewportAnchor = anchor;
 
-      withScrollSyncGuard(function () {
+      withScrollSource("editor", function () {
         restorePreviewScroll(anchor);
       });
     }
 
     function syncEditorToPreview() {
-      if (isSyncingScroll) {
+      if (isFeedbackScroll("preview")) {
         return;
       }
 
@@ -403,18 +426,26 @@
         return;
       }
 
-      withScrollSyncGuard(function () {
+      withScrollSource("preview", function () {
         restoreEditorViewport(anchor);
       });
       latestEditorViewportAnchor = captureEditorViewport();
     }
 
     function schedulePreviewToEditorSync() {
+      if (isFeedbackScroll("editor")) {
+        return;
+      }
+
       window.cancelAnimationFrame(viewportTrackTimer);
       viewportTrackTimer = window.requestAnimationFrame(syncPreviewToEditor);
     }
 
     function scheduleEditorToPreviewSync() {
+      if (isFeedbackScroll("preview")) {
+        return;
+      }
+
       window.cancelAnimationFrame(viewportTrackTimer);
       viewportTrackTimer = window.requestAnimationFrame(syncEditorToPreview);
     }
@@ -441,6 +472,8 @@
       prepareModeSwitchAnchor: prepareModeSwitchAnchor,
       remember: rememberEditorViewport,
       restore: restoreEditorViewport,
+      suppressPreviewFeedback: suppressPreviewFeedback,
+      suppressScrollSync: suppressScrollSync,
       scheduleEditorSync: scheduleEditorToPreviewSync,
       schedulePreviewSync: schedulePreviewToEditorSync,
       scheduleTracking: scheduleViewportTracking

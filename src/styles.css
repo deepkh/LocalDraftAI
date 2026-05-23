@@ -638,6 +638,7 @@
       background: var(--panel);
       color: var(--text);
       overflow: auto;
+      overflow-anchor: none;
     }
 
     .markdown-editor {
@@ -771,6 +772,7 @@
       min-height: 0;
       padding: 24px;
       overflow: auto;
+      overflow-anchor: none;
       background: var(--panel);
       border-radius: 0 0 var(--radius) var(--radius);
     }

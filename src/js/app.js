@@ -141,9 +141,59 @@
     });
   }
 
-  function renderPreview() {
+  function getActiveEditorElement() {
+    return getActiveMode() === "markdown" ? markdownEditor : wysiwygEditor;
+  }
+
+  function capturePaneScrollState() {
+    var editor = getActiveEditorElement();
+
+    return {
+      editor: editor,
+      editorScrollTop: editor.scrollTop,
+      previewScrollTop: preview.scrollTop,
+      windowScrollX: window.scrollX,
+      windowScrollY: window.scrollY
+    };
+  }
+
+  function restorePaneScrollState(scrollState) {
+    if (!scrollState) {
+      return;
+    }
+
+    if (viewport && viewport.suppressScrollSync) {
+      viewport.suppressScrollSync();
+    }
+
+    scrollState.editor.scrollTop = scrollState.editorScrollTop;
+    preview.scrollTop = scrollState.previewScrollTop;
+    window.scrollTo(scrollState.windowScrollX, scrollState.windowScrollY);
+  }
+
+  function renderPreview(options) {
+    var scrollState;
     var html = renderMarkdownForSession(getMarkdownText());
+
+    options = options || {};
+    if (options.preservePaneScroll) {
+      scrollState = capturePaneScrollState();
+    }
+
+    if (viewport && options.preservePaneScroll && viewport.suppressScrollSync) {
+      viewport.suppressScrollSync();
+    } else if (viewport && viewport.suppressPreviewFeedback) {
+      viewport.suppressPreviewFeedback();
+    }
+
     preview.innerHTML = html || '<p class="preview-empty">Preview</p>';
+
+    if (scrollState) {
+      restorePaneScrollState(scrollState);
+      window.requestAnimationFrame(function () {
+        restorePaneScrollState(scrollState);
+      });
+    }
   }
 
   function updateCounts() {
@@ -314,7 +364,9 @@
     if (source !== "textarea") {
       markdownEditor.value = activeSession.markdownText;
     }
-    renderPreview();
+    renderPreview({
+      preservePaneScroll: source === "textarea" || source === "wysiwyg"
+    });
     updateCounts();
 
     if (history && options.history !== false) {
