@@ -3,9 +3,9 @@
 
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
   var STORAGE_KEYS = {
-    apiKey: "markdownForge.ai.apiKey",
-    endpoint: "markdownForge.ai.endpoint",
-    model: "markdownForge.ai.model"
+    apiKey: "localDraftAI.ai.apiKey",
+    endpoint: "localDraftAI.ai.endpoint",
+    model: "localDraftAI.ai.model"
   };
   var DEFAULT_SERVER_URL = "http://127.0.0.1:11434/v1/";
   var ACTION_TIMEOUT_MS = 550000;
@@ -101,7 +101,7 @@
   }
 
   function readSettings() {
-    var globalConfig = window.MarkdownForgeAIConfig || {};
+    var globalConfig = window.LocalDraftAIConfig || {};
 
     return {
       endpoint: globalConfig.endpoint || localStorageValue(STORAGE_KEYS.endpoint),

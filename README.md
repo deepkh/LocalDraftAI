@@ -1,141 +1,135 @@
-# Markdown Forge
+# LocalDraftAI
 
-![GitHub](https://img.shields.io/badge/GitHub-Markdown_Forge-181717?style=for-the-badge&logo=github)
 ![Static App](https://img.shields.io/badge/Static_HTML-CSS_JS-0969da?style=for-the-badge&logo=github)
+![Local First](https://img.shields.io/badge/Local_First-AI_Assisted-8250df?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-2da44e?style=for-the-badge&logo=github)
 
-A small local Markdown editor that runs in the browser.
+**Your local AI-powered Markdown editor.**
+
+LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you a WYSIWYG editor, plain Markdown editing, live preview, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
+
+It is designed for people who want a simple Markdown workspace without a heavy desktop app or cloud-only workflow.
+
+---
 
 ## Snapshot
 
-![Markdown Forge snapshot](assets/markdown-forge-snapshot.png)
+![LocalDraftAI snapshot](assets/local-draft-ai-snapshot.png)
 
-## What It Does
+---
 
-- Keeps each open document in its own tab with its own title, dirty state, editor mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
-- Create, switch, close, scroll through, and reorder in-memory document tabs without discarding other open documents.
-- Edit in WYSIWYG mode or plain Markdown mode.
-- Paste rich HTML into the WYSIWYG editor.
-- Paste plain text into the Markdown editor.
-- Render Markdown image syntax such as `![Alt](assets/a.png)` in the editor and preview.
-- Paste, drop, or insert PNG, JPEG, WebP, and GIF images in WYSIWYG workflows.
-- Store inserted local images in an `assets/` folder inside a user-chosen workspace folder, then add relative Markdown links such as `![photo](assets/photo.png)`.
-- See a live Markdown preview beside the editor.
-- Hide or show the preview pane.
-- Toggle Focus mode to collapse the file toolbar and formatting controls while keeping the tab strip docked above the editor and preview.
-- Use the first toolbar row for the app title, active file name, New, Open, Save, Save As, Recent files, the AI Assistant menu, and AI connection status.
-- Use the tab strip to switch documents by clicking a tab, close tabs, scroll through many open tabs, drag tabs into a new order, or create another untitled tab with `+`.
-- Use the second toolbar row for headings, bold, italic, code, nested lists, quotes, links, undo, redo, mode switching, preview, Focus mode, and About.
-- Use the AI Assistant toolbar menu or editor right-click menu for actions such as Grammar Correction after reviewing the result.
-- Configure AI Assistant provider mode, endpoint, model, and API key from the AI Settings dialog.
-- Load OpenAI-compatible model names into a visible AI Settings model dropdown.
-- Read AI action details in the review dialog, including mode, endpoint, model, elapsed time, timeout, and recovery suggestions.
-- Keep the AI review dialog open during processing unless the close button is clicked.
-- See the AI Assistant status in the toolbar and menu, including mock mode, connection checks, connected state, server errors, auth errors, and running actions.
-- Open the AI Assistant toolbar menu as a floating menu so it stays visible below the toolbar.
-- Open and save local `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
-- Reopen files or remove entries from an IndexedDB-backed recent-file list.
-- View the MIT license from the About dialog.
-- Warn before closing a dirty tab or refreshing/closing the browser with dirty documents.
-- Use file shortcuts: Ctrl/Cmd+N for a new tab, Ctrl/Cmd+O to open a file into a tab, Ctrl/Cmd+S for Save, and Ctrl/Cmd+Shift+S for Save As.
-- Use tab shortcuts: Ctrl/Cmd+W closes the active tab, Ctrl/Cmd+PageUp/PageDown switches tabs, Ctrl/Cmd+Shift+PageUp/PageDown reorders the active tab, and Ctrl/Cmd+1 through Ctrl/Cmd+9 jumps to a tab by position.
-- Use Tab and Shift+Tab inside the editor to indent and outdent list items.
-- Use Focus mode shortcuts: Ctrl/Cmd+Shift+F toggles Focus mode, and Escape exits Focus mode.
+## Highlights
 
-Browsers without the File System Access API keep the editor working, but file controls are disabled.
-Local image storage also requires browser file and folder access. The first pasted, dropped, or inserted local image asks for a workspace folder, and Markdown Forge creates or reuses that folder's `assets/` directory.
+- **Local browser app**: open the HTML file directly or serve it from `localhost`.
+- **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text.
+- **Live preview**: preview rendered Markdown beside the editor.
+- **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
+- **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
+- **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
+- **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
+- **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown.
+- **Review before apply**: AI output is shown in a review dialog before it replaces selected text.
+- **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
+- **Focus mode**: hide extra controls and keep writing with fewer distractions.
+- **No build step required**: static HTML, CSS, and JavaScript.
+
+---
+
+## What You Can Do With It
+
+LocalDraftAI is useful for writing and editing:
+
+- README files
+- technical notes
+- project documentation
+- blog drafts
+- meeting notes
+- Markdown documents with local images
+- rough text that needs grammar or wording cleanup
+
+Typical workflow:
+
+```text
+Open LocalDraftAI
+  -> create or open a Markdown file
+  -> write in WYSIWYG or Markdown mode
+  -> select text
+  -> run an AI Assistant action
+  -> review the result
+  -> apply it
+  -> save back to local disk
+```
+
+---
 
 ## Run It
 
 Open this file in a browser:
 
 ```text
-src/markdown_forge.html
+src/local_draft_ai.html
 ```
 
-No install step is needed.
+No install step is required.
 
-If you use a local AI server and the browser reports a connection or CORS error, serve the app from a local HTTP origin instead of opening it as `file://`:
+For the best local file and AI server behavior, you can serve the project from a local HTTP origin:
 
-```text
+```bash
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
 Then open:
 
 ```text
-http://127.0.0.1:8000/src/markdown_forge.html
+http://127.0.0.1:8000/src/local_draft_ai.html
 ```
 
-For Ollama, you can also allow browser origins from the Ollama side by setting:
+## Browser Support Notes
 
-```text
-OLLAMA_ORIGINS=*
+LocalDraftAI works best in Chromium-based browsers such as Chrome or Edge.
+
+Browsers without the File System Access API can still use the editor, but local open/save controls may be limited or disabled. Local image storage also requires browser file and folder access.
+
+When you paste, drop, or insert the first local image, the app asks for a workspace folder. It then creates or reuses an `assets/` folder and inserts Markdown image links such as:
+
+```markdown
+![photo](assets/photo.png)
 ```
 
-Restart Ollama after changing the environment variable.
+---
 
-## Project Layout
+## AI Assistant
 
-```text
-assets/
-├── MarkdownForge.ico
-└── markdown-forge-snapshot.png
-src/
-├── markdown_forge.html
-├── styles.css
-└── js/
-    ├── app.js
-    ├── asset-store.js
-    ├── ai-actions.js
-    ├── ai-assistant.js
-    ├── ai-context-menu.js
-    ├── ai-provider.js
-    ├── ai-settings.js
-    ├── ai-status.js
-    ├── document-session.js
-    ├── editor-actions.js
-    ├── file-store.js
-    ├── history.js
-    ├── markdown.js
-    ├── markdown-ai-guards.js
-    ├── markdown-repair.js
-    ├── recent-files.js
-    ├── resizer.js
-    ├── tab-manager.js
-    ├── utils.js
-    └── viewport.js
-tests/
-└── unit/
-    ├── ai-actions.test.js
-    ├── ai-assistant.test.js
-    ├── ai-context-menu.test.js
-    ├── ai-provider.test.js
-    ├── editor-actions.test.js
-    ├── ai-settings.test.js
-    ├── ai-status.test.js
-    ├── markdown-ai-guards.test.js
-    ├── markdown.test.js
-    └── tab-manager.test.js
-```
+The AI Assistant can be opened from the toolbar menu or from the editor right-click menu when text is selected.
 
-## AI Provider
+Example actions:
 
-The AI Assistant uses local mock transforms by default and labels mock results in the review dialog. The toolbar status badge and AI menu show whether Markdown Forge is using mock mode, checking a configured server, connected, running, or blocked by a reachable provider error.
+- Fix grammar
+- Improve wording
+- Make professional
+- Summarize
+- Make shorter
+- Beautify Markdown
+- Fix Markdown syntax
 
-Configure the provider from the app:
+The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server.
 
-1. Open `src/markdown_forge.html` in Chrome or another supported browser.
-2. Open the **AI Assistant** menu.
+To use a real model, configure an OpenAI-compatible server.
+
+### Configure AI Server
+
+1. Open LocalDraftAI.
+2. Click **AI Assistant**.
 3. Click **Settings**.
-4. Choose **Local mock mode** or **OpenAI-compatible server**.
-5. For server mode, enter the server URL and optional API key.
-6. Click **List Models** and choose a model from the dropdown, or type a model name manually.
-7. Click **Test Connection**.
-8. Click **Save**.
-9. Switch to WYSIWYG or Markdown mode, select text, right-click or open the AI Assistant menu, choose an AI action, review the result, then click **Apply**.
+4. Choose **OpenAI-compatible server**.
+5. Enter the server URL.
+6. Enter a model name, or click **List Models** and choose one from the dropdown.
+7. Enter an API key if your server requires one.
+8. Click **Test Connection**.
+9. Click **Save**.
+10. Select text in the editor, choose an AI action, review the result, then click **Apply**.
 
-Example local server settings:
+Example local Ollama-compatible settings:
 
 ```text
 Server URL: http://127.0.0.1:11434/v1/
@@ -143,29 +137,179 @@ Model: qwen3:4b
 API Key: optional
 ```
 
-Example remote server settings:
+The settings dialog lists models from:
 
 ```text
-Server URL: https://your-server.example.com/v1/
-Model: your-model-name
-API Key: your-api-key
+/models
 ```
 
-To return to local mock mode, open **AI Assistant** > **Settings**, choose **Local mock mode**, and click **Save**. Settings are stored in browser `localStorage` under `markdownForge.ai.endpoint`, `markdownForge.ai.model`, and `markdownForge.ai.apiKey`.
+AI actions are sent to:
 
-The settings dialog defaults the server URL to `http://127.0.0.1:11434/v1/`, lists models from `/models`, and sends AI requests to `/chat/completions`. Connection tests accept reachable OpenAI-compatible completion responses, including reasoning-only test responses from local models, while AI actions still require returned Markdown content. Connection tests and AI actions use request timeouts so an unreachable server does not leave the UI hanging. During each AI action, the review dialog shows a compact activity log with request details, the selected editor mode, the configured action timeout, elapsed time, and error-specific suggestions.
+```text
+/chat/completions
+```
+
+### Ollama CORS Note
+
+If the browser reports a connection or CORS error, serve the app from `localhost` instead of opening it as `file://`.
+
+For Ollama, you may also need to allow browser origins:
+
+```bash
+OLLAMA_ORIGINS=*
+```
+
+Restart Ollama after changing the environment variable.
+
+---
+
+## Keyboard Shortcuts
+
+### File
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl/Cmd + N` | New tab |
+| `Ctrl/Cmd + O` | Open file into a tab |
+| `Ctrl/Cmd + S` | Save |
+| `Ctrl/Cmd + Shift + S` | Save As |
+| `Ctrl/Cmd + W` | Close active tab |
+
+### Tabs
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl/Cmd + PageUp` | Previous tab |
+| `Ctrl/Cmd + PageDown` | Next tab |
+| `Ctrl/Cmd + Shift + PageUp` | Move active tab left |
+| `Ctrl/Cmd + Shift + PageDown` | Move active tab right |
+| `Ctrl/Cmd + 1` through `Ctrl/Cmd + 9` | Jump to tab by position |
+
+### Editing
+
+| Shortcut | Action |
+|---|---|
+| `Tab` | Indent list item |
+| `Shift + Tab` | Outdent list item |
+| `Ctrl/Cmd + Shift + F` | Toggle Focus mode |
+| `Escape` | Exit Focus mode |
+
+---
+
+## Project Layout
+
+```text
+.
+├── assets/
+│   ├── LocalDraftAI.ico
+│   └── local-draft-ai-snapshot.png
+├── src/
+│   ├── local_draft_ai.html
+│   ├── styles.css
+│   └── js/
+│       ├── app.js
+│       ├── asset-store.js
+│       ├── ai-actions.js
+│       ├── ai-assistant.js
+│       ├── ai-context-menu.js
+│       ├── ai-provider.js
+│       ├── ai-settings.js
+│       ├── ai-status.js
+│       ├── document-session.js
+│       ├── editor-actions.js
+│       ├── file-store.js
+│       ├── history.js
+│       ├── markdown.js
+│       ├── markdown-ai-guards.js
+│       ├── markdown-repair.js
+│       ├── recent-files.js
+│       ├── resizer.js
+│       ├── tab-manager.js
+│       ├── utils.js
+│       └── viewport.js
+├── tests/
+│   └── unit/
+│       ├── ai-actions.test.js
+│       ├── ai-assistant.test.js
+│       ├── ai-context-menu.test.js
+│       ├── ai-provider.test.js
+│       ├── ai-settings.test.js
+│       ├── ai-status.test.js
+│       ├── editor-actions.test.js
+│       ├── markdown-ai-guards.test.js
+│       ├── markdown.test.js
+│       └── tab-manager.test.js
+├── AGENTS.md
+├── LICENSE
+└── README.md
+```
+
+---
+
+## Main Modules
+
+| File | Purpose |
+|---|---|
+| `src/local_draft_ai.html` | Main static app shell |
+| `src/styles.css` | App layout and visual styles |
+| `src/js/app.js` | App startup and high-level wiring |
+| `src/js/document-session.js` | Per-tab document state |
+| `src/js/tab-manager.js` | Multi-tab behavior |
+| `src/js/markdown.js` | Markdown parsing/rendering helpers |
+| `src/js/editor-actions.js` | Editor formatting commands |
+| `src/js/file-store.js` | Local file open/save helpers |
+| `src/js/recent-files.js` | Recent file list storage |
+| `src/js/asset-store.js` | Local image workspace handling |
+| `src/js/ai-assistant.js` | AI action workflow and review dialog |
+| `src/js/ai-provider.js` | OpenAI-compatible provider calls |
+| `src/js/ai-settings.js` | AI settings dialog |
+| `src/js/ai-status.js` | AI status display |
+| `src/js/ai-context-menu.js` | Right-click AI actions |
+| `src/js/markdown-ai-guards.js` | Markdown safety checks for AI output |
+| `src/js/markdown-repair.js` | Markdown cleanup helpers |
+
+---
 
 ## Tests
 
-Run the dependency-free unit tests with:
+Run the dependency-free unit tests with Node.js:
 
-```text
+```bash
 node tests/unit/ai-actions.test.js
+node tests/unit/ai-assistant.test.js
+node tests/unit/ai-context-menu.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
+node tests/unit/editor-actions.test.js
+node tests/unit/markdown-ai-guards.test.js
+node tests/unit/markdown.test.js
 node tests/unit/tab-manager.test.js
 ```
+
+Or run all unit tests from a shell:
+
+```bash
+for test in tests/unit/*.test.js; do
+  node "$test"
+done
+```
+
+---
+
+## Design Goals
+
+LocalDraftAI should stay:
+
+- **local-first**
+- **easy to open**
+- **simple to understand**
+- **safe for local files**
+- **useful without AI**
+- **better with AI**
+- **dependency-free unless a build system is intentionally added**
+
+---
 
 ## License
 

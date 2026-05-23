@@ -64,8 +64,8 @@ runTest("mock syntax repair closes an open fenced code block", function () {
 runTest("mock summarize returns Markdown bullets", function () {
   const result = repair.runAction(
     "summarize",
-    "Markdown Forge edits Markdown. It previews content. It keeps tabs isolated."
+    "LocalDraftAI edits Markdown. It previews content. It keeps tabs isolated."
   );
 
-  assert.equal(result, "- Markdown Forge edits Markdown.\n- It previews content.\n- It keeps tabs isolated.");
+  assert.equal(result, "- LocalDraftAI edits Markdown.\n- It previews content.\n- It keeps tabs isolated.");
 });

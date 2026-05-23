@@ -83,7 +83,7 @@
 
     if (code === "no_endpoint") {
       return {
-        detail: "AI server is not configured. Set markdownForge.ai.endpoint before testing a server.",
+        detail: "AI server is not configured. Set localDraftAI.ai.endpoint before testing a server.",
         label: "Not configured",
         status: "not-configured"
       };

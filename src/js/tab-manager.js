@@ -165,7 +165,7 @@
         return null;
       }
 
-      return fileHandle.__markdownForgeId || fileHandle.__mockId || fileHandle.id || fileHandle.path || null;
+      return fileHandle.__localDraftAIId || fileHandle.__mockId || fileHandle.id || fileHandle.path || null;
     }
 
     async function sameFileHandle(leftHandle, rightHandle) {

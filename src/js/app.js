@@ -162,7 +162,7 @@
 
     documentTitle.textContent = displayTitle;
     documentTitle.title = session && session.dirty ? title + " has unsaved changes" : title;
-    document.title = displayTitle + " - Markdown Forge";
+    document.title = displayTitle + " - LocalDraftAI";
   }
 
   function updateDirtyState() {

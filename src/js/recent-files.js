@@ -2,7 +2,7 @@
   "use strict";
 
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
-  var DB_NAME = "markdown-forge-recent-files";
+  var DB_NAME = "local-draft-ai-recent-files";
   var DB_VERSION = 1;
   var STORE_NAME = "files";
 

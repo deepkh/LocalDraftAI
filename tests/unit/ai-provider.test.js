@@ -38,7 +38,7 @@ async function runTest(name, callback) {
 
 function resetSettings() {
   window.localStorage.values = {};
-  delete window.MarkdownForgeAIConfig;
+  delete window.LocalDraftAIConfig;
   delete window.fetch;
 }
 
@@ -60,9 +60,9 @@ function resetSettings() {
     var result;
 
     resetSettings();
-    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
-    window.localStorage.setItem("markdownForge.ai.apiKey", "test-key");
+    window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.apiKey", "test-key");
     window.fetch = async function (url, options) {
       request = {
         body: JSON.parse(options.body),
@@ -104,8 +104,8 @@ function resetSettings() {
     var result;
 
     resetSettings();
-    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
     window.fetch = async function (url, options) {
       request = {
         body: JSON.parse(options.body),
@@ -143,8 +143,8 @@ function resetSettings() {
     var result;
 
     resetSettings();
-    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("markdownForge.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
     window.fetch = async function () {
       return {
         ok: true,
@@ -218,9 +218,9 @@ function resetSettings() {
       model: " qwen3:4b "
     });
 
-    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "http://localhost:11434/v1/chat/completions");
-    assert.equal(window.localStorage.getItem("markdownForge.ai.model"), "qwen3:4b");
-    assert.equal(window.localStorage.getItem("markdownForge.ai.apiKey"), "secret");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://localhost:11434/v1/chat/completions");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "qwen3:4b");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.apiKey"), "secret");
 
     providerApi.saveSettings({
       endpoint: "http://127.0.0.1:11434/v1/",
@@ -228,13 +228,13 @@ function resetSettings() {
       model: "qwen3:4b"
     });
 
-    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "http://127.0.0.1:11434/v1/chat/completions");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://127.0.0.1:11434/v1/chat/completions");
 
     providerApi.clearSettings();
 
-    assert.equal(window.localStorage.getItem("markdownForge.ai.endpoint"), "");
-    assert.equal(window.localStorage.getItem("markdownForge.ai.model"), "");
-    assert.equal(window.localStorage.getItem("markdownForge.ai.apiKey"), "");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.apiKey"), "");
   });
 
   await runTest("exposes the configured AI action timeout", function () {
@@ -248,7 +248,7 @@ function resetSettings() {
     var provider;
 
     resetSettings();
-    window.localStorage.setItem("markdownForge.ai.endpoint", "http://localhost:11434/v1/chat/completions");
+    window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
     window.fetch = async function () {
       return {
         ok: false,
