@@ -70,9 +70,9 @@ Open this file in a browser:
 src/local_draft_ai.html
 ```
 
-No install step is required.
+No install step is needed.
 
-For the best local file and AI server behavior, you can serve the project from a local HTTP origin:
+If you use a local AI server and the browser reports a connection or CORS error, serve the app from a local HTTP origin instead of opening it as `file://`:
 
 ```bash
 python3 -m http.server 8000 --bind 127.0.0.1
@@ -82,6 +82,117 @@ Then open:
 
 ```text
 http://127.0.0.1:8000/src/local_draft_ai.html
+```
+
+For Ollama, you can also allow browser origins from the Ollama side by setting:
+
+```bash
+OLLAMA_ORIGINS=*
+```
+
+Restart Ollama after changing the environment variable.
+
+### Run as a Linux systemd Service
+
+This is useful if you want LocalDraft AI to start automatically after boot and always be available from a local browser.
+
+#### 1. Install required packages
+
+```bash
+sudo apt update
+sudo apt install -y git python3
+```
+
+#### 2. Install LocalDraft AI under `/opt`
+
+```bash
+sudo git clone https://github.com/deepkh/LocalDraftAI.git /opt/LocalDraftAI
+```
+
+If the folder already exists, update it instead:
+
+```bash
+cd /opt/LocalDraftAI
+sudo git pull
+```
+
+#### 3. Create a systemd service
+
+```bash
+sudo tee /etc/systemd/system/localdraftai.service > /dev/null <<'EOF'
+[Unit]
+Description=LocalDraft AI local Markdown editor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/LocalDraftAI
+ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+#### 4. Enable and start the service
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now localdraftai.service
+```
+
+#### 5. Check service status
+
+```bash
+systemctl status localdraftai.service
+```
+
+#### 6. Open LocalDraft AI
+
+```text
+http://127.0.0.1:8000/src/local_draft_ai.html
+```
+
+#### 7. View logs
+
+```bash
+journalctl -u localdraftai.service -f
+```
+
+#### 8. Stop or restart the service
+
+```bash
+sudo systemctl stop localdraftai.service
+sudo systemctl restart localdraftai.service
+```
+
+By default, the service only listens on `127.0.0.1`, so it is only reachable from the same Linux machine.
+
+To allow access from other devices on your LAN, edit the service file:
+
+```bash
+sudo nano /etc/systemd/system/localdraftai.service
+```
+
+Change:
+
+```ini
+ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+to:
+
+```ini
+ExecStart=/usr/bin/python3 -m http.server 8000 --bind 0.0.0.0
+```
+
+Then reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart localdraftai.service
 ```
 
 ## Browser Support Notes
