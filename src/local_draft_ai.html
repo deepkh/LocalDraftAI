@@ -168,6 +168,21 @@ SOFTWARE.</pre>
               <textarea id="aiResultText" spellcheck="false"></textarea>
             </section>
           </div>
+          <section class="ai-review-diff" aria-label="Diff view">
+            <div class="ai-review-diff-header">
+              <h3>Diff View</h3>
+              <div class="ai-review-diff-toolbar" role="group" aria-label="Compare mode">
+                <button type="button" id="aiDiffSideBySideButton" class="is-active" aria-pressed="true">Side-by-side</button>
+                <button type="button" id="aiDiffUnifiedButton" aria-pressed="false">Unified diff</button>
+                <label class="ai-diff-option">
+                  <input type="checkbox" id="aiDiffHideUnchanged">
+                  Hide unchanged
+                </label>
+              </div>
+            </div>
+            <div id="aiDiffSummary" class="ai-diff-summary" aria-live="polite"></div>
+            <div id="aiDiffView" class="ai-diff-view" aria-live="polite"></div>
+          </section>
         </div>
         <div class="ai-review-actions">
           <button type="button" id="aiReviewCancel" class="file-button">Cancel</button>
@@ -238,6 +253,7 @@ SOFTWARE.</pre>
   <script src="js/ai-actions.js"></script>
   <script src="js/markdown-repair.js"></script>
   <script src="js/markdown-ai-guards.js"></script>
+  <script src="js/ai-diff.js"></script>
   <script src="js/ai-provider.js"></script>
   <script src="js/ai-status.js"></script>
   <script src="js/ai-settings.js"></script>

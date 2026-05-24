@@ -29,7 +29,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown.
-- **Review before apply**: AI output is shown in a review dialog before it replaces selected text.
+- **Review before apply**: AI output is shown with the original selection, an editable result, and a visual diff before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
 - **No build step required**: static HTML, CSS, and JavaScript.
@@ -56,7 +56,7 @@ Open LocalDraftAI
   -> write in WYSIWYG or Markdown mode
   -> select text
   -> run an AI Assistant action
-  -> review the result
+  -> review the result and diff
   -> apply it
   -> save back to local disk
 ```
@@ -324,6 +324,7 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-actions.js
 │       ├── ai-assistant.js
 │       ├── ai-context-menu.js
+│       ├── ai-diff.js
 │       ├── ai-provider.js
 │       ├── ai-settings.js
 │       ├── ai-status.js
@@ -344,6 +345,7 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-actions.test.js
 │       ├── ai-assistant.test.js
 │       ├── ai-context-menu.test.js
+│       ├── ai-diff.test.js
 │       ├── ai-provider.test.js
 │       ├── ai-settings.test.js
 │       ├── ai-status.test.js
@@ -373,6 +375,7 @@ Restart Ollama after changing the environment variable.
 | `src/js/recent-files.js` | Recent file list storage |
 | `src/js/asset-store.js` | Local image workspace handling |
 | `src/js/ai-assistant.js` | AI action workflow and review dialog |
+| `src/js/ai-diff.js` | Visual text diff helpers for the AI review dialog |
 | `src/js/ai-provider.js` | OpenAI-compatible provider calls |
 | `src/js/ai-settings.js` | AI settings dialog |
 | `src/js/ai-status.js` | AI status display |
@@ -390,6 +393,7 @@ Run the dependency-free unit tests with Node.js:
 node tests/unit/ai-actions.test.js
 node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
+node tests/unit/ai-diff.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js

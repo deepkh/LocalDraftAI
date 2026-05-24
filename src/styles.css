@@ -1103,6 +1103,151 @@
       resize: vertical;
     }
 
+    .ai-review-diff {
+      margin-top: 14px;
+    }
+
+    .ai-review-diff-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .ai-review-diff-header h3 {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.3;
+      text-transform: uppercase;
+    }
+
+    .ai-review-diff-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .ai-review-diff-toolbar button {
+      min-height: 32px;
+      font-size: 12px;
+    }
+
+    .ai-review-diff-toolbar button.is-active {
+      border-color: var(--accent);
+      background: #e6f4f1;
+      color: var(--accent-strong);
+    }
+
+    .ai-diff-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .ai-diff-summary {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .ai-diff-summary:empty {
+      display: none;
+    }
+
+    .ai-diff-view {
+      max-height: 260px;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel-alt);
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .ai-diff-view:empty {
+      display: none;
+    }
+
+    .ai-diff-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 8px;
+      min-width: 0;
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--border);
+      white-space: pre-wrap;
+    }
+
+    .ai-diff-row:last-child {
+      border-bottom: 0;
+    }
+
+    .ai-diff-split-row {
+      grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr);
+      min-width: 620px;
+    }
+
+    .ai-diff-header-row {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--panel-alt);
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      white-space: normal;
+    }
+
+    .ai-diff-row.is-added {
+      background: #e8f7ed;
+    }
+
+    .ai-diff-row.is-removed {
+      background: #fdeaea;
+    }
+
+    .ai-diff-row.is-changed {
+      background: #fff7d6;
+    }
+
+    .ai-diff-prefix {
+      color: var(--muted);
+      font-weight: 700;
+      white-space: pre;
+    }
+
+    .ai-diff-content {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .ai-diff-token-added {
+      border-radius: 3px;
+      background: #b7efc5;
+    }
+
+    .ai-diff-token-removed {
+      border-radius: 3px;
+      background: #f8b4b4;
+      text-decoration: line-through;
+    }
+
+    .ai-diff-empty {
+      padding: 8px;
+      color: var(--muted);
+    }
+
     .ai-review-actions {
       display: flex;
       justify-content: flex-end;
@@ -1371,6 +1516,11 @@
 
       .ai-review-grid {
         grid-template-columns: minmax(0, 1fr);
+      }
+
+      .ai-review-diff-header {
+        align-items: flex-start;
+        flex-direction: column;
       }
 
       .wysiwyg,

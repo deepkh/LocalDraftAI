@@ -1,23 +1,43 @@
 const assert = require("node:assert/strict");
 
-function element() {
-  return {
-    classList: {
-      add() {},
-      remove() {}
-    },
+function element(tagName) {
+  const listeners = {};
+  const classes = new Set();
+  let textContent = "";
+  let innerHTML = "";
+  const node = {
+    attributes: {},
+    checked: false,
+    children: [],
+    className: "",
+    dataset: {},
     disabled: false,
     hidden: true,
-    innerHTML: "",
-    textContent: "",
+    scrollHeight: 0,
+    scrollTop: 0,
+    selectionEnd: 0,
+    selectionStart: 0,
+    style: {},
+    tagName: tagName || "div",
     value: "",
-    addEventListener() {},
-    appendChild() {},
+    addEventListener(type, callback) {
+      listeners[type] = listeners[type] || [];
+      listeners[type].push(callback);
+    },
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    },
     contains() {
       return false;
     },
-    dataset: {},
-    focus() {},
+    dispatchEvent(event) {
+      const eventObject = typeof event === "string" ? { type: event } : event;
+      (listeners[eventObject.type] || []).forEach((callback) => callback(eventObject));
+    },
+    focus() {
+      this.focused = true;
+    },
     getBoundingClientRect() {
       return {
         bottom: 0,
@@ -28,12 +48,58 @@ function element() {
         width: 0
       };
     },
-    removeAttribute() {},
-    scrollHeight: 0,
-    scrollTop: 0,
-    setAttribute() {},
-    style: {}
+    removeAttribute(name) {
+      delete this.attributes[name];
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    setRangeText(replacement, start, end) {
+      this.value = this.value.slice(0, start) + replacement + this.value.slice(end);
+      this.selectionStart = start;
+      this.selectionEnd = start + replacement.length;
+    }
   };
+
+  Object.defineProperty(node, "textContent", {
+    get() {
+      return textContent;
+    },
+    set(value) {
+      textContent = String(value || "");
+      if (!textContent) {
+        node.children = [];
+      }
+    }
+  });
+
+  Object.defineProperty(node, "innerHTML", {
+    get() {
+      return innerHTML;
+    },
+    set(value) {
+      innerHTML = String(value || "");
+      if (!innerHTML) {
+        node.children = [];
+      }
+    }
+  });
+
+  node.classList = {
+    add(name) {
+      classes.add(name);
+      node.className = Array.from(classes).join(" ");
+    },
+    contains(name) {
+      return classes.has(name);
+    },
+    remove(name) {
+      classes.delete(name);
+      node.className = Array.from(classes).join(" ");
+    }
+  };
+
+  return node;
 }
 
 global.window = {
@@ -47,13 +113,14 @@ global.window = {
 
 global.document = {
   addEventListener() {},
-  createElement() {
-    return element();
+  createElement(tagName) {
+    return element(tagName);
   }
 };
 
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-ai-guards.js");
+require("../../src/js/ai-diff.js");
 
 window.MarkdownEditor.aiContextMenu = {
   create() {
@@ -81,25 +148,75 @@ async function runTest(name, callback) {
   }
 }
 
+function createContext(overrides) {
+  const markdownEditor = element("textarea");
+  const context = {
+    applyButton: element("button"),
+    cancelButton: element("button"),
+    captureSelection() {},
+    closeButton: element("button"),
+    diffHideUnchanged: element("input"),
+    diffSideBySideButton: element("button"),
+    diffSummary: element("div"),
+    diffUnifiedButton: element("button"),
+    diffView: element("div"),
+    focusActiveEditor() {
+      context.focusedActiveEditor = true;
+    },
+    getActiveMode() {
+      return "markdown";
+    },
+    getActiveSessionId() {
+      return "session-1";
+    },
+    markdownEditor,
+    originalText: element("pre"),
+    provider: {
+      actionTimeoutMs() {
+        return 1000;
+      },
+      readSettings() {
+        return {
+          endpoint: "",
+          model: "local-model"
+        };
+      },
+      run() {
+        return Promise.resolve("result");
+      }
+    },
+    resultText: element("textarea"),
+    reviewDialog: element("div"),
+    reviewLog: element("div"),
+    reviewOverlay: element("div"),
+    reviewStatus: element("div"),
+    reviewTitle: element("h2"),
+    setMarkdown(value, source) {
+      context.lastMarkdown = value;
+      context.lastMarkdownSource = source;
+    },
+    statusBadge: element("span"),
+    toolbarButton: element("button"),
+    toolbarMenu: element("div"),
+    wysiwygEditor: element("div")
+  };
+
+  context.toolbarMenu.hidden = true;
+
+  return Object.assign(context, overrides || {});
+}
+
+function bindAssistant(context) {
+  const assistant = aiAssistant.create(context);
+
+  assistant.bindEvents();
+  return assistant;
+}
+
 (async function () {
   await runTest("does not close an open AI review dialog as transient UI", async function () {
     let resolveProvider;
-    const cancelButton = element();
-    const reviewOverlay = element();
-    const assistant = aiAssistant.create({
-      applyButton: element(),
-      cancelButton,
-      captureSelection() {},
-      closeButton: element(),
-      focusActiveEditor() {},
-      getActiveMode() {
-        return "markdown";
-      },
-      getActiveSessionId() {
-        return "session-1";
-      },
-      markdownEditor: element(),
-      originalText: element(),
+    const context = createContext({
       provider: {
         actionTimeoutMs() {
           return 1000;
@@ -115,19 +232,9 @@ async function runTest(name, callback) {
             resolveProvider = resolve;
           });
         }
-      },
-      resultText: element(),
-      reviewDialog: element(),
-      reviewLog: element(),
-      reviewOverlay,
-      reviewStatus: element(),
-      reviewTitle: element(),
-      setMarkdown() {},
-      statusBadge: element(),
-      toolbarButton: element(),
-      toolbarMenu: element(),
-      wysiwygEditor: element()
+      }
     });
+    const assistant = bindAssistant(context);
 
     const request = assistant.requestAction("correctGrammar", {
       selection: {
@@ -138,12 +245,192 @@ async function runTest(name, callback) {
       }
     });
 
-    assert.equal(reviewOverlay.hidden, false);
-    assert.equal(cancelButton.disabled, true);
+    assert.equal(context.reviewOverlay.hidden, false);
+    assert.equal(context.cancelButton.disabled, true);
     assert.equal(assistant.closeTransientUi(), false);
-    assert.equal(reviewOverlay.hidden, false);
+    assert.equal(context.reviewOverlay.hidden, false);
 
     resolveProvider("result");
     await request;
+  });
+
+  await runTest("keeps diff empty while AI is processing", async function () {
+    let resolveProvider;
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return new Promise((resolve) => {
+            resolveProvider = resolve;
+          });
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    const request = assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    assert.equal(context.diffSummary.textContent, "");
+    assert.equal(context.diffView.children.length, 0);
+
+    resolveProvider("Hello LocalDraftAI world");
+    await request;
+  });
+
+  await runTest("renders diff after AI result is ready", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    assert.equal(context.resultText.value, "Hello LocalDraftAI world");
+    assert.equal(context.diffSummary.textContent, "+ 1 added   - 0 removed   ~ 1 changed");
+    assert.equal(context.diffView.children.length, 1);
+  });
+
+  await runTest("refreshes diff when editable AI result changes", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    context.resultText.value = "Hello world";
+    context.resultText.dispatchEvent("input");
+
+    assert.equal(context.diffSummary.textContent, "No differences.");
+  });
+
+  await runTest("applies the edited AI result", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("the");
+        }
+      }
+    });
+    context.markdownEditor.value = "teh text";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 3,
+        mode: "markdown",
+        start: 0,
+        text: "teh"
+      }
+    });
+
+    context.resultText.value = "the edited";
+    context.resultText.dispatchEvent("input");
+    context.applyButton.dispatchEvent("click");
+
+    assert.equal(context.markdownEditor.value, "the edited text");
+    assert.equal(context.lastMarkdown, "the edited text");
+    assert.equal(context.lastMarkdownSource, "textarea");
+  });
+
+  await runTest("clears original result and diff state on cancel", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    context.cancelButton.dispatchEvent("click");
+
+    assert.equal(context.reviewOverlay.hidden, true);
+    assert.equal(context.originalText.textContent, "");
+    assert.equal(context.resultText.value, "");
+    assert.equal(context.diffSummary.textContent, "");
+    assert.equal(context.diffView.children.length, 0);
   });
 }());

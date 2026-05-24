@@ -43,6 +43,11 @@
   var aiReviewLog = document.getElementById("aiReviewLog");
   var aiOriginalText = document.getElementById("aiOriginalText");
   var aiResultText = document.getElementById("aiResultText");
+  var aiDiffSideBySideButton = document.getElementById("aiDiffSideBySideButton");
+  var aiDiffUnifiedButton = document.getElementById("aiDiffUnifiedButton");
+  var aiDiffHideUnchanged = document.getElementById("aiDiffHideUnchanged");
+  var aiDiffSummary = document.getElementById("aiDiffSummary");
+  var aiDiffView = document.getElementById("aiDiffView");
   var aiReviewApply = document.getElementById("aiReviewApply");
   var aiReviewCancel = document.getElementById("aiReviewCancel");
   var aiReviewClose = document.getElementById("aiReviewClose");
@@ -1775,6 +1780,11 @@
       originalText: aiOriginalText,
       renderMarkdownToHtml: renderMarkdownForSession,
       resultText: aiResultText,
+      diffHideUnchanged: aiDiffHideUnchanged,
+      diffSideBySideButton: aiDiffSideBySideButton,
+      diffSummary: aiDiffSummary,
+      diffUnifiedButton: aiDiffUnifiedButton,
+      diffView: aiDiffView,
       wysiwygEditor: wysiwygEditor,
       reviewDialog: aiReviewDialog,
       reviewLog: aiReviewLog,

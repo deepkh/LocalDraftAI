@@ -21,6 +21,12 @@
     var applyButton = context.applyButton;
     var cancelButton = context.cancelButton;
     var closeButton = context.closeButton;
+    var diffHideUnchanged = context.diffHideUnchanged;
+    var diffSideBySideButton = context.diffSideBySideButton;
+    var diffSummary = context.diffSummary;
+    var diffUnifiedButton = context.diffUnifiedButton;
+    var diffView = context.diffView;
+    var diffMode = "side-by-side";
     var reviewState = null;
     var contextMenu;
     var settingsDialog = null;
@@ -64,6 +70,85 @@
       if (reviewLog) {
         reviewLog.innerHTML = "";
       }
+    }
+
+    function setDiffModeButton(button, active) {
+      if (!button) {
+        return;
+      }
+
+      if (button.classList) {
+        if (active) {
+          button.classList.add("is-active");
+        } else {
+          button.classList.remove("is-active");
+        }
+      }
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+
+    function updateDiffModeControls() {
+      setDiffModeButton(diffSideBySideButton, diffMode === "side-by-side");
+      setDiffModeButton(diffUnifiedButton, diffMode === "unified");
+    }
+
+    function clearDiffView() {
+      if (diffSummary) {
+        diffSummary.textContent = "";
+      }
+
+      if (diffView) {
+        diffView.textContent = "";
+      }
+
+      updateDiffModeControls();
+    }
+
+    function formatDiffSummary(summary) {
+      if (!summary || (!summary.added && !summary.removed && !summary.changed)) {
+        return "No differences.";
+      }
+
+      return "+ " + summary.added + " added   - " + summary.removed + " removed   ~ " + summary.changed + " changed";
+    }
+
+    function renderAiDiff(original, result) {
+      var chunks;
+      var rendered;
+      var summary;
+      var options = {
+        hideUnchanged: Boolean(diffHideUnchanged && diffHideUnchanged.checked)
+      };
+
+      updateDiffModeControls();
+
+      if (!diffView || !ME.aiDiff) {
+        return;
+      }
+
+      chunks = ME.aiDiff.diffText(original, result);
+      summary = ME.aiDiff.summarizeDiff(chunks);
+      if (diffSummary) {
+        diffSummary.textContent = formatDiffSummary(summary);
+      }
+
+      diffView.textContent = "";
+      rendered = diffMode === "unified"
+        ? ME.aiDiff.renderUnifiedDiff(chunks, options)
+        : ME.aiDiff.renderSideBySideDiff(chunks, options);
+      if (rendered) {
+        diffView.appendChild(rendered);
+      }
+    }
+
+    function refreshDiffFromReview() {
+      if (!reviewState) {
+        updateDiffModeControls();
+        return;
+      }
+
+      reviewState.result = resultText.value;
+      renderAiDiff(reviewState.original, resultText.value);
     }
 
     function appendReviewLog(message, type) {
@@ -388,6 +473,7 @@
       originalText.textContent = selection.text;
       resultText.value = "";
       resultText.disabled = true;
+      clearDiffView();
       applyButton.disabled = true;
       cancelButton.disabled = true;
       reviewOverlay.hidden = false;
@@ -409,6 +495,7 @@
       appendReviewLog("Action completed in " + elapsedMs() + " ms.", "success");
       resultText.disabled = false;
       resultText.value = reviewState.result;
+      renderAiDiff(reviewState.original, resultText.value);
       applyButton.disabled = false;
       cancelButton.disabled = false;
       resultText.focus();
@@ -439,6 +526,7 @@
       resultText.value = "";
       originalText.textContent = "";
       clearReviewLog();
+      clearDiffView();
       applyButton.disabled = true;
       cancelButton.disabled = false;
       context.focusActiveEditor();
@@ -579,6 +667,25 @@
       applyButton.addEventListener("click", applyReview);
       cancelButton.addEventListener("click", closeReview);
       closeButton.addEventListener("click", closeReview);
+      resultText.addEventListener("input", refreshDiffFromReview);
+
+      if (diffSideBySideButton) {
+        diffSideBySideButton.addEventListener("click", function () {
+          diffMode = "side-by-side";
+          refreshDiffFromReview();
+        });
+      }
+
+      if (diffUnifiedButton) {
+        diffUnifiedButton.addEventListener("click", function () {
+          diffMode = "unified";
+          refreshDiffFromReview();
+        });
+      }
+
+      if (diffHideUnchanged) {
+        diffHideUnchanged.addEventListener("change", refreshDiffFromReview);
+      }
 
       if (context.settings && ME.aiSettings) {
         settingsDialog = ME.aiSettings.create({
