@@ -117,6 +117,26 @@
     return ' data-md-line="' + Math.max(0, lineIndex) + '"';
   }
 
+  function fenceInfoAttribute(value) {
+    var info = String(value || "").trim();
+
+    return /^[A-Za-z0-9_-]+$/.test(info)
+      ? ' data-md-fence-info="' + escapeAttribute(info) + '"'
+      : "";
+  }
+
+  function markdownFenceInfo(node) {
+    var info = node.getAttribute("data-md-fence-info") || "";
+    var code;
+
+    if (!info) {
+      code = node.querySelector ? node.querySelector("code[data-md-fence-info]") : null;
+      info = code ? code.getAttribute("data-md-fence-info") || "" : "";
+    }
+
+    return /^[A-Za-z0-9_-]+$/.test(info) ? info : "";
+  }
+
   function listLineInfo(line) {
     var match = String(line || "").match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/);
     var marker;
@@ -211,7 +231,7 @@
         if (i < lines.length) {
           i += 1;
         }
-        html.push("<pre" + blockAttrs(fenceLine) + "><code>" + codeLines.map(function (codeLine, index) {
+        html.push("<pre" + blockAttrs(fenceLine) + fenceInfoAttribute(fence[1]) + "><code" + fenceInfoAttribute(fence[1]) + ">" + codeLines.map(function (codeLine, index) {
           return "<span" + blockAttrs(fenceLine + index + 1) + ">" + escapeHtml(codeLine) + "</span>";
         }).join("\n") + "</code></pre>");
         continue;
@@ -432,7 +452,8 @@
     }
 
     if (tag === "pre") {
-      return "```\n" + codeBlockText(node).replace(/\n+$/g, "") + "\n```";
+      var info = markdownFenceInfo(node);
+      return "```" + info + "\n" + codeBlockText(node).replace(/\n+$/g, "") + "\n```";
     }
 
     if (tag === "blockquote") {

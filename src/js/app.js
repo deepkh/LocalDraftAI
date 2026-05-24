@@ -397,7 +397,19 @@
   }
 
   function syncFromWysiwyg() {
-    setMarkdown(markdown.htmlToMarkdown(wysiwygEditor), "wysiwyg");
+    var activeSession = getActiveSession();
+    var converted = markdown.htmlToMarkdown(wysiwygEditor);
+
+    if (
+      activeSession &&
+      /\n$/.test(activeSession.markdownText) &&
+      converted &&
+      !/\n$/.test(converted)
+    ) {
+      converted += "\n";
+    }
+
+    setMarkdown(converted, "wysiwyg");
     wysiwygNeedsSync = false;
   }
 
