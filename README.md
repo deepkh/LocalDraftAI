@@ -245,7 +245,7 @@ Example local Ollama-compatible settings:
 
 ```text
 Server URL: http://127.0.0.1:11434/v1/
-Model: qwen3:4b
+Model: gemma4:e2b
 API Key: optional
 ```
 

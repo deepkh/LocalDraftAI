@@ -61,7 +61,7 @@ function resetSettings() {
 
     resetSettings();
     window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.model", "gemma4:e2b");
     window.localStorage.setItem("localDraftAI.ai.apiKey", "test-key");
     window.fetch = async function (url, options) {
       request = {
@@ -93,7 +93,7 @@ function resetSettings() {
     assert.equal(result, "Fixed text");
     assert.equal(request.url, "http://localhost:11434/v1/chat/completions");
     assert.equal(request.headers.Authorization, "Bearer test-key");
-    assert.equal(request.body.model, "qwen3:4b");
+    assert.equal(request.body.model, "gemma4:e2b");
     assert.equal(request.body.stream, false);
     assert.match(request.body.messages[0].content, /Improve the wording/);
   });
@@ -105,7 +105,7 @@ function resetSettings() {
 
     resetSettings();
     window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.model", "gemma4:e2b");
     window.fetch = async function (url, options) {
       request = {
         body: JSON.parse(options.body),
@@ -133,7 +133,7 @@ function resetSettings() {
     result = await provider.testConnection();
 
     assert.equal(result.endpoint, "http://localhost:11434/v1/chat/completions");
-    assert.equal(result.model, "qwen3:4b");
+    assert.equal(result.model, "gemma4:e2b");
     assert.equal(request.url, "http://localhost:11434/v1/chat/completions");
     assert.equal(request.body.max_tokens, 8);
   });
@@ -144,7 +144,7 @@ function resetSettings() {
 
     resetSettings();
     window.localStorage.setItem("localDraftAI.ai.endpoint", "http://localhost:11434/v1/chat/completions");
-    window.localStorage.setItem("localDraftAI.ai.model", "qwen3:4b");
+    window.localStorage.setItem("localDraftAI.ai.model", "gemma4:e2b");
     window.fetch = async function () {
       return {
         ok: true,
@@ -168,7 +168,7 @@ function resetSettings() {
     result = await provider.testConnection();
 
     assert.equal(result.endpoint, "http://localhost:11434/v1/chat/completions");
-    assert.equal(result.model, "qwen3:4b");
+    assert.equal(result.model, "gemma4:e2b");
   });
 
   await runTest("lists models from a server base URL", async function () {
@@ -190,7 +190,7 @@ function resetSettings() {
           return {
             object: "list",
             data: [
-              { id: "qwen3:4b" },
+              { id: "gemma4:e2b" },
               { id: "gemma4:e4b" }
             ]
           };
@@ -205,7 +205,7 @@ function resetSettings() {
 
     assert.equal(request.url, "http://127.0.0.1:11434/v1/models");
     assert.equal(request.method, "GET");
-    assert.deepEqual(models, ["qwen3:4b", "gemma4:e4b"]);
+    assert.deepEqual(models, ["gemma4:e2b", "gemma4:e4b"]);
   });
 
   await runTest("saves and clears provider settings", function () {
@@ -215,17 +215,17 @@ function resetSettings() {
       apiKey: "secret",
       endpoint: " http://localhost:11434/v1/chat/completions ",
       mode: "server",
-      model: " qwen3:4b "
+      model: " gemma4:e2b "
     });
 
     assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://localhost:11434/v1/chat/completions");
-    assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "qwen3:4b");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "gemma4:e2b");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.apiKey"), "secret");
 
     providerApi.saveSettings({
       endpoint: "http://127.0.0.1:11434/v1/",
       mode: "server",
-      model: "qwen3:4b"
+      model: "gemma4:e2b"
     });
 
     assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://127.0.0.1:11434/v1/chat/completions");
@@ -240,8 +240,8 @@ function resetSettings() {
   await runTest("exposes the configured AI action timeout", function () {
     var provider = providerApi.create();
 
-    assert.equal(providerApi.actionTimeoutMs(), 550000);
-    assert.equal(provider.actionTimeoutMs(), 550000);
+    assert.equal(providerApi.actionTimeoutMs(), 600000);
+    assert.equal(provider.actionTimeoutMs(), 600000);
   });
 
   await runTest("exposes HTTP status on provider errors", async function () {

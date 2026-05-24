@@ -8,9 +8,9 @@
     model: "localDraftAI.ai.model"
   };
   var DEFAULT_SERVER_URL = "http://127.0.0.1:11434/v1/";
-  var ACTION_TIMEOUT_MS = 550000;
-  var CONNECTION_TIMEOUT_MS = 8000;
-  var MODEL_LIST_TIMEOUT_MS = 8000;
+  var ACTION_TIMEOUT_MS = 600000;
+  var CONNECTION_TIMEOUT_MS = 120000;
+  var MODEL_LIST_TIMEOUT_MS = 30000;
 
   function endsWithPath(value, path) {
     return value.toLowerCase().slice(-path.length) === path;

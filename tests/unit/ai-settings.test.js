@@ -128,7 +128,7 @@ function createContext(providerOverrides) {
     defaultServerUrl,
     listModels(settings) {
       context.listed = settings;
-      return Promise.resolve(["qwen3:4b", "gemma4:e4b"]);
+      return Promise.resolve(["gemma4:e2b", "gemma4:e4b"]);
     },
     readSettings() {
       return {
@@ -198,7 +198,7 @@ async function runTest(name, callback) {
     context.modeMock.checked = false;
     context.modeServer.checked = true;
     context.endpointInput.value = " http://localhost:11434/v1/ ";
-    context.modelInput.value = " qwen3:4b ";
+    context.modelInput.value = " gemma4:e2b ";
     context.apiKeyInput.value = "secret";
     context.saveButton.click();
 
@@ -206,7 +206,7 @@ async function runTest(name, callback) {
       apiKey: "secret",
       endpoint: "http://localhost:11434/v1/chat/completions",
       mode: "server",
-      model: "qwen3:4b"
+      model: "gemma4:e2b"
     });
     assert.equal(context.refreshed, true);
     assert.equal(context.overlay.hidden, true);
@@ -221,14 +221,14 @@ async function runTest(name, callback) {
     context.modeMock.checked = false;
     context.modeServer.checked = true;
     context.endpointInput.value = "http://localhost:11434/v1/";
-    context.modelInput.value = "qwen3:4b";
+    context.modelInput.value = "gemma4:e2b";
     await dialog.testConnection();
 
     assert.deepEqual(context.tested, {
       apiKey: "",
       endpoint: "http://localhost:11434/v1/chat/completions",
       mode: "server",
-      model: "qwen3:4b"
+      model: "gemma4:e2b"
     });
     assert.equal(context.statusElement.dataset.status, "success");
   });
@@ -251,12 +251,12 @@ async function runTest(name, callback) {
       model: ""
     });
     assert.equal(context.modelOptions.children.length, 2);
-    assert.equal(context.modelOptions.children[0].value, "qwen3:4b");
+    assert.equal(context.modelOptions.children[0].value, "gemma4:e2b");
     assert.equal(context.modelSelect.children.length, 3);
-    assert.equal(context.modelSelect.children[1].value, "qwen3:4b");
-    assert.equal(context.modelSelect.value, "qwen3:4b");
+    assert.equal(context.modelSelect.children[1].value, "gemma4:e2b");
+    assert.equal(context.modelSelect.value, "gemma4:e2b");
     assert.equal(context.modelSelect.disabled, false);
-    assert.equal(context.modelInput.value, "qwen3:4b");
+    assert.equal(context.modelInput.value, "gemma4:e2b");
     assert.equal(context.statusElement.dataset.status, "success");
   });
 

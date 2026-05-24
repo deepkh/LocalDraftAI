@@ -49,13 +49,13 @@ async function runTest(name, callback) {
         readSettings: function () {
           return {
             endpoint: "http://localhost:11434/v1/chat/completions",
-            model: "qwen3:4b"
+            model: "gemma4:e2b"
           };
         },
         testConnection: async function () {
           return {
             endpoint: "http://localhost:11434/v1/chat/completions",
-            model: "qwen3:4b"
+            model: "gemma4:e2b"
           };
         }
       }
@@ -73,7 +73,7 @@ async function runTest(name, callback) {
         readSettings: function () {
           return {
             endpoint: "http://localhost:11434/v1/chat/completions",
-            model: "qwen3:4b"
+            model: "gemma4:e2b"
           };
         },
         testConnection: async function () {
