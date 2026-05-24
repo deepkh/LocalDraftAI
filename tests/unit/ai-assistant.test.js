@@ -121,6 +121,7 @@ global.document = {
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-ai-guards.js");
 require("../../src/js/ai-diff.js");
+require("../../src/js/ai-patch.js");
 
 window.MarkdownEditor.aiContextMenu = {
   create() {
@@ -156,6 +157,7 @@ function createContext(overrides) {
     captureSelection() {},
     closeButton: element("button"),
     diffHideUnchanged: element("input"),
+    diffInteractiveButton: element("button"),
     diffSideBySideButton: element("button"),
     diffSummary: element("div"),
     diffUnifiedButton: element("button"),
@@ -171,6 +173,9 @@ function createContext(overrides) {
     },
     markdownEditor,
     originalText: element("pre"),
+    patchAcceptAllButton: element("button"),
+    patchRejectAllButton: element("button"),
+    patchResetButton: element("button"),
     provider: {
       actionTimeoutMs() {
         return 1000;
@@ -185,6 +190,7 @@ function createContext(overrides) {
         return Promise.resolve("result");
       }
     },
+    resultTitle: element("h3"),
     resultText: element("textarea"),
     reviewDialog: element("div"),
     reviewLog: element("div"),
@@ -211,6 +217,25 @@ function bindAssistant(context) {
 
   assistant.bindEvents();
   return assistant;
+}
+
+function collectNodes(node, predicate, result) {
+  const matches = result || [];
+
+  if (!node) {
+    return matches;
+  }
+
+  if (predicate(node)) {
+    matches.push(node);
+  }
+
+  (node.children || []).forEach((child) => collectNodes(child, predicate, matches));
+  return matches;
+}
+
+function nodesByPatchAction(context, action) {
+  return collectNodes(context.diffView, (node) => node.dataset && node.dataset.patchAction === action);
 }
 
 (async function () {
@@ -425,6 +450,9 @@ function bindAssistant(context) {
       }
     });
 
+    context.diffInteractiveButton.dispatchEvent("click");
+    assert.equal(context.patchAcceptAllButton.hidden, false);
+
     context.cancelButton.dispatchEvent("click");
 
     assert.equal(context.reviewOverlay.hidden, true);
@@ -432,5 +460,242 @@ function bindAssistant(context) {
     assert.equal(context.resultText.value, "");
     assert.equal(context.diffSummary.textContent, "");
     assert.equal(context.diffView.children.length, 0);
+    assert.equal(context.resultTitle.textContent, "AI Result");
+    assert.equal(context.patchAcceptAllButton.hidden, true);
+  });
+
+  await runTest("interactive mode renders accept and reject controls", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    context.diffInteractiveButton.dispatchEvent("click");
+
+    assert.equal(context.resultTitle.textContent, "Accepted Result Preview");
+    assert.equal(context.resultText.readOnly, true);
+    assert.equal(context.applyButton.textContent, "Apply Accepted Changes");
+    assert.equal(context.diffSummary.textContent, "1 changes total | 1 accepted | 0 rejected");
+    assert.equal(nodesByPatchAction(context, "accept").length, 1);
+    assert.equal(nodesByPatchAction(context, "reject").length, 1);
+  });
+
+  await runTest("rejecting an interactive chunk updates accepted result preview", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("The grammar needs to be fixed.");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 17,
+        mode: "markdown",
+        start: 0,
+        text: "Need fix grammar."
+      }
+    });
+
+    context.diffInteractiveButton.dispatchEvent("click");
+    nodesByPatchAction(context, "reject")[0].dispatchEvent("click");
+
+    assert.equal(context.resultText.value, "Need fix grammar.");
+    assert.equal(context.diffSummary.textContent, "1 changes total | 0 accepted | 1 rejected");
+  });
+
+  await runTest("accepting an interactive chunk updates accepted result preview", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("The grammar needs to be fixed.");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 17,
+        mode: "markdown",
+        start: 0,
+        text: "Need fix grammar."
+      }
+    });
+
+    context.diffInteractiveButton.dispatchEvent("click");
+    nodesByPatchAction(context, "reject")[0].dispatchEvent("click");
+    nodesByPatchAction(context, "accept")[0].dispatchEvent("click");
+
+    assert.equal(context.resultText.value, "The grammar needs to be fixed.");
+    assert.equal(context.diffSummary.textContent, "1 changes total | 1 accepted | 0 rejected");
+  });
+
+  await runTest("applies only accepted interactive changes", async function () {
+    const original = "Alpha\nBeta";
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Alpha updated\nBeta\nGamma");
+        }
+      }
+    });
+    context.markdownEditor.value = original + " tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: original.length,
+        mode: "markdown",
+        start: 0,
+        text: original
+      }
+    });
+
+    context.diffInteractiveButton.dispatchEvent("click");
+    nodesByPatchAction(context, "reject")[0].dispatchEvent("click");
+    context.applyButton.dispatchEvent("click");
+
+    assert.equal(context.markdownEditor.value, "Alpha\nBeta\nGamma tail");
+    assert.equal(context.lastMarkdown, "Alpha\nBeta\nGamma tail");
+  });
+
+  await runTest("editing AI result before interactive mode rebuilds patch state", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 11,
+        mode: "markdown",
+        start: 0,
+        text: "Hello world"
+      }
+    });
+
+    context.resultText.value = "Hello world";
+    context.resultText.dispatchEvent("input");
+    context.diffInteractiveButton.dispatchEvent("click");
+
+    assert.equal(context.resultText.value, "Hello world");
+    assert.equal(context.diffSummary.textContent, "No differences.");
+    assert.equal(nodesByPatchAction(context, "reject").length, 0);
+  });
+
+  await runTest("blocks interactive apply after active document changes", async function () {
+    const original = "Alpha\nBeta";
+    const alerts = [];
+    const previousAlert = window.alert;
+    const context = createContext({
+      getActiveSessionId() {
+        return context.sessionId || "session-1";
+      },
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Alpha updated\nBeta");
+        }
+      }
+    });
+    context.markdownEditor.value = original;
+    window.alert = function (message) {
+      alerts.push(message);
+    };
+
+    try {
+      const assistant = bindAssistant(context);
+
+      await assistant.requestAction("correctGrammar", {
+        selection: {
+          end: original.length,
+          mode: "markdown",
+          start: 0,
+          text: original
+        }
+      });
+
+      context.diffInteractiveButton.dispatchEvent("click");
+      context.sessionId = "session-2";
+      context.applyButton.dispatchEvent("click");
+
+      assert.equal(context.markdownEditor.value, original);
+      assert.match(alerts[0], /active document changed/i);
+    } finally {
+      window.alert = previousAlert;
+    }
   });
 }());

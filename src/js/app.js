@@ -42,12 +42,17 @@
   var aiReviewStatus = document.getElementById("aiReviewStatus");
   var aiReviewLog = document.getElementById("aiReviewLog");
   var aiOriginalText = document.getElementById("aiOriginalText");
+  var aiResultTitle = document.getElementById("aiResultTitle");
   var aiResultText = document.getElementById("aiResultText");
   var aiDiffSideBySideButton = document.getElementById("aiDiffSideBySideButton");
   var aiDiffUnifiedButton = document.getElementById("aiDiffUnifiedButton");
+  var aiDiffInteractiveButton = document.getElementById("aiDiffInteractiveButton");
   var aiDiffHideUnchanged = document.getElementById("aiDiffHideUnchanged");
   var aiDiffSummary = document.getElementById("aiDiffSummary");
   var aiDiffView = document.getElementById("aiDiffView");
+  var aiPatchAcceptAll = document.getElementById("aiPatchAcceptAll");
+  var aiPatchRejectAll = document.getElementById("aiPatchRejectAll");
+  var aiPatchReset = document.getElementById("aiPatchReset");
   var aiReviewApply = document.getElementById("aiReviewApply");
   var aiReviewCancel = document.getElementById("aiReviewCancel");
   var aiReviewClose = document.getElementById("aiReviewClose");
@@ -1778,13 +1783,18 @@
       insertHtmlAtSelection: actions.insertHtmlAtSelection,
       markdownEditor: markdownEditor,
       originalText: aiOriginalText,
+      resultTitle: aiResultTitle,
       renderMarkdownToHtml: renderMarkdownForSession,
       resultText: aiResultText,
       diffHideUnchanged: aiDiffHideUnchanged,
+      diffInteractiveButton: aiDiffInteractiveButton,
       diffSideBySideButton: aiDiffSideBySideButton,
       diffSummary: aiDiffSummary,
       diffUnifiedButton: aiDiffUnifiedButton,
       diffView: aiDiffView,
+      patchAcceptAllButton: aiPatchAcceptAll,
+      patchRejectAllButton: aiPatchRejectAll,
+      patchResetButton: aiPatchReset,
       wysiwygEditor: wysiwygEditor,
       reviewDialog: aiReviewDialog,
       reviewLog: aiReviewLog,

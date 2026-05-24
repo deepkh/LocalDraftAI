@@ -35,6 +35,7 @@ src/js/asset-store.js        Local image workspace/assets handling
 src/js/ai-assistant.js       AI workflow and review/apply dialog
 src/js/ai-actions.js         AI action definitions and transforms
 src/js/ai-diff.js            Visual diff helpers for AI review results
+src/js/ai-patch.js           Interactive AI diff accept/reject state
 src/js/ai-provider.js        OpenAI-compatible provider calls
 src/js/ai-settings.js        AI settings dialog
 src/js/ai-status.js          AI connection/status display
@@ -93,6 +94,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - The right pane is a read-only live preview and can be hidden.
 - AI actions should operate on selected text and show a review dialog before applying changes.
 - AI review should keep AI Result editable and refresh the visual diff when it changes.
+- AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
 - AI provider mode should support local mock mode and OpenAI-compatible server mode.
 - AI errors should be visible and recoverable, not silent.
 
@@ -107,6 +109,7 @@ node tests/unit/ai-actions.test.js
 node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
 node tests/unit/ai-diff.test.js
+node tests/unit/ai-patch.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js

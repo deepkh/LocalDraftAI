@@ -164,7 +164,7 @@ SOFTWARE.</pre>
               <pre id="aiOriginalText"></pre>
             </section>
             <section class="ai-review-panel" aria-label="AI result">
-              <h3>AI Result</h3>
+              <h3 id="aiResultTitle">AI Result</h3>
               <textarea id="aiResultText" spellcheck="false"></textarea>
             </section>
           </div>
@@ -174,10 +174,14 @@ SOFTWARE.</pre>
               <div class="ai-review-diff-toolbar" role="group" aria-label="Compare mode">
                 <button type="button" id="aiDiffSideBySideButton" class="is-active" aria-pressed="true">Side-by-side</button>
                 <button type="button" id="aiDiffUnifiedButton" aria-pressed="false">Unified diff</button>
+                <button type="button" id="aiDiffInteractiveButton" aria-pressed="false">Interactive</button>
                 <label class="ai-diff-option">
                   <input type="checkbox" id="aiDiffHideUnchanged">
                   Hide unchanged
                 </label>
+                <button type="button" id="aiPatchAcceptAll" hidden>Accept All</button>
+                <button type="button" id="aiPatchRejectAll" hidden>Reject All</button>
+                <button type="button" id="aiPatchReset" hidden>Reset to AI Result</button>
               </div>
             </div>
             <div id="aiDiffSummary" class="ai-diff-summary" aria-live="polite"></div>
@@ -254,6 +258,7 @@ SOFTWARE.</pre>
   <script src="js/markdown-repair.js"></script>
   <script src="js/markdown-ai-guards.js"></script>
   <script src="js/ai-diff.js"></script>
+  <script src="js/ai-patch.js"></script>
   <script src="js/ai-provider.js"></script>
   <script src="js/ai-status.js"></script>
   <script src="js/ai-settings.js"></script>

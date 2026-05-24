@@ -29,7 +29,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown.
-- **Review before apply**: AI output is shown with the original selection, an editable result, and a visual diff before it replaces selected text.
+- **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, and an interactive accept/reject mode before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
 - **No build step required**: static HTML, CSS, and JavaScript.
@@ -57,7 +57,8 @@ Open LocalDraftAI
   -> select text
   -> run an AI Assistant action
   -> review the result and diff
-  -> apply it
+  -> optionally accept or reject individual diff chunks
+  -> apply the accepted text
   -> save back to local disk
 ```
 
@@ -224,7 +225,7 @@ Example actions:
 - Beautify Markdown
 - Fix Markdown syntax
 
-The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server.
+The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review dialog supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
 
 To use a real model, configure an OpenAI-compatible server.
 
@@ -239,7 +240,7 @@ To use a real model, configure an OpenAI-compatible server.
 7. Enter an API key if your server requires one.
 8. Click **Test Connection**.
 9. Click **Save**.
-10. Select text in the editor, choose an AI action, review the result, then click **Apply**.
+10. Select text in the editor, choose an AI action, review the result, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
 
 Example local Ollama-compatible settings:
 
@@ -325,6 +326,7 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-assistant.js
 │       ├── ai-context-menu.js
 │       ├── ai-diff.js
+│       ├── ai-patch.js
 │       ├── ai-provider.js
 │       ├── ai-settings.js
 │       ├── ai-status.js
@@ -376,6 +378,7 @@ Restart Ollama after changing the environment variable.
 | `src/js/asset-store.js` | Local image workspace handling |
 | `src/js/ai-assistant.js` | AI action workflow and review dialog |
 | `src/js/ai-diff.js` | Visual text diff helpers for the AI review dialog |
+| `src/js/ai-patch.js` | Interactive AI diff accept/reject state and renderer |
 | `src/js/ai-provider.js` | OpenAI-compatible provider calls |
 | `src/js/ai-settings.js` | AI settings dialog |
 | `src/js/ai-status.js` | AI status display |
@@ -394,6 +397,7 @@ node tests/unit/ai-actions.test.js
 node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
 node tests/unit/ai-diff.test.js
+node tests/unit/ai-patch.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
