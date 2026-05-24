@@ -290,7 +290,7 @@
       flex: 0 0 auto;
     }
 
-    .group + .group {
+    .group+.group {
       padding-left: 8px;
       border-left: 1px solid var(--border);
     }
@@ -312,7 +312,7 @@
       font-weight: 700;
     }
 
-    .segmented button + button {
+    .segmented button+button {
       border-left: 1px solid var(--border);
     }
 
@@ -1016,8 +1016,11 @@
     .ai-review-log {
       display: grid;
       gap: 4px;
-      max-height: 132px;
+      height: 36px;
+      min-height: 36px;
+      max-height: 36px;
       overflow: auto;
+      resize: vertical;
       margin: 8px 0 14px;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -1027,6 +1030,7 @@
       font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
       font-size: 12px;
       line-height: 1.4;
+      scrollbar-gutter: stable;
     }
 
     .ai-review-log:empty {
@@ -1540,7 +1544,7 @@
         max-width: none;
       }
 
-      .group + .group {
+      .group+.group {
         padding-left: 4px;
       }
 

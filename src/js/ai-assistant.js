@@ -33,6 +33,7 @@
     var patchResetButton = context.patchResetButton;
     var diffMode = "side-by-side";
     var reviewState = null;
+    var reviewLogResizeObserver = null;
     var contextMenu;
     var settingsDialog = null;
     var aiStatus = ME.aiStatus ? ME.aiStatus.create({
@@ -74,6 +75,51 @@
     function clearReviewLog() {
       if (reviewLog) {
         reviewLog.innerHTML = "";
+      }
+    }
+
+    function scrollReviewLogToLatest() {
+      if (!reviewLog) {
+        return;
+      }
+
+      reviewLog.scrollTop = reviewLog.scrollHeight;
+    }
+
+    function isReviewLogResizeGrip(event) {
+      var rect;
+
+      if (!reviewLog || typeof reviewLog.getBoundingClientRect !== "function") {
+        return false;
+      }
+
+      rect = reviewLog.getBoundingClientRect();
+      return event.clientY >= rect.bottom - 18 && event.clientX >= rect.right - 18;
+    }
+
+    function allowReviewLogManualResize(event) {
+      var maxHeight;
+
+      if (!isReviewLogResizeGrip(event)) {
+        return;
+      }
+
+      maxHeight = Math.max(120, Math.min(260, Math.floor(window.innerHeight * 0.36)));
+      reviewLog.style.maxHeight = maxHeight + "px";
+      window.requestAnimationFrame(scrollReviewLogToLatest);
+    }
+
+    function bindReviewLogResize() {
+      if (!reviewLog) {
+        return;
+      }
+
+      reviewLog.title = "Drag the lower-right corner to resize the action log.";
+      reviewLog.addEventListener("pointerdown", allowReviewLogManualResize);
+
+      if (!reviewLogResizeObserver && typeof window.ResizeObserver === "function") {
+        reviewLogResizeObserver = new window.ResizeObserver(scrollReviewLogToLatest);
+        reviewLogResizeObserver.observe(reviewLog);
       }
     }
 
@@ -347,7 +393,7 @@
       item.appendChild(time);
       item.appendChild(text);
       reviewLog.appendChild(item);
-      reviewLog.scrollTop = reviewLog.scrollHeight;
+      scrollReviewLogToLatest();
     }
 
     function elapsedMs() {
@@ -857,6 +903,7 @@
 
       window.addEventListener("resize", positionToolbarMenu);
       window.addEventListener("scroll", positionToolbarMenu, { passive: true });
+      bindReviewLogResize();
 
       applyButton.addEventListener("click", applyReview);
       cancelButton.addEventListener("click", closeReview);
