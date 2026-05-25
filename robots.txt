@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://localdraft.ai/sitemap.xml
