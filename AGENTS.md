@@ -97,6 +97,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
 - AI provider mode should support local mock mode and OpenAI-compatible server mode.
 - AI errors should be visible and recoverable, not silent.
+- The feedback hint should link to the GitHub issues page.
 
 ## Testing
 

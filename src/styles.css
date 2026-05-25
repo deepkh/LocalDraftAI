@@ -604,6 +604,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 10px;
       min-height: 42px;
       padding: 8px 12px;
@@ -616,9 +617,28 @@
     .status-meta {
       display: inline-flex;
       gap: 10px;
+      margin-left: auto;
       flex-wrap: wrap;
       justify-content: flex-end;
       font-weight: 560;
+    }
+
+    .feedback-hint {
+      flex: 1 1 260px;
+      min-width: 0;
+      color: var(--muted);
+      font-weight: 560;
+    }
+
+    .feedback-hint a {
+      color: var(--accent-strong);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .feedback-hint a:hover,
+    .feedback-hint a:focus-visible {
+      text-decoration: underline;
     }
 
     .editor-wrap {

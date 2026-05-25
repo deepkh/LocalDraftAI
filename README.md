@@ -34,6 +34,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown.
 - **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, and an interactive accept/reject mode before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
+- **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
 - **No build step required**: static HTML, CSS, and JavaScript.
 
