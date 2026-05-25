@@ -8,6 +8,8 @@
 
 LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you a WYSIWYG editor, plain Markdown editing, live preview, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
 
+Use it immediately at [https://localdraft.ai/](https://localdraft.ai/), or run the same static app from this repo when you want a fully local/offline copy.
+
 It is designed for people who want a simple Markdown workspace without a heavy desktop app or cloud-only workflow.
 
 ---
@@ -20,6 +22,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 
 ## Highlights
 
+- **Use instantly online**: open [localdraft.ai](https://localdraft.ai/) and start writing without installing anything.
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
 - **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text.
 - **Live preview**: preview rendered Markdown beside the editor.
@@ -65,6 +68,16 @@ Open LocalDraftAI
 ---
 
 ## Run It
+
+Use the hosted static app:
+
+```text
+https://localdraft.ai/
+```
+
+The hosted site lets you start immediately. Your Markdown editing still happens in the browser, and local file access uses your browser's file picker. AI features remain optional and only call the server you configure in the app settings.
+
+Or run the same app from this repo:
 
 Open this file in a browser:
 
