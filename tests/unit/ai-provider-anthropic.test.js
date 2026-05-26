@@ -6,6 +6,7 @@ global.window = {
 
 require("../../src/js/ai-reasoning.js");
 require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-registry.js");
 require("../../src/js/ai-provider-anthropic.js");
 
 const anthropic = window.MarkdownEditor.aiProviders.anthropic;

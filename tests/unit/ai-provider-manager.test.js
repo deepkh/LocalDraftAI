@@ -24,6 +24,7 @@ require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-repair.js");
 require("../../src/js/ai-reasoning.js");
 require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-registry.js");
 require("../../src/js/ai-provider-openai-compatible.js");
 require("../../src/js/ai-provider-ollama.js");
 require("../../src/js/ai-provider-openai.js");
@@ -54,8 +55,12 @@ function resetSettings() {
       "mock",
       "ollama",
       "openai",
-      "anthropic",
       "gemini",
+      "groq",
+      "openrouter",
+      "mistral",
+      "claude",
+      "grok",
       "openai-compatible"
     ]);
   });
@@ -71,6 +76,32 @@ function resetSettings() {
     assert.equal(settings.baseUrl, "http://localhost:11434/v1/");
     assert.equal(settings.endpoint, "http://localhost:11434/v1/chat/completions");
     assert.equal(settings.model, "gemma4:e2b");
+  });
+
+  await runTest("reads first-class cloud provider defaults", function () {
+    resetSettings();
+
+    const settings = manager.readSettings({
+      provider: "openrouter"
+    });
+
+    assert.equal(settings.provider, "openrouter");
+    assert.equal(settings.baseUrl, "https://openrouter.ai/api/v1/");
+    assert.equal(settings.endpoint, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(settings.model, "openai/gpt-oss-20b:free");
+    assert.equal(settings.providerLabel, "OpenRouter");
+  });
+
+  await runTest("migrates anthropic provider id to claude", function () {
+    resetSettings();
+
+    const settings = manager.readSettings({
+      provider: "anthropic"
+    });
+
+    assert.equal(settings.provider, "claude");
+    assert.equal(settings.providerLabel, "Claude / Anthropic");
+    assert.equal(settings.endpoint, "https://api.anthropic.com/v1/messages");
   });
 
   await runTest("saves provider and reasoning settings", function () {
@@ -90,6 +121,8 @@ function resetSettings() {
 
     assert.equal(window.localStorage.getItem("localDraftAI.ai.provider"), "ollama");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.baseUrl"), "http://127.0.0.1:11434");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoningMode"), "high");
+    assert.match(window.localStorage.getItem("localDraftAI.ai.reasoning"), /"mode":"high"/);
     assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.mode"), "high");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.effort"), "high");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.showSummary"), "true");

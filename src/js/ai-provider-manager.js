@@ -4,20 +4,23 @@
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
   var common = ME.aiProviderCommon;
   var reasoning = ME.aiReasoning;
+  var registry = ME.aiProviderRegistry;
   var STORAGE_KEYS = {
     apiKey: "localDraftAI.ai.apiKey",
     baseUrl: "localDraftAI.ai.baseUrl",
     endpoint: "localDraftAI.ai.endpoint",
     model: "localDraftAI.ai.model",
     provider: "localDraftAI.ai.provider",
+    reasoning: "localDraftAI.ai.reasoning",
     reasoningEnabled: "localDraftAI.ai.reasoning.enabled",
     reasoningEffort: "localDraftAI.ai.reasoning.effort",
-    reasoningMode: "localDraftAI.ai.reasoning.mode",
+    reasoningMode: "localDraftAI.ai.reasoningMode",
+    reasoningModeLegacy: "localDraftAI.ai.reasoning.mode",
     reasoningShowSummary: "localDraftAI.ai.reasoning.showSummary",
     reasoningTokenBudget: "localDraftAI.ai.reasoning.tokenBudget"
   };
-  var PROVIDER_ORDER = ["mock", "ollama", "openai", "anthropic", "gemini", "openai-compatible"];
-  var REASONING_MODES = ["auto", "off", "low", "medium", "high"];
+  var FALLBACK_PROVIDER_ORDER = ["mock", "ollama", "openai", "gemini", "groq", "openrouter", "mistral", "claude", "grok", "openai-compatible"];
+  var REASONING_MODES = ["auto", "off", "low", "medium", "high", "xhigh"];
   var MOCK_PROVIDER = {
     defaultBaseUrl: "",
     defaultModel: "local-model",
@@ -66,8 +69,50 @@
     }
   }
 
+  function readStoredReasoning() {
+    var value = localStorageValue(STORAGE_KEYS.reasoning);
+
+    if (!value) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(value) || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
   function providerMap() {
     return ME.aiProviders || {};
+  }
+
+  function registryProvider(providerId) {
+    if (registry && typeof registry.getProvider === "function") {
+      return registry.getProvider(providerId);
+    }
+
+    return null;
+  }
+
+  function registryProviders() {
+    if (registry && typeof registry.listProviders === "function") {
+      return registry.listProviders();
+    }
+
+    return [];
+  }
+
+  function providerExists(providerId) {
+    var id = String(providerId || "").trim();
+
+    return Boolean(
+      id === "mock" ||
+      registryProvider(id) ||
+      providerMap()[id] ||
+      id === "claude" && providerMap().anthropic ||
+      id === "anthropic" && providerMap().claude
+    );
   }
 
   function hasOwn(object, key) {
@@ -77,35 +122,49 @@
   function normalizeProviderId(value, fallback) {
     var providerId = String(value || fallback || "").trim();
 
-    if (providerId === "server") {
-      providerId = "openai-compatible";
+    if (registry && typeof registry.normalizeId === "function") {
+      providerId = registry.normalizeId(providerId, fallback);
     }
 
     if (!providerId) {
       return "mock";
     }
 
-    if (providerId === "claude") {
-      return "anthropic";
+    if (providerId === "server") {
+      providerId = "openai-compatible";
+    }
+
+    if (providerId === "anthropic") {
+      providerId = "claude";
     }
 
     if (providerId === "local-mock") {
       return "mock";
     }
 
-    return getProvider(providerId) ? providerId : "openai-compatible";
+    return providerExists(providerId) ? providerId : "openai-compatible";
   }
 
   function getProvider(providerId) {
-    if (providerId === "mock") {
-      return MOCK_PROVIDER;
+    var normalized = normalizeProviderId(providerId || "mock", "mock");
+    var descriptor = registryProvider(normalized);
+    var adapter;
+
+    if (normalized === "mock") {
+      return Object.assign({}, descriptor || {}, MOCK_PROVIDER);
     }
 
-    return providerMap()[providerId] || null;
+    adapter = providerMap()[normalized] || (normalized === "claude" ? providerMap().anthropic : null);
+
+    return adapter || descriptor ? Object.assign({}, descriptor || {}, adapter || {}) : null;
   }
 
   function listProviders() {
-    return PROVIDER_ORDER.map(getProvider).filter(Boolean);
+    var ids = registryProviders().length
+      ? registryProviders().map(function (provider) { return provider.id; })
+      : FALLBACK_PROVIDER_ORDER;
+
+    return ids.map(getProvider).filter(Boolean);
   }
 
   function defaultBaseUrl(providerId) {
@@ -145,10 +204,6 @@
 
     if (mode === "minimal") {
       return "low";
-    }
-
-    if (mode === "xhigh") {
-      return "high";
     }
 
     if (mode === "none" || mode === "disabled" || mode === "false") {
@@ -194,6 +249,7 @@
 
   function readReasoningMode(config) {
     var mode = explicitReasoningMode(config);
+    var storedReasoning = readStoredReasoning();
     var storedMode;
     var storedEffort;
 
@@ -202,6 +258,23 @@
     }
 
     storedMode = localStorageValue(STORAGE_KEYS.reasoningMode);
+    if (storedMode) {
+      return normalizeReasoningMode(storedMode);
+    }
+
+    if (storedReasoning.mode || storedReasoning.reasoningMode) {
+      return normalizeReasoningMode(storedReasoning.mode || storedReasoning.reasoningMode);
+    }
+
+    if (hasOwn(storedReasoning, "enabled") && falseValue(storedReasoning.enabled)) {
+      return "off";
+    }
+
+    if (storedReasoning.effort) {
+      return normalizeReasoningMode(storedReasoning.effort);
+    }
+
+    storedMode = localStorageValue(STORAGE_KEYS.reasoningModeLegacy);
     if (storedMode) {
       return normalizeReasoningMode(storedMode);
     }
@@ -220,6 +293,7 @@
 
   function readReasoningSettings(config, mode) {
     var configReasoning = config && config.reasoning || {};
+    var storedReasoning = readStoredReasoning();
     var reasoningMode = normalizeReasoningMode(mode || readReasoningMode(config));
     var effort = reasoningMode === "auto" ? "medium" : reasoningMode;
 
@@ -228,8 +302,11 @@
       effort: effort,
       showSummary: configReasoning.showSummary !== undefined
         ? configReasoning.showSummary
-        : localStorageValue(STORAGE_KEYS.reasoningShowSummary),
-      tokenBudget: configReasoning.tokenBudget || localStorageValue(STORAGE_KEYS.reasoningTokenBudget)
+        : storedReasoning.showSummary !== undefined
+          ? storedReasoning.showSummary
+          : localStorageValue(STORAGE_KEYS.reasoningShowSummary),
+      tokenBudget: configReasoning.tokenBudget || storedReasoning.tokenBudget
+        || localStorageValue(STORAGE_KEYS.reasoningTokenBudget)
     });
   }
 
@@ -341,6 +418,14 @@
     setLocalStorageValue(STORAGE_KEYS.baseUrl, baseUrl);
     setLocalStorageValue(STORAGE_KEYS.model, model);
     setLocalStorageValue(STORAGE_KEYS.reasoningMode, reasoningMode);
+    setLocalStorageValue(STORAGE_KEYS.reasoning, JSON.stringify({
+      enabled: normalizedReasoning.enabled,
+      effort: normalizedReasoning.effort,
+      mode: reasoningMode,
+      showSummary: normalizedReasoning.showSummary,
+      tokenBudget: normalizedReasoning.tokenBudget
+    }));
+    setLocalStorageValue(STORAGE_KEYS.reasoningModeLegacy, reasoningMode);
     setLocalStorageValue(STORAGE_KEYS.reasoningEnabled, normalizedReasoning.enabled ? "true" : "false");
     setLocalStorageValue(STORAGE_KEYS.reasoningEffort, reasoningMode === "auto" ? "auto" : normalizedReasoning.effort);
     setLocalStorageValue(STORAGE_KEYS.reasoningShowSummary, normalizedReasoning.showSummary ? "true" : "false");

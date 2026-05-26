@@ -24,6 +24,7 @@ require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-repair.js");
 require("../../src/js/ai-reasoning.js");
 require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-registry.js");
 require("../../src/js/ai-provider-openai-compatible.js");
 require("../../src/js/ai-provider-ollama.js");
 require("../../src/js/ai-provider-openai.js");

@@ -7,6 +7,8 @@
     var provider = context.provider;
     var aiStatus = context.aiStatus;
     var overlay = context.overlay;
+    var privacySection = context.privacySection;
+    var cloudConsent = context.cloudConsent;
     var dialog = context.dialog;
     var form = context.form;
     var modeMock = context.modeMock;
@@ -43,7 +45,8 @@
       { value: "off", label: "Off" },
       { value: "low", label: "Low" },
       { value: "medium", label: "Medium" },
-      { value: "high", label: "High" }
+      { value: "high", label: "High" },
+      { value: "xhigh", label: "Extra High" }
     ];
 
     function readSettings(overrides) {
@@ -127,11 +130,11 @@
       if (value === "minimal") {
         return "low";
       }
-      if (value === "xhigh") {
-        return "high";
-      }
       if (["auto", "off", "low", "medium", "high"].indexOf(value) > -1) {
         return value;
+      }
+      if (value === "xhigh") {
+        return "xhigh";
       }
       return fallback || "auto";
     }
@@ -166,8 +169,17 @@
       };
     }
 
+    function isCloudProvider(descriptor) {
+      return Boolean(descriptor && descriptor.group === "cloud");
+    }
+
+    function requiresApiKey(descriptor) {
+      return Boolean(descriptor && (descriptor.requiresApiKey || descriptor.group === "cloud"));
+    }
+
     function formSettings() {
       var providerId = activeProviderId();
+      var descriptor = getProvider(providerId);
 
       var reasoningSettings = reasoningSettingsFromForm();
 
@@ -178,6 +190,7 @@
         mode: providerId === "mock" ? "mock" : "server",
         model: modelInput.value.trim(),
         provider: providerId,
+        providerLabel: descriptor && descriptor.label || "",
         reasoning: reasoningSettings,
         reasoningMode: reasoningSettings.mode
       };
@@ -187,7 +200,11 @@
       return formSettings();
     }
 
-    function hasServerInput(settings) {
+    function hasServerInput(settings, options) {
+      var descriptor = getProvider(settings.provider);
+      var shouldRequireModel = !options || options.requireModel !== false;
+      var shouldRequireCloudConsent = options && options.requireCloudConsent;
+
       if (settings.mode === "mock") {
         return true;
       }
@@ -196,9 +213,21 @@
         endpointInput.value = defaultBaseUrl(settings.provider);
       }
 
-      if (!settings.model) {
+      if (requiresApiKey(descriptor) && !settings.apiKey.trim()) {
+        setStatus("API key is required for " + descriptor.label + ".", "error");
+        apiKeyInput.focus();
+        return false;
+      }
+
+      if (shouldRequireModel && !settings.model) {
         setStatus("Model is required for this provider.", "error");
         modelInput.focus();
+        return false;
+      }
+
+      if (shouldRequireCloudConsent && isCloudProvider(descriptor) && cloudConsent && !cloudConsent.checked) {
+        setStatus("Confirm the cloud privacy notice before saving.", "error");
+        cloudConsent.focus();
         return false;
       }
 
@@ -216,11 +245,11 @@
       if (descriptor.id === "mock") {
         hint = "Runs deterministic local transforms in this browser.";
       } else if (descriptor.id === "ollama") {
-        hint = "Uses Ollama native /api/chat and /api/tags endpoints.";
-      } else if (descriptor.id === "openai-compatible") {
-        hint = "Uses a custom /chat/completions server. Reasoning support depends on that server.";
+        hint = descriptor.providerHelp || "Uses Ollama native /api/chat and /api/tags endpoints.";
+      } else if (isCloudProvider(descriptor)) {
+        hint = (descriptor.providerHelp || "Uses the selected cloud provider API.") + " Only selected text and the action prompt are sent when you run an AI action.";
       } else {
-        hint = "Cloud API keys are stored only in this browser profile. A local proxy keeps keys out of browser storage.";
+        hint = descriptor.providerHelp || "Uses a custom /chat/completions server. Reasoning support depends on that server.";
       }
 
       providerHint.textContent = hint;
@@ -249,10 +278,12 @@
       var supportsReasoning = Boolean(serverMode && descriptor && descriptor.supportsReasoning);
       var supportsReasoningSummary = Boolean(supportsReasoning && descriptor.supportsReasoningSummary);
       var supportsReasoningBudget = Boolean(supportsReasoning && descriptor.supportsReasoningBudget);
+      var cloudProvider = isCloudProvider(descriptor);
 
       endpointInput.disabled = !serverMode;
       modelInput.disabled = !serverMode;
       apiKeyInput.disabled = !serverMode;
+      apiKeyInput.placeholder = requiresApiKey(descriptor) ? "required" : "optional";
       testButton.disabled = testing || !serverMode;
       if (modelListButton) {
         modelListButton.disabled = loadingModels || !serverMode || !descriptor || !descriptor.supportsModelList || !provider || typeof provider.listModels !== "function";
@@ -271,6 +302,12 @@
       }
       if (reasoningTokenBudget) {
         reasoningTokenBudget.disabled = !supportsReasoningBudget || reasoningEnabled && !reasoningEnabled.checked || reasoningEffort && reasoningEffort.value === "off";
+      }
+      if (privacySection) {
+        privacySection.hidden = !cloudProvider;
+      }
+      if (cloudConsent) {
+        cloudConsent.disabled = !cloudProvider;
       }
       updateProviderHint();
       updateReasoningLabels();
@@ -347,13 +384,38 @@
       reasoningEffort.value = nextValue;
     }
 
+    function appendProviderOption(parent, descriptor) {
+      appendOption(parent, descriptor.id, descriptor.label);
+    }
+
     function renderProviderOptions() {
+      var groups = {};
+      var groupLabels = ME.aiProviderRegistry && ME.aiProviderRegistry.groupLabels || {
+        advanced: "Advanced",
+        cloud: "Cloud",
+        local: "Local"
+      };
+
       if (!providerSelect || providerSelect.options && providerSelect.options.length) {
         return;
       }
 
       listProviders().forEach(function (descriptor) {
-        appendOption(providerSelect, descriptor.id, descriptor.label);
+        var groupId = descriptor.group || "advanced";
+        var group;
+
+        if (document.createElement && groupLabels[groupId]) {
+          group = groups[groupId];
+          if (!group) {
+            group = document.createElement("optgroup");
+            group.label = groupLabels[groupId];
+            groups[groupId] = group;
+            providerSelect.appendChild(group);
+          }
+          appendProviderOption(group, descriptor);
+        } else {
+          appendProviderOption(providerSelect, descriptor);
+        }
       });
     }
 
@@ -400,6 +462,14 @@
         endpointInput.value = defaultBaseUrl(settings.provider);
       }
 
+      if (!options || !options.silent) {
+        if (!hasServerInput(settings, { requireModel: false, requireCloudConsent: false })) {
+          return;
+        }
+      } else if (requiresApiKey(getProvider(settings.provider)) && !settings.apiKey.trim()) {
+        return;
+      }
+
       loadingModels = true;
       updateFieldState();
 
@@ -417,7 +487,7 @@
         setStatus(models.length ? "Loaded " + models.length + " models." : "No models were returned.", models.length ? "success" : "error");
       } catch (error) {
         if (!options || !options.silent) {
-          setStatus(ME.aiStatus.classifyError(error).detail, "error");
+          setStatus(ME.aiStatus.classifyError(error, settings).detail, "error");
         }
       } finally {
         loadingModels = false;
@@ -507,7 +577,7 @@
         return;
       }
 
-      if (!hasServerInput(settings)) {
+      if (!hasServerInput(settings, { requireCloudConsent: false })) {
         return;
       }
 
@@ -521,7 +591,7 @@
         endpointInput.value = result.baseUrl || endpointInput.value || result.endpoint || settings.baseUrl;
         modelInput.value = result.model || settings.model;
       } catch (error) {
-        classification = ME.aiStatus.classifyError(error);
+        classification = ME.aiStatus.classifyError(error, settings);
         setStatus(classification.detail, "error");
       } finally {
         testing = false;
@@ -532,7 +602,7 @@
     function save() {
       var settings = formSettings();
 
-      if (settings.mode === "server" && !hasServerInput(settings)) {
+      if (settings.mode === "server" && !hasServerInput(settings, { requireCloudConsent: true })) {
         return;
       }
 
@@ -562,12 +632,13 @@
         setStatus("Local mock selected.", "info");
       } else {
         endpointInput.value = descriptor.defaultBaseUrl || defaultBaseUrl(providerId);
-        if (!modelInput.value.trim()) {
-          modelInput.value = descriptor.defaultModel || "local-model";
-        }
+        modelInput.value = descriptor.defaultModel || "local-model";
         setStatus(descriptor.label + " selected.", "info");
       }
 
+      if (cloudConsent) {
+        cloudConsent.checked = false;
+      }
       syncReasoningEffortOptions(reasoningEffort && reasoningEffort.value);
       updateFieldState();
       if (providerId !== "mock") {
@@ -631,6 +702,9 @@
             modelInput.value = modelSelect.value;
           }
         });
+      }
+      if (cloudConsent) {
+        cloudConsent.addEventListener("change", updateFieldState);
       }
       modelInput.addEventListener("input", syncModelSelect);
       testButton.addEventListener("click", testConnection);

@@ -1583,6 +1583,17 @@
       font-weight: 650;
     }
 
+    .ai-settings-mode[hidden] {
+      display: none;
+    }
+
+    .ai-settings-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .ai-settings-hint {
       margin-top: -8px;
       color: var(--muted);

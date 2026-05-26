@@ -32,7 +32,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
-- **Reasoning mode**: choose Auto, Off, Low, Medium, or High reasoning for providers that support it; Auto uses per-action defaults.
+- **Reasoning mode**: choose Auto, Off, Low, Medium, High, or Extra High reasoning for providers that support it; Auto uses per-action defaults.
 - **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, the AI engine used for the result, and an interactive accept/reject mode before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
@@ -258,32 +258,42 @@ To use a real model, choose an AI provider in settings. LocalDraftAI only sends 
 10. Click **Save**.
 11. Select text in the editor, choose an AI action, review the result and AI Engine summary, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
 
-Provider options:
+### Supported AI Providers
+
+Local providers:
 
 - **Local mock**: deterministic in-browser transforms; no server request.
-- **Ollama local**: native Ollama `/api/chat`, `/api/tags`, and reasoning `think` support.
-- **OpenAI**: `/v1/responses` with provider reasoning effort support.
-- **Claude**: native Anthropic Messages API.
-- **Gemini**: Gemini OpenAI-compatible API.
+- **Ollama**: native Ollama `/api/chat`, `/api/tags`, and reasoning `think` support.
+
+Cloud providers:
+
+- **OpenAI**
+- **Google Gemini**
+- **Groq**
+- **OpenRouter**
+- **Mistral AI**
+- **Claude / Anthropic**
+- **Grok / xAI**
+
+Advanced provider:
+
 - **OpenAI-compatible custom**: `/chat/completions` for LM Studio, llama.cpp server, vLLM, proxies, or existing Ollama `/v1` setups.
 
-Example local Ollama native settings:
+Cloud providers are optional. LocalDraft AI remains local-first: your files stay local, but selected text and the action prompt are sent to the provider you choose when you run an AI action.
 
-```text
-Provider: Ollama local
-Base URL: http://127.0.0.1:11434
-Model: gemma4:e2b
-API Key: optional
-```
+Example settings:
 
-Example OpenAI-compatible custom settings:
-
-```text
-Provider: OpenAI-compatible custom
-Base URL: http://127.0.0.1:11434/v1/
-Model: gemma4:e2b
-API Key: optional
-```
+| Provider | Base URL | Model |
+| --- | --- | --- |
+| Ollama | `http://127.0.0.1:11434` | `qwen3:1.7b` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-5.5` |
+| Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash` |
+| Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-20b` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-oss-20b:free` |
+| Mistral | `https://api.mistral.ai/v1` | `mistral-small-latest` |
+| Claude | `https://api.anthropic.com/v1` | `claude-sonnet-4-6` |
+| Grok | `https://api.x.ai/v1` | `grok-4.3` |
+| OpenAI-compatible custom | `http://127.0.0.1:11434/v1` | `local-model` |
 
 Reasoning controls use the same compact values across providers:
 
@@ -296,7 +306,7 @@ Reasoning controls use the same compact values across providers:
   - Make Shorter: Low
   - Beautify Markdown: Low
   - Fix Markdown Syntax: Medium
-- **Low / Medium / High**: use the selected reasoning level for every action when the provider supports reasoning.
+- **Low / Medium / High / Extra High**: use the selected reasoning level for every action when the provider supports reasoning. Providers that do not support Extra High receive the closest supported high-effort setting.
 
 Each AI review dialog shows the provider, model, and reasoning setting that generated the current result. The **Advanced** section can temporarily override the model or reasoning for that one result; click **Regenerate Result** to run the same action with the override. **Apply** always applies the visible result only and never silently regenerates.
 
@@ -376,6 +386,7 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-provider-ollama.js
 │       ├── ai-provider-openai-compatible.js
 │       ├── ai-provider-openai.js
+│       ├── ai-provider-registry.js
 │       ├── ai-provider.js
 │       ├── ai-reasoning.js
 │       ├── ai-settings.js
@@ -404,9 +415,11 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-provider-manager.test.js
 │       ├── ai-provider-ollama.test.js
 │       ├── ai-provider-openai.test.js
+│       ├── ai-provider-registry.test.js
 │       ├── ai-reasoning.test.js
 │       ├── ai-settings.test.js
 │       ├── ai-status.test.js
+│       ├── ai-transport-openai-compatible.test.js
 │       ├── editor-actions.test.js
 │       ├── markdown-ai-guards.test.js
 │       ├── markdown.test.js
@@ -437,7 +450,8 @@ Restart Ollama after changing the environment variable.
 | `src/js/ai-patch.js` | Interactive AI diff accept/reject state and renderer |
 | `src/js/ai-provider.js` | Compatibility wrapper for AI provider calls |
 | `src/js/ai-provider-manager.js` | Provider registry, settings migration, and normalized AI results |
-| `src/js/ai-provider-*.js` | Native or compatible adapters for Ollama, OpenAI, Claude, Gemini, and custom OpenAI-compatible servers |
+| `src/js/ai-provider-registry.js` | Built-in AI provider descriptors, groups, defaults, and aliases |
+| `src/js/ai-provider-*.js` | Native or compatible adapters for Ollama, OpenAI-compatible cloud providers, Claude, and custom OpenAI-compatible servers |
 | `src/js/ai-provider-common.js` | Shared provider request, parsing, and error helpers |
 | `src/js/ai-reasoning.js` | LocalDraftAI reasoning setting normalization and provider mappings |
 | `src/js/ai-settings.js` | AI settings dialog |
@@ -463,10 +477,12 @@ node tests/unit/ai-provider-gemini.test.js
 node tests/unit/ai-provider-manager.test.js
 node tests/unit/ai-provider-ollama.test.js
 node tests/unit/ai-provider-openai.test.js
+node tests/unit/ai-provider-registry.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-reasoning.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
+node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js

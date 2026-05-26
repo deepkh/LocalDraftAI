@@ -95,9 +95,14 @@
     };
   }
 
-  function classifyError(error) {
+  function providerLabel(settings) {
+    return settings && (settings.providerLabel || settings.label) || "AI provider";
+  }
+
+  function classifyError(error, settings) {
     var status = error && error.status;
     var code = error && error.code;
+    var label = providerLabel(settings);
 
     if (code === "no_endpoint") {
       return {
@@ -109,7 +114,7 @@
 
     if (code === "timeout" || error && error.name === "AbortError") {
       return {
-        detail: "AI server did not respond before timeout.",
+        detail: label + " request timed out.",
         label: "Server unreachable",
         status: "unreachable"
       };
@@ -117,7 +122,7 @@
 
     if (status === 401 || status === 403) {
       return {
-        detail: "API key is invalid or missing.",
+        detail: "Authentication failed. Check the API key for " + label + ".",
         label: "Auth error",
         status: "auth-error"
       };
@@ -125,15 +130,23 @@
 
     if (status === 404) {
       return {
-        detail: "Endpoint path is wrong for the selected provider.",
+        detail: "Endpoint or model was not found. Check the Base URL and model name.",
         label: "Endpoint error",
         status: "model-error"
       };
     }
 
+    if (status === 429) {
+      return {
+        detail: "Rate limit reached for " + label + ". Try again later or use another model.",
+        label: "Rate limited",
+        status: "rate-limited"
+      };
+    }
+
     if (status >= 500) {
       return {
-        detail: "AI server returned an internal error.",
+        detail: label + " server error. Try again later.",
         label: "Model error",
         status: "model-error"
       };
@@ -157,7 +170,15 @@
 
     if (code === "network_error") {
       return {
-        detail: "Cannot reach AI server. Check if the server is running and allows browser requests.",
+        detail: "Browser could not reach " + label + ". Try the local proxy mode.",
+        label: "Server unreachable",
+        status: "unreachable"
+      };
+    }
+
+    if (error && /failed to fetch|cors/i.test(String(error.message || ""))) {
+      return {
+        detail: "Browser could not reach " + label + ". Try the local proxy mode.",
         label: "Server unreachable",
         status: "unreachable"
       };
@@ -221,7 +242,7 @@
         settings.model = result.model || settings.model;
         return setState(connectedState(settings, "Connected. Model responded successfully."));
       } catch (error) {
-        return setState(errorState(settings, classifyError(error)));
+        return setState(errorState(settings, classifyError(error, settings)));
       }
     }
 
@@ -241,7 +262,7 @@
 
     function setActionError(error) {
       var settings = readSettings(provider);
-      var classification = classifyError(error);
+      var classification = classifyError(error, settings);
 
       setState(errorState(settings, classification));
       return classification;

@@ -118,10 +118,11 @@
   providers.ollama = {
     baseUrlFromInput: baseUrlFromInput,
     defaultBaseUrl: DEFAULT_BASE_URL,
-    defaultModel: "local-model",
+    defaultModel: "qwen3:1.7b",
     endpointForSettings: endpointForSettings,
+    group: "local",
     id: "ollama",
-    label: "Ollama local",
+    label: "Ollama",
     listModels: listModels,
     modelsEndpoint: tagsEndpoint,
     reasoningEffortLabel: "Think level",
@@ -138,6 +139,7 @@
     supportsModelList: true,
     supportsReasoning: true,
     supportsReasoningSummary: true,
-    testConnection: testConnection
+    testConnection: testConnection,
+    transport: "ollama-native"
   };
 }());

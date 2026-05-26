@@ -90,6 +90,8 @@
   var aiReasoningSummaryLabel = document.getElementById("aiReasoningSummaryLabel");
   var aiReasoningTokenBudget = document.getElementById("aiReasoningTokenBudget");
   var aiReasoningTokenBudgetLabel = document.getElementById("aiReasoningTokenBudgetLabel");
+  var aiPrivacySection = document.getElementById("aiPrivacySection");
+  var aiCloudConsent = document.getElementById("aiCloudConsent");
   var aiSettingsStatus = document.getElementById("aiSettingsStatus");
   var aiSettingsTest = document.getElementById("aiSettingsTest");
   var aiSettingsSave = document.getElementById("aiSettingsSave");
@@ -1863,6 +1865,7 @@
         modelOptions: aiModelOptions,
         modelSelect: aiModelSelect,
         overlay: aiSettingsOverlay,
+        privacySection: aiPrivacySection,
         providerHint: aiProviderHint,
         providerSelect: aiProviderSelect,
         reasoningEffort: aiReasoningEffort,
@@ -1875,6 +1878,7 @@
         reasoningTokenBudget: aiReasoningTokenBudget,
         reasoningTokenBudgetLabel: aiReasoningTokenBudgetLabel,
         saveButton: aiSettingsSave,
+        cloudConsent: aiCloudConsent,
         statusElement: aiSettingsStatus,
         testButton: aiSettingsTest
       },

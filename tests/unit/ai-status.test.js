@@ -49,7 +49,8 @@ async function runTest(name, callback) {
         readSettings: function () {
           return {
             endpoint: "http://localhost:11434/v1/chat/completions",
-            model: "gemma4:e2b"
+            model: "gemma4:e2b",
+            providerLabel: "OpenAI-compatible custom"
           };
         },
         testConnection: async function () {
@@ -73,7 +74,8 @@ async function runTest(name, callback) {
         readSettings: function () {
           return {
             endpoint: "http://localhost:11434/v1/chat/completions",
-            model: "gemma4:e2b"
+            model: "gemma4:e2b",
+            providerLabel: "OpenAI-compatible custom"
           };
         },
         testConnection: async function () {
@@ -88,16 +90,34 @@ async function runTest(name, callback) {
     await status.start();
 
     assert.equal(status.getState().status, "auth-error");
-    assert.equal(status.getState().detail, "API key is invalid or missing.");
+    assert.equal(status.getState().detail, "Authentication failed. Check the API key for OpenAI-compatible custom.");
   });
 
   await runTest("classifies unreachable servers", function () {
     var classification = aiStatus.classifyError({
       code: "network_error",
       message: "Failed to fetch"
+    }, {
+      providerLabel: "OpenAI"
     });
 
     assert.equal(classification.status, "unreachable");
-    assert.match(classification.detail, /Cannot reach AI server/);
+    assert.equal(classification.detail, "Browser could not reach OpenAI. Try the local proxy mode.");
+  });
+
+  await runTest("classifies provider-aware HTTP failures", function () {
+    assert.equal(aiStatus.classifyError({
+      code: "http_error",
+      status: 429
+    }, {
+      providerLabel: "Groq"
+    }).detail, "Rate limit reached for Groq. Try again later or use another model.");
+
+    assert.equal(aiStatus.classifyError({
+      code: "http_error",
+      status: 503
+    }, {
+      providerLabel: "Mistral AI"
+    }).detail, "Mistral AI server error. Try again later.");
   });
 }());

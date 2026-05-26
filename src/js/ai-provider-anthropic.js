@@ -133,13 +133,14 @@
     };
   }
 
-  providers.anthropic = {
+  providers.claude = {
     baseUrlFromInput: baseUrlFromInput,
     defaultBaseUrl: DEFAULT_BASE_URL,
-    defaultModel: "claude-sonnet-4-5",
+    defaultModel: "claude-sonnet-4-6",
     endpointForSettings: endpointForSettings,
-    id: "anthropic",
-    label: "Claude",
+    group: "cloud",
+    id: "claude",
+    label: "Claude / Anthropic",
     listModels: listModels,
     modelsEndpoint: modelsEndpoint,
     reasoningEffortLabel: "Adaptive thinking effort",
@@ -158,6 +159,8 @@
     supportsModelList: true,
     supportsReasoning: true,
     supportsReasoningSummary: true,
-    testConnection: testConnection
+    testConnection: testConnection,
+    transport: "anthropic-messages"
   };
+  providers.anthropic = providers.claude;
 }());

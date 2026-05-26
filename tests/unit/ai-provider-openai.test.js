@@ -6,6 +6,8 @@ global.window = {
 
 require("../../src/js/ai-reasoning.js");
 require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-registry.js");
+require("../../src/js/ai-provider-openai-compatible.js");
 require("../../src/js/ai-provider-openai.js");
 
 const openai = window.MarkdownEditor.aiProviders.openai;
@@ -24,7 +26,7 @@ function settings() {
   return {
     apiKey: "key",
     baseUrl: "https://api.openai.com/v1",
-    model: "gpt-5",
+    model: "gpt-5.5",
     reasoning: {
       enabled: true,
       effort: "medium",
@@ -46,7 +48,7 @@ function aiRequest() {
 }
 
 (async function () {
-  await runTest("sends reasoning effort through the Responses API", async function () {
+  await runTest("sends reasoning effort through chat completions", async function () {
     let request;
 
     window.fetch = async function (url, options) {
@@ -60,15 +62,14 @@ function aiRequest() {
         status: 200,
         json: async function () {
           return {
-            output: [
+            choices: [
               {
-                type: "reasoning",
-                summary: [
-                  { text: "Checked the text." }
-                ]
+                message: {
+                  content: "Fixed text",
+                  reasoning_content: "Checked the text."
+                }
               }
             ],
-            output_text: "Fixed text",
             usage: {
               output_tokens: 3
             }
@@ -79,53 +80,39 @@ function aiRequest() {
 
     const result = await openai.runAction(settings(), aiRequest());
 
-    assert.equal(request.url, "https://api.openai.com/v1/responses");
+    assert.equal(request.url, "https://api.openai.com/v1/chat/completions");
     assert.equal(request.headers.Authorization, "Bearer key");
-    assert.deepEqual(request.body.reasoning, {
-      effort: "medium",
-      summary: "auto"
-    });
+    assert.equal(request.body.reasoning_effort, "medium");
     assert.equal(result.text, "Fixed text");
     assert.equal(result.reasoningSummary, "Checked the text.");
   });
 
-  await runTest("falls back to chat completions after a responses path error", async function () {
-    const urls = [];
+  await runTest("lists models from the OpenAI-compatible models endpoint", async function () {
+    let request;
 
     window.fetch = async function (url, options) {
-      urls.push(url);
-      if (url.endsWith("/responses")) {
-        return {
-          ok: false,
-          status: 404,
-          text: async function () {
-            return "not found";
-          }
-        };
-      }
+      request = {
+        headers: options.headers,
+        method: options.method,
+        url
+      };
       return {
         ok: true,
         status: 200,
         json: async function () {
           return {
-            choices: [
-              {
-                message: {
-                  content: "Fallback text"
-                }
-              }
+            data: [
+              { id: "gpt-5.5" }
             ]
           };
         }
       };
     };
 
-    const result = await openai.runAction(settings(), aiRequest());
+    const models = await openai.listModels(settings());
 
-    assert.deepEqual(urls, [
-      "https://api.openai.com/v1/responses",
-      "https://api.openai.com/v1/chat/completions"
-    ]);
-    assert.equal(result.text, "Fallback text");
+    assert.equal(request.method, "GET");
+    assert.equal(request.url, "https://api.openai.com/v1/models");
+    assert.deepEqual(models, ["gpt-5.5"]);
   });
 }());

@@ -6,6 +6,8 @@ global.window = {
 
 require("../../src/js/ai-reasoning.js");
 require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-registry.js");
+require("../../src/js/ai-provider-openai-compatible.js");
 require("../../src/js/ai-provider-gemini.js");
 
 const gemini = window.MarkdownEditor.aiProviders.gemini;
@@ -70,21 +72,41 @@ async function capturePayload(model) {
 }
 
 (async function () {
-  await runTest("maps Gemini 3 reasoning to thinking_level", async function () {
-    const request = await capturePayload("gemini-3-pro");
+  await runTest("maps Gemini reasoning to OpenAI-compatible reasoning_effort", async function () {
+    const request = await capturePayload("gemini-2.5-flash");
 
     assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
-    assert.equal(request.body.reasoning_effort, undefined);
-    assert.deepEqual(request.body.extra_body.google.thinking_config, {
-      thinking_level: "low"
-    });
+    assert.equal(request.body.reasoning_effort, "low");
+    assert.equal(request.body.extra_body, undefined);
   });
 
-  await runTest("maps Gemini 2.5 reasoning to thinking_budget", async function () {
-    const request = await capturePayload("gemini-2.5-pro");
+  await runTest("sends Gemini API key as a bearer token for the compatibility endpoint", async function () {
+    let request;
 
-    assert.deepEqual(request.body.extra_body.google.thinking_config, {
-      thinking_budget: 4096
+    window.fetch = async function (url, options) {
+      request = {
+        headers: options.headers,
+        url
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            data: [
+              { id: "gemini-2.5-flash" }
+            ]
+          };
+        }
+      };
+    };
+
+    await gemini.listModels({
+      apiKey: "key",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      model: "gemini-2.5-flash"
     });
+
+    assert.equal(request.headers.Authorization, "Bearer key");
   });
 }());

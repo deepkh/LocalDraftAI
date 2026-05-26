@@ -80,6 +80,7 @@ function createContext(providerOverrides) {
     mock: {
       defaultBaseUrl: "",
       defaultModel: "local-model",
+      group: "local",
       id: "mock",
       label: "Local mock",
       reasoningEffortLabel: "Effort",
@@ -94,6 +95,7 @@ function createContext(providerOverrides) {
     ollama: {
       defaultBaseUrl: "http://127.0.0.1:11434",
       defaultModel: "local-model",
+      group: "local",
       id: "ollama",
       label: "Ollama local",
       reasoningEffortLabel: "Think level",
@@ -112,11 +114,23 @@ function createContext(providerOverrides) {
     "openai-compatible": {
       defaultBaseUrl: "http://127.0.0.1:11434/v1/",
       defaultModel: "local-model",
+      group: "advanced",
       id: "openai-compatible",
       label: "OpenAI-compatible custom",
       reasoningEfforts: [],
       supportsModelList: true,
       supportsReasoning: false
+    },
+    openai: {
+      defaultBaseUrl: "https://api.openai.com/v1",
+      defaultModel: "gpt-5.5",
+      group: "cloud",
+      id: "openai",
+      label: "OpenAI",
+      requiresApiKey: true,
+      supportsModelList: true,
+      supportsReasoning: true,
+      supportsReasoningSummary: true
     }
   };
 
@@ -132,6 +146,7 @@ function createContext(providerOverrides) {
     modelOptions: element(),
     modelSelect: element(),
     overlay: element(),
+    privacySection: element(),
     providerHint: element(),
     providerSelect: element(),
     reasoningEffort: element(),
@@ -144,6 +159,7 @@ function createContext(providerOverrides) {
     reasoningTokenBudget: element(),
     reasoningTokenBudgetLabel: element(),
     saveButton: element(),
+    cloudConsent: element(),
     statusElement: element(),
     testButton: element()
   };
@@ -164,7 +180,7 @@ function createContext(providerOverrides) {
       return Promise.resolve(["gemma4:e2b", "gemma4:e4b"]);
     },
     listProviders() {
-      return [descriptors.mock, descriptors.ollama, descriptors["openai-compatible"]];
+      return [descriptors.mock, descriptors.ollama, descriptors.openai, descriptors["openai-compatible"]];
     },
     readSettings() {
       return {
@@ -355,8 +371,8 @@ async function runTest(name, callback) {
     context.providerSelect.dispatch("change");
     assert.equal(context.reasoningEnabled.disabled, false);
     assert.equal(context.reasoningEffort.disabled, false);
-    assert.deepEqual(context.reasoningEffort.children.map((option) => option.value), ["auto", "off", "low", "medium", "high"]);
-    assert.deepEqual(context.reasoningEffort.children.map((option) => option.textContent), ["Auto", "Off", "Low", "Medium", "High"]);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.value), ["auto", "off", "low", "medium", "high", "xhigh"]);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.textContent), ["Auto", "Off", "Low", "Medium", "High", "Extra High"]);
     assert.equal(context.reasoningLegend.textContent, "Ollama think");
     assert.equal(context.reasoningEffortLabel.textContent, "Think level");
   });
@@ -379,8 +395,8 @@ async function runTest(name, callback) {
     assert.equal(context.saved.reasoning.effort, "medium");
   });
 
-  await runTest("accepts Off Low Medium and High reasoning values", function () {
-    ["off", "low", "medium", "high"].forEach(function (mode) {
+  await runTest("accepts Off Low Medium High and Extra High reasoning values", function () {
+    ["off", "low", "medium", "high", "xhigh"].forEach(function (mode) {
       const context = createContext();
       const dialog = aiSettings.create(context);
 
@@ -455,5 +471,61 @@ async function runTest(name, callback) {
     assert.equal(context.reasoningEffort.value, "high");
     assert.equal(context.reasoningSummary.checked, true);
     assert.equal(context.reasoningTokenBudget.value, 4096);
+  });
+
+  await runTest("requires API key before saving cloud providers", function () {
+    const context = createContext();
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+    context.providerSelect.value = "openai";
+    context.providerSelect.dispatch("change");
+    context.modelInput.value = "gpt-5.5";
+    context.endpointInput.value = "https://api.openai.com/v1";
+    context.cloudConsent.checked = true;
+    context.saveButton.click();
+
+    assert.equal(context.saved, undefined);
+    assert.equal(context.statusElement.dataset.status, "error");
+    assert.match(context.statusElement.textContent, /API key is required/);
+    assert.equal(context.privacySection.hidden, false);
+  });
+
+  await runTest("requires cloud privacy acknowledgement before saving", function () {
+    const context = createContext();
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+    context.providerSelect.value = "openai";
+    context.providerSelect.dispatch("change");
+    context.endpointInput.value = "https://api.openai.com/v1";
+    context.modelInput.value = "gpt-5.5";
+    context.apiKeyInput.value = "secret";
+    context.cloudConsent.checked = false;
+    context.saveButton.click();
+
+    assert.equal(context.saved, undefined);
+    assert.equal(context.statusElement.dataset.status, "error");
+    assert.match(context.statusElement.textContent, /privacy notice/);
+  });
+
+  await runTest("saves cloud settings after privacy acknowledgement", function () {
+    const context = createContext();
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+    context.providerSelect.value = "openai";
+    context.providerSelect.dispatch("change");
+    context.apiKeyInput.value = "secret";
+    context.cloudConsent.checked = true;
+    context.saveButton.click();
+
+    assert.equal(context.saved.provider, "openai");
+    assert.equal(context.saved.providerLabel, "OpenAI");
+    assert.equal(context.saved.apiKey, "secret");
+    assert.equal(context.saved.model, "gpt-5.5");
   });
 }());

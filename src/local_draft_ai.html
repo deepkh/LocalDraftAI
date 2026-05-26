@@ -246,25 +246,28 @@ SOFTWARE.</pre>
             <select id="aiProviderSelect"></select>
           </label>
           <div id="aiProviderHint" class="ai-settings-hint"></div>
-          <label class="ai-settings-field">
-            Base URL
-            <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434">
-          </label>
-          <div class="ai-settings-field">
-            Model
-            <div class="ai-settings-model-row">
-              <input type="text" id="aiModelInput" list="aiModelOptions" autocomplete="off" spellcheck="false" placeholder="Choose or type a model">
-              <button type="button" id="aiModelListButton" class="file-button">List Models</button>
+          <fieldset class="ai-settings-mode ai-settings-connection">
+            <legend>Connection</legend>
+            <label class="ai-settings-field">
+              Base URL
+              <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434">
+            </label>
+            <div class="ai-settings-field">
+              Model
+              <div class="ai-settings-model-row">
+                <input type="text" id="aiModelInput" list="aiModelOptions" autocomplete="off" spellcheck="false" placeholder="Choose or type a model">
+                <button type="button" id="aiModelListButton" class="file-button">List Models</button>
+              </div>
+              <select id="aiModelSelect" class="ai-model-select" aria-label="Choose loaded AI model" disabled>
+                <option value="">No models loaded</option>
+              </select>
+              <datalist id="aiModelOptions"></datalist>
             </div>
-            <select id="aiModelSelect" class="ai-model-select" aria-label="Choose loaded AI model" disabled>
-              <option value="">No models loaded</option>
-            </select>
-            <datalist id="aiModelOptions"></datalist>
-          </div>
-          <label class="ai-settings-field">
-            API Key
-            <input type="password" id="aiApiKeyInput" autocomplete="off" spellcheck="false" placeholder="optional">
-          </label>
+            <label class="ai-settings-field">
+              API Key
+              <input type="password" id="aiApiKeyInput" autocomplete="off" spellcheck="false" placeholder="optional">
+            </label>
+          </fieldset>
           <fieldset class="ai-settings-mode ai-settings-reasoning">
             <legend id="aiReasoningLegend">Reasoning</legend>
             <label>
@@ -279,6 +282,7 @@ SOFTWARE.</pre>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
+                <option value="xhigh">Extra High</option>
               </select>
             </label>
             <label>
@@ -288,6 +292,14 @@ SOFTWARE.</pre>
             <label class="ai-settings-field">
               <span id="aiReasoningTokenBudgetLabel">Advanced token budget</span>
               <input type="number" id="aiReasoningTokenBudget" min="128" max="32000" step="128" inputmode="numeric">
+            </label>
+          </fieldset>
+          <fieldset id="aiPrivacySection" class="ai-settings-mode ai-settings-privacy" hidden>
+            <legend>Privacy</legend>
+            <p class="ai-settings-note">LocalDraft AI remains local-first. Your files stay in your browser or local disk.</p>
+            <label>
+              <input type="checkbox" id="aiCloudConsent">
+              <span>I understand selected text and the action prompt may be sent to the selected cloud provider.</span>
             </label>
           </fieldset>
           <div id="aiSettingsStatus" class="ai-settings-status" aria-live="polite"></div>
@@ -317,6 +329,7 @@ SOFTWARE.</pre>
   <script src="js/markdown-ai-guards.js"></script>
   <script src="js/ai-reasoning.js"></script>
   <script src="js/ai-provider-common.js"></script>
+  <script src="js/ai-provider-registry.js"></script>
   <script src="js/ai-provider-openai-compatible.js"></script>
   <script src="js/ai-provider-ollama.js"></script>
   <script src="js/ai-provider-openai.js"></script>

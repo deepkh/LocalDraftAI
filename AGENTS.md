@@ -37,13 +37,14 @@ src/js/ai-actions.js         AI action definitions and transforms
 src/js/ai-diff.js            Visual diff helpers for AI review results
 src/js/ai-patch.js           Interactive AI diff accept/reject state
 src/js/ai-provider.js        Compatibility wrapper for AI provider calls
+src/js/ai-provider-registry.js Built-in AI provider descriptors, groups, defaults, aliases
 src/js/ai-provider-manager.js Provider registry, settings migration, normalized AI results
 src/js/ai-provider-common.js Shared AI provider request, parsing, and error helpers
-src/js/ai-provider-openai-compatible.js OpenAI-compatible custom provider
+src/js/ai-provider-openai-compatible.js OpenAI-compatible custom and cloud provider transport
 src/js/ai-provider-ollama.js Native Ollama provider
-src/js/ai-provider-openai.js OpenAI Responses provider
+src/js/ai-provider-openai.js OpenAI compatibility registration
 src/js/ai-provider-anthropic.js Claude/Anthropic Messages provider
-src/js/ai-provider-gemini.js Gemini provider
+src/js/ai-provider-gemini.js Gemini compatibility registration
 src/js/ai-reasoning.js       Reasoning mode normalization and provider mappings
 src/js/ai-settings.js        AI settings dialog
 src/js/ai-status.js          AI connection/status display
@@ -105,8 +106,8 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
 - AI review Advanced overrides should be temporary to the current action dialog and should only affect output after Regenerate Result succeeds.
 - AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
-- AI provider mode should support local mock mode, native Ollama, OpenAI, Claude, Gemini, and OpenAI-compatible custom server mode.
-- AI reasoning mode should support Auto, Off, Low, Medium, and High, map them to provider-supported reasoning controls, and only show provider-returned summaries when requested.
+- AI provider mode should support local mock mode, native Ollama, OpenAI, Gemini, Groq, OpenRouter, Mistral, Claude, Grok, and OpenAI-compatible custom server mode.
+- AI reasoning mode should support Auto, Off, Low, Medium, High, and Extra High, map them to provider-supported reasoning controls, and only show provider-returned summaries when requested.
 - AI errors should be visible and recoverable, not silent.
 - The feedback hint should link to the GitHub issues page.
 
@@ -127,10 +128,12 @@ node tests/unit/ai-provider-gemini.test.js
 node tests/unit/ai-provider-manager.test.js
 node tests/unit/ai-provider-ollama.test.js
 node tests/unit/ai-provider-openai.test.js
+node tests/unit/ai-provider-registry.test.js
 node tests/unit/ai-provider.test.js
 node tests/unit/ai-reasoning.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
+node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
