@@ -22,6 +22,14 @@ global.window = {
 
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-repair.js");
+require("../../src/js/ai-reasoning.js");
+require("../../src/js/ai-provider-common.js");
+require("../../src/js/ai-provider-openai-compatible.js");
+require("../../src/js/ai-provider-ollama.js");
+require("../../src/js/ai-provider-openai.js");
+require("../../src/js/ai-provider-anthropic.js");
+require("../../src/js/ai-provider-gemini.js");
+require("../../src/js/ai-provider-manager.js");
 require("../../src/js/ai-provider.js");
 
 const providerApi = window.MarkdownEditor.aiProvider;
@@ -171,7 +179,7 @@ function resetSettings() {
     assert.equal(result.model, "gemma4:e2b");
   });
 
-  await runTest("lists models from a server base URL", async function () {
+  await runTest("lists models from a base URL", async function () {
     var provider;
     var request;
     var models;
@@ -218,9 +226,13 @@ function resetSettings() {
       model: " gemma4:e2b "
     });
 
-    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://localhost:11434/v1/chat/completions");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.provider"), "openai-compatible");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.baseUrl"), "http://localhost:11434/v1/");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "gemma4:e2b");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.apiKey"), "secret");
+    assert.equal(window.MarkdownEditor.aiProvider.readSettings().provider, "openai-compatible");
+    assert.equal(window.MarkdownEditor.aiProvider.readSettings().baseUrl, "http://localhost:11434/v1/");
 
     providerApi.saveSettings({
       endpoint: "http://127.0.0.1:11434/v1/",
@@ -228,10 +240,14 @@ function resetSettings() {
       model: "gemma4:e2b"
     });
 
-    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "http://127.0.0.1:11434/v1/chat/completions");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.provider"), "openai-compatible");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.baseUrl"), "http://127.0.0.1:11434/v1/");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "");
 
     providerApi.clearSettings();
 
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.provider"), "");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.baseUrl"), "");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.endpoint"), "");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.model"), "");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.apiKey"), "");

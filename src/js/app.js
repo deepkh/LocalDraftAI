@@ -61,12 +61,23 @@
   var aiSettingsForm = document.getElementById("aiSettingsForm");
   var aiModeMock = document.getElementById("aiModeMock");
   var aiModeServer = document.getElementById("aiModeServer");
+  var aiProviderSelect = document.getElementById("aiProviderSelect");
+  var aiProviderHint = document.getElementById("aiProviderHint");
   var aiEndpointInput = document.getElementById("aiEndpointInput");
   var aiModelInput = document.getElementById("aiModelInput");
   var aiModelListButton = document.getElementById("aiModelListButton");
   var aiModelOptions = document.getElementById("aiModelOptions");
   var aiModelSelect = document.getElementById("aiModelSelect");
   var aiApiKeyInput = document.getElementById("aiApiKeyInput");
+  var aiReasoningEnabled = document.getElementById("aiReasoningEnabled");
+  var aiReasoningEnabledLabel = document.getElementById("aiReasoningEnabledLabel");
+  var aiReasoningEffort = document.getElementById("aiReasoningEffort");
+  var aiReasoningEffortLabel = document.getElementById("aiReasoningEffortLabel");
+  var aiReasoningLegend = document.getElementById("aiReasoningLegend");
+  var aiReasoningSummary = document.getElementById("aiReasoningSummary");
+  var aiReasoningSummaryLabel = document.getElementById("aiReasoningSummaryLabel");
+  var aiReasoningTokenBudget = document.getElementById("aiReasoningTokenBudget");
+  var aiReasoningTokenBudgetLabel = document.getElementById("aiReasoningTokenBudgetLabel");
   var aiSettingsStatus = document.getElementById("aiSettingsStatus");
   var aiSettingsTest = document.getElementById("aiSettingsTest");
   var aiSettingsSave = document.getElementById("aiSettingsSave");
@@ -1828,6 +1839,17 @@
         modelOptions: aiModelOptions,
         modelSelect: aiModelSelect,
         overlay: aiSettingsOverlay,
+        providerHint: aiProviderHint,
+        providerSelect: aiProviderSelect,
+        reasoningEffort: aiReasoningEffort,
+        reasoningEffortLabel: aiReasoningEffortLabel,
+        reasoningEnabled: aiReasoningEnabled,
+        reasoningEnabledLabel: aiReasoningEnabledLabel,
+        reasoningLegend: aiReasoningLegend,
+        reasoningSummary: aiReasoningSummary,
+        reasoningSummaryLabel: aiReasoningSummaryLabel,
+        reasoningTokenBudget: aiReasoningTokenBudget,
+        reasoningTokenBudgetLabel: aiReasoningTokenBudgetLabel,
         saveButton: aiSettingsSave,
         statusElement: aiSettingsStatus,
         testButton: aiSettingsTest

@@ -31,7 +31,8 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
-- **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown.
+- **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
+- **Reasoning mode**: enable provider-supported reasoning effort and optional provider-returned reasoning summaries.
 - **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, and an interactive accept/reject mode before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
@@ -241,40 +242,59 @@ Example actions:
 
 The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review dialog supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
 
-To use a real model, configure an OpenAI-compatible server.
+To use a real model, choose an AI provider in settings. LocalDraftAI only sends the selected text and action prompt to the provider you configure.
 
-### Configure AI Server
+### Configure AI Provider
 
 1. Open LocalDraftAI.
 2. Click **AI Assistant**.
 3. Click **Settings**.
-4. Choose **OpenAI-compatible server**.
-5. Enter the server URL.
+4. Choose a provider.
+5. Enter the Base URL.
 6. Enter a model name, or click **List Models** and choose one from the dropdown.
 7. Enter an API key if your server requires one.
-8. Click **Test Connection**.
-9. Click **Save**.
-10. Select text in the editor, choose an AI action, review the result, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
+8. Adjust **Reasoning** options if the provider supports them.
+9. Click **Test Connection**.
+10. Click **Save**.
+11. Select text in the editor, choose an AI action, review the result, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
 
-Example local Ollama-compatible settings:
+Provider options:
+
+- **Local mock**: deterministic in-browser transforms; no server request.
+- **Ollama local**: native Ollama `/api/chat`, `/api/tags`, and reasoning `think` support.
+- **OpenAI**: `/v1/responses` with provider reasoning effort support.
+- **Claude**: native Anthropic Messages API.
+- **Gemini**: Gemini OpenAI-compatible API.
+- **OpenAI-compatible custom**: `/chat/completions` for LM Studio, llama.cpp server, vLLM, proxies, or existing Ollama `/v1` setups.
+
+Example local Ollama native settings:
 
 ```text
-Server URL: http://127.0.0.1:11434/v1/
+Provider: Ollama local
+Base URL: http://127.0.0.1:11434
 Model: gemma4:e2b
 API Key: optional
 ```
 
-The settings dialog lists models from:
+Example OpenAI-compatible custom settings:
 
 ```text
-/models
+Provider: OpenAI-compatible custom
+Base URL: http://127.0.0.1:11434/v1/
+Model: gemma4:e2b
+API Key: optional
 ```
 
-AI actions are sent to:
+Reasoning controls use provider-specific wording:
 
-```text
-/chat/completions
-```
+- **Ollama local**: Ollama think, with Low think, Medium think, or High think.
+- **OpenAI**: OpenAI reasoning effort, including Minimal and Extra High when supported by the selected model.
+- **Claude**: Claude extended thinking, with Adaptive low, Adaptive medium, or Adaptive high.
+- **Gemini**: Gemini thinking, with Thinking level options. Gemini 2.5 models use a thinking budget instead of a thinking level.
+
+Reasoning summaries are only shown when the provider returns a summary and the setting is enabled.
+
+Cloud API keys entered in the settings dialog are stored only in local browser storage, but they are still visible to that browser profile and developer tools. For safer cloud usage, run a local proxy on `127.0.0.1` and keep provider API keys in proxy environment variables.
 
 ### Ollama CORS Note
 
@@ -341,7 +361,15 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-context-menu.js
 │       ├── ai-diff.js
 │       ├── ai-patch.js
+│       ├── ai-provider-anthropic.js
+│       ├── ai-provider-common.js
+│       ├── ai-provider-gemini.js
+│       ├── ai-provider-manager.js
+│       ├── ai-provider-ollama.js
+│       ├── ai-provider-openai-compatible.js
+│       ├── ai-provider-openai.js
 │       ├── ai-provider.js
+│       ├── ai-reasoning.js
 │       ├── ai-settings.js
 │       ├── ai-status.js
 │       ├── document-session.js
@@ -363,6 +391,12 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-context-menu.test.js
 │       ├── ai-diff.test.js
 │       ├── ai-provider.test.js
+│       ├── ai-provider-anthropic.test.js
+│       ├── ai-provider-gemini.test.js
+│       ├── ai-provider-manager.test.js
+│       ├── ai-provider-ollama.test.js
+│       ├── ai-provider-openai.test.js
+│       ├── ai-reasoning.test.js
 │       ├── ai-settings.test.js
 │       ├── ai-status.test.js
 │       ├── editor-actions.test.js
@@ -393,7 +427,11 @@ Restart Ollama after changing the environment variable.
 | `src/js/ai-assistant.js` | AI action workflow and review dialog |
 | `src/js/ai-diff.js` | Visual text diff helpers for the AI review dialog |
 | `src/js/ai-patch.js` | Interactive AI diff accept/reject state and renderer |
-| `src/js/ai-provider.js` | OpenAI-compatible provider calls |
+| `src/js/ai-provider.js` | Compatibility wrapper for AI provider calls |
+| `src/js/ai-provider-manager.js` | Provider registry, settings migration, and normalized AI results |
+| `src/js/ai-provider-*.js` | Native or compatible adapters for Ollama, OpenAI, Claude, Gemini, and custom OpenAI-compatible servers |
+| `src/js/ai-provider-common.js` | Shared provider request, parsing, and error helpers |
+| `src/js/ai-reasoning.js` | LocalDraftAI reasoning setting normalization and provider mappings |
 | `src/js/ai-settings.js` | AI settings dialog |
 | `src/js/ai-status.js` | AI status display |
 | `src/js/ai-context-menu.js` | Right-click AI actions |
@@ -412,7 +450,13 @@ node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
 node tests/unit/ai-diff.test.js
 node tests/unit/ai-patch.test.js
+node tests/unit/ai-provider-anthropic.test.js
+node tests/unit/ai-provider-gemini.test.js
+node tests/unit/ai-provider-manager.test.js
+node tests/unit/ai-provider-ollama.test.js
+node tests/unit/ai-provider-openai.test.js
 node tests/unit/ai-provider.test.js
+node tests/unit/ai-reasoning.test.js
 node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
 node tests/unit/editor-actions.test.js

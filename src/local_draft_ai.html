@@ -203,20 +203,14 @@ SOFTWARE.</pre>
           <button type="button" id="aiSettingsClose" class="icon-text ai-settings-close" aria-label="Close AI settings">×</button>
         </div>
         <form id="aiSettingsForm" class="ai-settings-body">
-          <fieldset class="ai-settings-mode">
-            <legend>Provider mode</legend>
-            <label>
-              <input type="radio" name="aiProviderMode" id="aiModeMock" value="mock">
-              Local mock mode
-            </label>
-            <label>
-              <input type="radio" name="aiProviderMode" id="aiModeServer" value="server">
-              OpenAI-compatible server
-            </label>
-          </fieldset>
           <label class="ai-settings-field">
-            Server URL
-            <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1/">
+            Provider
+            <select id="aiProviderSelect"></select>
+          </label>
+          <div id="aiProviderHint" class="ai-settings-hint"></div>
+          <label class="ai-settings-field">
+            Base URL
+            <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434">
           </label>
           <div class="ai-settings-field">
             Model
@@ -233,6 +227,31 @@ SOFTWARE.</pre>
             API Key
             <input type="password" id="aiApiKeyInput" autocomplete="off" spellcheck="false" placeholder="optional">
           </label>
+          <fieldset class="ai-settings-mode ai-settings-reasoning">
+            <legend id="aiReasoningLegend">Reasoning</legend>
+            <label>
+              <input type="checkbox" id="aiReasoningEnabled">
+              <span id="aiReasoningEnabledLabel">Enable reasoning mode</span>
+            </label>
+            <label class="ai-settings-field">
+              <span id="aiReasoningEffortLabel">Effort</span>
+              <select id="aiReasoningEffort">
+                <option value="minimal">Minimal</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="xhigh">Extra High</option>
+              </select>
+            </label>
+            <label>
+              <input type="checkbox" id="aiReasoningSummary">
+              <span id="aiReasoningSummaryLabel">Show reasoning summary if supported</span>
+            </label>
+            <label class="ai-settings-field">
+              <span id="aiReasoningTokenBudgetLabel">Advanced token budget</span>
+              <input type="number" id="aiReasoningTokenBudget" min="128" max="32000" step="128" inputmode="numeric">
+            </label>
+          </fieldset>
           <div id="aiSettingsStatus" class="ai-settings-status" aria-live="polite"></div>
         </form>
         <div class="ai-settings-actions">
@@ -258,6 +277,14 @@ SOFTWARE.</pre>
   <script src="js/ai-actions.js"></script>
   <script src="js/markdown-repair.js"></script>
   <script src="js/markdown-ai-guards.js"></script>
+  <script src="js/ai-reasoning.js"></script>
+  <script src="js/ai-provider-common.js"></script>
+  <script src="js/ai-provider-openai-compatible.js"></script>
+  <script src="js/ai-provider-ollama.js"></script>
+  <script src="js/ai-provider-openai.js"></script>
+  <script src="js/ai-provider-anthropic.js"></script>
+  <script src="js/ai-provider-gemini.js"></script>
+  <script src="js/ai-provider-manager.js"></script>
   <script src="js/ai-diff.js"></script>
   <script src="js/ai-patch.js"></script>
   <script src="js/ai-provider.js"></script>

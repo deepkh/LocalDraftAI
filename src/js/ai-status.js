@@ -13,66 +13,84 @@
 
   function copyState(state) {
     return {
+      baseUrl: state.baseUrl,
       detail: state.detail,
       endpoint: state.endpoint,
       label: state.label,
       mode: state.mode,
       model: state.model,
+      provider: state.provider,
+      providerLabel: state.providerLabel,
       status: state.status
     };
   }
 
   function mockState(settings) {
     return {
-      detail: "No AI server endpoint is configured. Local mock transforms will run.",
+      baseUrl: "",
+      detail: "Local mock transforms run in this browser. No server request is sent.",
       endpoint: "",
       label: "Mock mode",
       mode: "mock",
       model: settings.model || "local-model",
+      provider: "mock",
+      providerLabel: "Local mock",
       status: "mock"
     };
   }
 
   function checkingState(settings) {
     return {
-      detail: "Testing connection to " + settings.endpoint + ".",
+      baseUrl: settings.baseUrl || "",
+      detail: "Testing connection to " + (settings.providerLabel || "AI provider") + ".",
       endpoint: settings.endpoint,
       label: "Checking",
       mode: "server",
       model: settings.model,
+      provider: settings.provider || "openai-compatible",
+      providerLabel: settings.providerLabel || "OpenAI-compatible custom",
       status: "checking"
     };
   }
 
   function connectedState(settings, detail) {
     return {
-      detail: detail || "Connected to " + settings.endpoint + ".",
+      baseUrl: settings.baseUrl || "",
+      detail: detail || "Connected to " + (settings.providerLabel || "AI provider") + ".",
       endpoint: settings.endpoint,
       label: "Connected",
       mode: "server",
       model: settings.model,
+      provider: settings.provider || "openai-compatible",
+      providerLabel: settings.providerLabel || "OpenAI-compatible custom",
       status: "connected"
     };
   }
 
   function errorState(settings, classification) {
     return {
+      baseUrl: settings.baseUrl || "",
       detail: classification.detail,
       endpoint: settings.endpoint || "",
       label: classification.label,
-      mode: settings.endpoint ? "server" : "mock",
+      mode: settings.provider === "mock" || !settings.endpoint ? "mock" : "server",
       model: settings.model || "local-model",
+      provider: settings.provider || (settings.endpoint ? "openai-compatible" : "mock"),
+      providerLabel: settings.providerLabel || (settings.endpoint ? "OpenAI-compatible custom" : "Local mock"),
       status: classification.status
     };
   }
 
   function runningState(settings, actionLabel) {
     return {
+      baseUrl: settings.baseUrl || "",
       detail: actionLabel ? "Running " + actionLabel + "." : "AI action is processing.",
       endpoint: settings.endpoint || "",
       label: "Running...",
-      mode: settings.endpoint ? "server" : "mock",
+      mode: settings.provider === "mock" || !settings.endpoint ? "mock" : "server",
       model: settings.model || "local-model",
+      provider: settings.provider || (settings.endpoint ? "openai-compatible" : "mock"),
+      providerLabel: settings.providerLabel || (settings.endpoint ? "OpenAI-compatible custom" : "Local mock"),
       status: "running"
     };
   }
@@ -83,7 +101,7 @@
 
     if (code === "no_endpoint") {
       return {
-        detail: "AI server is not configured. Set localDraftAI.ai.endpoint before testing a server.",
+        detail: "AI provider is not configured. Choose a provider and model in AI Settings.",
         label: "Not configured",
         status: "not-configured"
       };
@@ -107,7 +125,7 @@
 
     if (status === 404) {
       return {
-        detail: "Endpoint path is wrong. Check /v1/chat/completions.",
+        detail: "Endpoint path is wrong for the selected provider.",
         label: "Endpoint error",
         status: "model-error"
       };

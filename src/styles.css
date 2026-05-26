@@ -1449,6 +1449,13 @@
       font-weight: 650;
     }
 
+    .ai-settings-hint {
+      margin-top: -8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .ai-settings-field {
       display: grid;
       gap: 6px;

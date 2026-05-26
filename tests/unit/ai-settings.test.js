@@ -76,29 +76,49 @@ require("../../src/js/ai-settings.js");
 const aiSettings = window.MarkdownEditor.aiSettings;
 
 function createContext(providerOverrides) {
-  function defaultServerUrl() {
-    return "http://127.0.0.1:11434/v1/";
-  }
-
-  function serverBaseUrl(endpoint) {
-    return String(endpoint || defaultServerUrl())
-      .replace(/\/chat\/completions$/i, "/")
-      .replace(/\/models$/i, "/");
-  }
-
-  function chatCompletionsEndpoint(endpoint) {
-    const value = String(endpoint || defaultServerUrl()).trim();
-
-    if (/\/chat\/completions$/i.test(value)) {
-      return value;
+  const descriptors = {
+    mock: {
+      defaultBaseUrl: "",
+      defaultModel: "local-model",
+      id: "mock",
+      label: "Local mock",
+      reasoningEffortLabel: "Effort",
+      reasoningEfforts: [],
+      reasoningEnableLabel: "Enable reasoning mode",
+      reasoningLabel: "Reasoning",
+      reasoningSummaryLabel: "Show reasoning summary if supported",
+      reasoningTokenBudgetLabel: "Advanced token budget",
+      supportsModelList: false,
+      supportsReasoning: false
+    },
+    ollama: {
+      defaultBaseUrl: "http://127.0.0.1:11434",
+      defaultModel: "local-model",
+      id: "ollama",
+      label: "Ollama local",
+      reasoningEffortLabel: "Think level",
+      reasoningEfforts: [
+        { value: "low", label: "Low think" },
+        { value: "medium", label: "Medium think" },
+        { value: "high", label: "High think" }
+      ],
+      reasoningEnableLabel: "Enable Ollama think",
+      reasoningLabel: "Ollama think",
+      reasoningSummaryLabel: "Show returned thinking if supported",
+      supportsModelList: true,
+      supportsReasoning: true,
+      supportsReasoningSummary: true
+    },
+    "openai-compatible": {
+      defaultBaseUrl: "http://127.0.0.1:11434/v1/",
+      defaultModel: "local-model",
+      id: "openai-compatible",
+      label: "OpenAI-compatible custom",
+      reasoningEfforts: [],
+      supportsModelList: true,
+      supportsReasoning: false
     }
-
-    if (/\/models$/i.test(value)) {
-      return value.replace(/\/models$/i, "/chat/completions");
-    }
-
-    return serverBaseUrl(value).replace(/\/?$/, "/") + "chat/completions";
-  }
+  };
 
   const context = {
     apiKeyInput: element(),
@@ -107,13 +127,22 @@ function createContext(providerOverrides) {
     dialog: element(),
     endpointInput: element(),
     form: element(),
-    modeMock: element(),
-    modeServer: element(),
     modelInput: element(),
     modelListButton: element(),
     modelOptions: element(),
     modelSelect: element(),
     overlay: element(),
+    providerHint: element(),
+    providerSelect: element(),
+    reasoningEffort: element(),
+    reasoningEffortLabel: element(),
+    reasoningEnabled: element(),
+    reasoningEnabledLabel: element(),
+    reasoningLegend: element(),
+    reasoningSummary: element(),
+    reasoningSummaryLabel: element(),
+    reasoningTokenBudget: element(),
+    reasoningTokenBudgetLabel: element(),
     saveButton: element(),
     statusElement: element(),
     testButton: element()
@@ -124,26 +153,42 @@ function createContext(providerOverrides) {
     clearSettings() {
       context.cleared = true;
     },
-    chatCompletionsEndpoint,
-    defaultServerUrl,
+    defaultBaseUrl(providerId) {
+      return descriptors[providerId] ? descriptors[providerId].defaultBaseUrl : descriptors["openai-compatible"].defaultBaseUrl;
+    },
+    getProvider(providerId) {
+      return descriptors[providerId] || descriptors.mock;
+    },
     listModels(settings) {
       context.listed = settings;
       return Promise.resolve(["gemma4:e2b", "gemma4:e4b"]);
     },
+    listProviders() {
+      return [descriptors.mock, descriptors.ollama, descriptors["openai-compatible"]];
+    },
     readSettings() {
       return {
         apiKey: "",
+        baseUrl: "",
         endpoint: "",
-        model: "local-model"
+        model: "local-model",
+        provider: "mock",
+        providerLabel: "Local mock",
+        reasoning: {
+          enabled: true,
+          effort: "medium",
+          showSummary: false,
+          tokenBudget: 2048
+        }
       };
     },
     saveSettings(settings) {
       context.saved = settings;
     },
-    serverBaseUrl,
     testConnection(settings) {
       context.tested = settings;
       return Promise.resolve({
+        baseUrl: settings.baseUrl,
         endpoint: settings.endpoint,
         model: settings.model
       });
@@ -180,34 +225,35 @@ async function runTest(name, callback) {
     dialog.open();
 
     assert.equal(context.overlay.hidden, false);
-    assert.equal(context.modeMock.checked, true);
+    assert.equal(context.providerSelect.value, "mock");
     assert.equal(context.endpointInput.disabled, true);
     assert.equal(context.testButton.disabled, true);
     assert.equal(context.modelListButton.disabled, true);
     assert.equal(context.modelSelect.disabled, true);
-    assert.equal(context.endpointInput.value, "http://127.0.0.1:11434/v1/");
-    assert.equal(context.statusElement.textContent, "Local mock mode selected.");
+    assert.equal(context.endpointInput.value, "http://127.0.0.1:11434");
+    assert.equal(context.statusElement.textContent, "Local mock selected.");
   });
 
-  await runTest("saves server settings from the form", function () {
+  await runTest("saves provider settings from the form", function () {
     const context = createContext();
     const dialog = aiSettings.create(context);
 
     dialog.bindEvents();
     dialog.open();
-    context.modeMock.checked = false;
-    context.modeServer.checked = true;
+    context.providerSelect.value = "openai-compatible";
     context.endpointInput.value = " http://localhost:11434/v1/ ";
     context.modelInput.value = " gemma4:e2b ";
     context.apiKeyInput.value = "secret";
     context.saveButton.click();
 
-    assert.deepEqual(context.saved, {
-      apiKey: "secret",
-      endpoint: "http://localhost:11434/v1/chat/completions",
-      mode: "server",
-      model: "gemma4:e2b"
-    });
+    assert.equal(context.saved.apiKey, "secret");
+    assert.equal(context.saved.baseUrl, "http://localhost:11434/v1/");
+    assert.equal(context.saved.endpoint, "http://localhost:11434/v1/");
+    assert.equal(context.saved.mode, "server");
+    assert.equal(context.saved.model, "gemma4:e2b");
+    assert.equal(context.saved.provider, "openai-compatible");
+    assert.equal(context.saved.reasoning.enabled, false);
+    assert.equal(context.saved.reasoning.effort, "");
     assert.equal(context.refreshed, true);
     assert.equal(context.overlay.hidden, true);
   });
@@ -218,38 +264,36 @@ async function runTest(name, callback) {
 
     dialog.bindEvents();
     dialog.open();
-    context.modeMock.checked = false;
-    context.modeServer.checked = true;
+    context.providerSelect.value = "openai-compatible";
     context.endpointInput.value = "http://localhost:11434/v1/";
     context.modelInput.value = "gemma4:e2b";
     await dialog.testConnection();
 
-    assert.deepEqual(context.tested, {
-      apiKey: "",
-      endpoint: "http://localhost:11434/v1/chat/completions",
-      mode: "server",
-      model: "gemma4:e2b"
-    });
+    assert.equal(context.tested.apiKey, "");
+    assert.equal(context.tested.baseUrl, "http://localhost:11434/v1/");
+    assert.equal(context.tested.endpoint, "http://localhost:11434/v1/");
+    assert.equal(context.tested.mode, "server");
+    assert.equal(context.tested.model, "gemma4:e2b");
+    assert.equal(context.tested.provider, "openai-compatible");
     assert.equal(context.statusElement.dataset.status, "success");
   });
 
-  await runTest("loads model suggestions from the server URL", async function () {
+  await runTest("loads model suggestions from the base URL", async function () {
     const context = createContext();
     const dialog = aiSettings.create(context);
 
     dialog.bindEvents();
     dialog.open();
-    context.modeMock.checked = false;
-    context.modeServer.checked = true;
+    context.providerSelect.value = "openai-compatible";
     context.endpointInput.value = "http://127.0.0.1:11434/v1/";
     await dialog.listModels();
 
-    assert.deepEqual(context.listed, {
-      apiKey: "",
-      endpoint: "http://127.0.0.1:11434/v1/",
-      mode: "server",
-      model: ""
-    });
+    assert.equal(context.listed.apiKey, "");
+    assert.equal(context.listed.baseUrl, "http://127.0.0.1:11434/v1/");
+    assert.equal(context.listed.endpoint, "http://127.0.0.1:11434/v1/");
+    assert.equal(context.listed.mode, "server");
+    assert.equal(context.listed.model, "");
+    assert.equal(context.listed.provider, "openai-compatible");
     assert.equal(context.modelOptions.children.length, 2);
     assert.equal(context.modelOptions.children[0].value, "gemma4:e2b");
     assert.equal(context.modelSelect.children.length, 3);
@@ -266,8 +310,7 @@ async function runTest(name, callback) {
 
     dialog.bindEvents();
     dialog.open();
-    context.modeMock.checked = false;
-    context.modeServer.checked = true;
+    context.providerSelect.value = "openai-compatible";
     context.endpointInput.value = "http://127.0.0.1:11434/v1/";
     await dialog.listModels();
     context.modelSelect.value = "gemma4:e4b";
@@ -282,13 +325,36 @@ async function runTest(name, callback) {
 
     dialog.bindEvents();
     dialog.open();
-    context.modeMock.checked = false;
-    context.modeServer.checked = true;
+    context.providerSelect.value = "openai-compatible";
     context.modelInput.value = "";
     context.saveButton.click();
 
     assert.equal(context.saved, undefined);
     assert.equal(context.statusElement.dataset.status, "error");
     assert.match(context.statusElement.textContent, /Model is required/);
+  });
+
+  await runTest("disables unsupported reasoning controls by provider", function () {
+    const context = createContext();
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+
+    assert.equal(context.reasoningEnabled.disabled, true);
+
+    context.providerSelect.value = "openai-compatible";
+    context.providerSelect.dispatch("change");
+    assert.equal(context.reasoningEnabled.disabled, true);
+    assert.equal(context.reasoningEffort.disabled, true);
+
+    context.providerSelect.value = "ollama";
+    context.providerSelect.dispatch("change");
+    assert.equal(context.reasoningEnabled.disabled, false);
+    assert.equal(context.reasoningEffort.disabled, false);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.value), ["low", "medium", "high"]);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.textContent), ["Low think", "Medium think", "High think"]);
+    assert.equal(context.reasoningLegend.textContent, "Ollama think");
+    assert.equal(context.reasoningEffortLabel.textContent, "Think level");
   });
 }());
