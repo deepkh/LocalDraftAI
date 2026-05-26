@@ -177,9 +177,11 @@ function createContext(providerOverrides) {
         reasoning: {
           enabled: true,
           effort: "medium",
+          mode: "auto",
           showSummary: false,
           tokenBudget: 2048
-        }
+        },
+        reasoningMode: "auto"
       };
     },
     saveSettings(settings) {
@@ -253,7 +255,8 @@ async function runTest(name, callback) {
     assert.equal(context.saved.model, "gemma4:e2b");
     assert.equal(context.saved.provider, "openai-compatible");
     assert.equal(context.saved.reasoning.enabled, false);
-    assert.equal(context.saved.reasoning.effort, "");
+    assert.equal(context.saved.reasoning.effort, "off");
+    assert.equal(context.saved.reasoningMode, "off");
     assert.equal(context.refreshed, true);
     assert.equal(context.overlay.hidden, true);
   });
@@ -352,9 +355,105 @@ async function runTest(name, callback) {
     context.providerSelect.dispatch("change");
     assert.equal(context.reasoningEnabled.disabled, false);
     assert.equal(context.reasoningEffort.disabled, false);
-    assert.deepEqual(context.reasoningEffort.children.map((option) => option.value), ["low", "medium", "high"]);
-    assert.deepEqual(context.reasoningEffort.children.map((option) => option.textContent), ["Low think", "Medium think", "High think"]);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.value), ["auto", "off", "low", "medium", "high"]);
+    assert.deepEqual(context.reasoningEffort.children.map((option) => option.textContent), ["Auto", "Off", "Low", "Medium", "High"]);
     assert.equal(context.reasoningLegend.textContent, "Ollama think");
     assert.equal(context.reasoningEffortLabel.textContent, "Think level");
+  });
+
+  await runTest("saves reasoning auto as the default for supported providers", function () {
+    const context = createContext();
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+    context.providerSelect.value = "ollama";
+    context.providerSelect.dispatch("change");
+    context.endpointInput.value = "http://127.0.0.1:11434";
+    context.modelInput.value = "gemma4:e2b";
+    context.reasoningEffort.value = "auto";
+    context.saveButton.click();
+
+    assert.equal(context.saved.reasoningMode, "auto");
+    assert.equal(context.saved.reasoning.enabled, true);
+    assert.equal(context.saved.reasoning.effort, "medium");
+  });
+
+  await runTest("accepts Off Low Medium and High reasoning values", function () {
+    ["off", "low", "medium", "high"].forEach(function (mode) {
+      const context = createContext();
+      const dialog = aiSettings.create(context);
+
+      dialog.bindEvents();
+      dialog.open();
+      context.providerSelect.value = "ollama";
+      context.providerSelect.dispatch("change");
+      context.endpointInput.value = "http://127.0.0.1:11434";
+      context.modelInput.value = "gemma4:e2b";
+      context.reasoningEffort.value = mode;
+      context.reasoningEffort.dispatch("change");
+      context.saveButton.click();
+
+      assert.equal(context.saved.reasoningMode, mode);
+      assert.equal(context.saved.reasoning.enabled, mode !== "off");
+      assert.equal(context.saved.reasoning.effort, mode);
+    });
+  });
+
+  await runTest("invalid reasoning values fall back to Auto when loaded", function () {
+    const context = createContext({
+      readSettings() {
+        return {
+          apiKey: "",
+          baseUrl: "http://127.0.0.1:11434",
+          endpoint: "http://127.0.0.1:11434/api/chat",
+          model: "gemma4:e2b",
+          provider: "ollama",
+          providerLabel: "Ollama local",
+          reasoning: {
+            enabled: true,
+            effort: "invalid",
+            showSummary: false,
+            tokenBudget: 2048
+          },
+          reasoningMode: "invalid"
+        };
+      }
+    });
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+
+    assert.equal(context.reasoningEffort.value, "auto");
+  });
+
+  await runTest("existing settings without reasoningMode still load reasoning effort", function () {
+    const context = createContext({
+      readSettings() {
+        return {
+          apiKey: "",
+          baseUrl: "http://127.0.0.1:11434",
+          endpoint: "http://127.0.0.1:11434/api/chat",
+          model: "gemma4:e2b",
+          provider: "ollama",
+          providerLabel: "Ollama local",
+          reasoning: {
+            enabled: true,
+            effort: "high",
+            showSummary: true,
+            tokenBudget: 4096
+          }
+        };
+      }
+    });
+    const dialog = aiSettings.create(context);
+
+    dialog.bindEvents();
+    dialog.open();
+
+    assert.equal(context.reasoningEffort.value, "high");
+    assert.equal(context.reasoningSummary.checked, true);
+    assert.equal(context.reasoningTokenBudget.value, 4096);
   });
 }());

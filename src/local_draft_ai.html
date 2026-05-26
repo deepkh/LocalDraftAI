@@ -188,6 +188,44 @@ SOFTWARE.</pre>
             <div id="aiDiffSummary" class="ai-diff-summary" aria-live="polite"></div>
             <div id="aiDiffView" class="ai-diff-view" aria-live="polite"></div>
           </section>
+          <section class="ai-engine-summary" id="aiEngineSummary" aria-label="AI engine used for this result">
+            <div class="ai-engine-summary-header">
+              <span class="ai-engine-summary-title">AI Engine</span>
+              <span class="ai-engine-summary-pill" id="aiEngineSummaryPill">Local mock · No reasoning</span>
+            </div>
+            <div class="ai-engine-summary-detail" id="aiEngineSummaryDetail">Current result was generated locally in mock mode.</div>
+            <div class="ai-engine-summary-actions">
+              <button type="button" id="aiEngineChangeSettingsButton">Change Settings</button>
+              <button type="button" id="aiEngineAdvancedToggle" aria-expanded="false" aria-controls="aiEngineAdvancedPanel">Advanced</button>
+            </div>
+            <div class="ai-engine-advanced-panel" id="aiEngineAdvancedPanel" hidden>
+              <div class="ai-engine-advanced-grid">
+                <label class="ai-engine-field">
+                  Model
+                  <input id="aiEngineOverrideModel" type="text" list="aiEngineOverrideModelOptions" autocomplete="off" spellcheck="false">
+                  <datalist id="aiEngineOverrideModelOptions"></datalist>
+                </label>
+                <label class="ai-engine-field">
+                  Reasoning
+                  <select id="aiEngineOverrideReasoning">
+                    <option value="default">Use current result setting</option>
+                    <option value="off">Off</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label class="ai-engine-checkbox">
+                  <input id="aiEngineTemporaryOverride" type="checkbox" checked>
+                  Use only for this action
+                </label>
+              </div>
+              <div class="ai-engine-advanced-status" id="aiEngineAdvancedStatus" aria-live="polite"></div>
+              <div class="ai-engine-advanced-actions">
+                <button type="button" id="aiEngineRegenerateButton">Regenerate Result</button>
+              </div>
+            </div>
+          </section>
         </div>
         <div class="ai-review-actions">
           <button type="button" id="aiReviewCancel" class="file-button">Cancel</button>
@@ -236,11 +274,11 @@ SOFTWARE.</pre>
             <label class="ai-settings-field">
               <span id="aiReasoningEffortLabel">Effort</span>
               <select id="aiReasoningEffort">
-                <option value="minimal">Minimal</option>
+                <option value="auto">Auto</option>
+                <option value="off">Off</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-                <option value="xhigh">Extra High</option>
               </select>
             </label>
             <label>

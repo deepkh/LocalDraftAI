@@ -12,10 +12,12 @@
     provider: "localDraftAI.ai.provider",
     reasoningEnabled: "localDraftAI.ai.reasoning.enabled",
     reasoningEffort: "localDraftAI.ai.reasoning.effort",
+    reasoningMode: "localDraftAI.ai.reasoning.mode",
     reasoningShowSummary: "localDraftAI.ai.reasoning.showSummary",
     reasoningTokenBudget: "localDraftAI.ai.reasoning.tokenBudget"
   };
   var PROVIDER_ORDER = ["mock", "ollama", "openai", "anthropic", "gemini", "openai-compatible"];
+  var REASONING_MODES = ["auto", "off", "low", "medium", "high"];
   var MOCK_PROVIDER = {
     defaultBaseUrl: "",
     defaultModel: "local-model",
@@ -138,14 +140,92 @@
     return settings.baseUrl || "";
   }
 
-  function readReasoningSettings(config) {
+  function normalizeReasoningMode(value, fallback) {
+    var mode = String(value === undefined || value === null ? "" : value).trim().toLowerCase();
+
+    if (mode === "minimal") {
+      return "low";
+    }
+
+    if (mode === "xhigh") {
+      return "high";
+    }
+
+    if (mode === "none" || mode === "disabled" || mode === "false") {
+      return "off";
+    }
+
+    if (REASONING_MODES.indexOf(mode) > -1) {
+      return mode;
+    }
+
+    return fallback || "auto";
+  }
+
+  function falseValue(value) {
+    return value === false || value === "false";
+  }
+
+  function explicitReasoningMode(config) {
     var configReasoning = config && config.reasoning || {};
 
+    if (hasOwn(config || {}, "reasoningMode")) {
+      return normalizeReasoningMode(config.reasoningMode);
+    }
+
+    if (hasOwn(configReasoning, "mode")) {
+      return normalizeReasoningMode(configReasoning.mode);
+    }
+
+    if (hasOwn(configReasoning, "reasoningMode")) {
+      return normalizeReasoningMode(configReasoning.reasoningMode);
+    }
+
+    if (hasOwn(configReasoning, "enabled") && falseValue(configReasoning.enabled)) {
+      return "off";
+    }
+
+    if (hasOwn(configReasoning, "effort") && configReasoning.effort) {
+      return normalizeReasoningMode(configReasoning.effort);
+    }
+
+    return "";
+  }
+
+  function readReasoningMode(config) {
+    var mode = explicitReasoningMode(config);
+    var storedMode;
+    var storedEffort;
+
+    if (mode) {
+      return mode;
+    }
+
+    storedMode = localStorageValue(STORAGE_KEYS.reasoningMode);
+    if (storedMode) {
+      return normalizeReasoningMode(storedMode);
+    }
+
+    if (falseValue(localStorageValue(STORAGE_KEYS.reasoningEnabled))) {
+      return "off";
+    }
+
+    storedEffort = localStorageValue(STORAGE_KEYS.reasoningEffort);
+    if (storedEffort) {
+      return normalizeReasoningMode(storedEffort);
+    }
+
+    return "auto";
+  }
+
+  function readReasoningSettings(config, mode) {
+    var configReasoning = config && config.reasoning || {};
+    var reasoningMode = normalizeReasoningMode(mode || readReasoningMode(config));
+    var effort = reasoningMode === "auto" ? "medium" : reasoningMode;
+
     return reasoning.normalize({
-      enabled: configReasoning.enabled !== undefined
-        ? configReasoning.enabled
-        : localStorageValue(STORAGE_KEYS.reasoningEnabled),
-      effort: configReasoning.effort || localStorageValue(STORAGE_KEYS.reasoningEffort),
+      enabled: reasoningMode !== "off",
+      effort: effort,
       showSummary: configReasoning.showSummary !== undefined
         ? configReasoning.showSummary
         : localStorageValue(STORAGE_KEYS.reasoningShowSummary),
@@ -165,6 +245,7 @@
     var provider = getProvider(providerId);
     var baseUrl = "";
     var model;
+    var reasoningMode = readReasoningMode(config);
     var settings;
 
     if (providerId !== "mock") {
@@ -180,11 +261,57 @@
       model: model,
       provider: providerId,
       providerLabel: provider.label,
-      reasoning: readReasoningSettings(config)
+      reasoning: readReasoningSettings(config, reasoningMode),
+      reasoningMode: reasoningMode
     };
 
     settings.endpoint = endpointForSettings(settings);
     return settings;
+  }
+
+  function resolvedReasoningForMode(mode, sourceReasoning) {
+    var reasoningMode = normalizeReasoningMode(mode, "off");
+    var source = sourceReasoning || {};
+
+    return reasoning.normalize({
+      enabled: reasoningMode !== "off",
+      effort: reasoningMode === "auto" ? "medium" : reasoningMode,
+      showSummary: source.showSummary,
+      tokenBudget: source.tokenBudget
+    });
+  }
+
+  function providerSupportsReasoning(settings, provider) {
+    return Boolean(
+      provider &&
+      provider.id !== "mock" &&
+      settings &&
+      settings.endpoint &&
+      (provider.supportsReasoning || settings.enableCompatibleReasoning)
+    );
+  }
+
+  function resolveActionSettings(actionId, settingsOverride) {
+    var settings = readSettings(settingsOverride);
+    var provider = getProvider(settings.provider);
+    var resolvedMode = normalizeReasoningMode(settings.reasoningMode, "auto");
+    var resolved;
+
+    if (!providerSupportsReasoning(settings, provider)) {
+      resolvedMode = "off";
+    } else if (resolvedMode === "auto") {
+      resolvedMode = normalizeReasoningMode(
+        ME.aiActions && typeof ME.aiActions.defaultReasoningMode === "function"
+          ? ME.aiActions.defaultReasoningMode(actionId)
+          : "low",
+        "low"
+      );
+    }
+
+    resolved = Object.assign({}, settings);
+    resolved.reasoningMode = resolvedMode;
+    resolved.reasoning = resolvedReasoningForMode(resolvedMode, settings.reasoning);
+    return resolved;
   }
 
   function clearSettings() {
@@ -201,7 +328,8 @@
     var provider = getProvider(providerId);
     var apiKey = String(settings && settings.apiKey || "");
     var model = String(settings && settings.model || provider.defaultModel || "local-model").trim() || "local-model";
-    var normalizedReasoning = reasoning.normalize(settings && settings.reasoning);
+    var reasoningMode = readReasoningMode(settings || {});
+    var normalizedReasoning = readReasoningSettings(settings || {}, reasoningMode);
     var baseUrl;
 
     if (settings && settings.mode === "mock" || providerId === "mock") {
@@ -212,8 +340,9 @@
     setLocalStorageValue(STORAGE_KEYS.provider, providerId);
     setLocalStorageValue(STORAGE_KEYS.baseUrl, baseUrl);
     setLocalStorageValue(STORAGE_KEYS.model, model);
+    setLocalStorageValue(STORAGE_KEYS.reasoningMode, reasoningMode);
     setLocalStorageValue(STORAGE_KEYS.reasoningEnabled, normalizedReasoning.enabled ? "true" : "false");
-    setLocalStorageValue(STORAGE_KEYS.reasoningEffort, normalizedReasoning.effort);
+    setLocalStorageValue(STORAGE_KEYS.reasoningEffort, reasoningMode === "auto" ? "auto" : normalizedReasoning.effort);
     setLocalStorageValue(STORAGE_KEYS.reasoningShowSummary, normalizedReasoning.showSummary ? "true" : "false");
     setLocalStorageValue(STORAGE_KEYS.reasoningTokenBudget, String(normalizedReasoning.tokenBudget));
     removeLocalStorageValue(STORAGE_KEYS.endpoint);
@@ -239,6 +368,7 @@
       actionId: actionId,
       messages: messages,
       reasoning: settings.reasoning,
+      reasoningMode: settings.reasoningMode,
       selectedText: selectedText,
       systemPrompt: systemPrompt,
       userContent: userContent
@@ -273,8 +403,16 @@
     });
   }
 
-  async function runDetailed(actionId, selectedText, settingsOverride) {
-    var settings = readSettings(settingsOverride);
+  function settingsOverrideFromOptions(options) {
+    if (options && hasOwn(options, "settingsOverride")) {
+      return options.settingsOverride;
+    }
+
+    return options;
+  }
+
+  async function runDetailed(actionId, selectedText, options) {
+    var settings = resolveActionSettings(actionId, settingsOverrideFromOptions(options));
     var provider = getProvider(settings.provider);
     var aiRequest;
 
@@ -296,8 +434,30 @@
     return normalizeProviderResult(await provider.runAction(settings, aiRequest));
   }
 
-  async function run(actionId, selectedText) {
-    return (await runDetailed(actionId, selectedText)).text;
+  async function run(actionId, selectedText, options) {
+    return (await runDetailed(actionId, selectedText, options)).text;
+  }
+
+  function summarizeSettings(settingsOverride) {
+    var settings = readSettings(settingsOverride);
+    var provider = getProvider(settings.provider);
+    var mode = settings.provider === "mock" || !settings.endpoint ? "mock" : "server";
+    var reasoningMode = normalizeReasoningMode(settings.reasoningMode || (settings.reasoning && settings.reasoning.enabled ? settings.reasoning.effort : "off"), "off");
+
+    if (mode === "mock" || !providerSupportsReasoning(settings, provider)) {
+      reasoningMode = "off";
+    }
+
+    return {
+      endpoint: mode === "server" ? settings.endpoint : "",
+      mode: mode,
+      model: settings.model || "",
+      provider: settings.provider || (mode === "server" ? "openai-compatible" : "mock"),
+      providerLabel: mode === "server"
+        ? provider && (provider.shortLabel || provider.label) || settings.providerLabel || "AI provider"
+        : "Local mock",
+      reasoningMode: reasoningMode
+    };
   }
 
   async function listModels(settingsOverride) {
@@ -333,13 +493,16 @@
       return ME.aiProviderManager;
     },
     defaultBaseUrl: defaultBaseUrl,
+    normalizeReasoningMode: normalizeReasoningMode,
     getProvider: getProvider,
     listModels: listModels,
     listProviders: listProviders,
     readSettings: readSettings,
+    resolveActionSettings: resolveActionSettings,
     run: run,
     runDetailed: runDetailed,
     saveSettings: saveSettings,
+    summarizeSettings: summarizeSettings,
     testConnection: testConnection
   };
 }());

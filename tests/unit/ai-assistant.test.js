@@ -162,6 +162,18 @@ function createContext(overrides) {
     diffSummary: element("div"),
     diffUnifiedButton: element("button"),
     diffView: element("div"),
+    aiEngineAdvancedPanel: element("div"),
+    aiEngineAdvancedStatus: element("div"),
+    aiEngineAdvancedToggle: element("button"),
+    aiEngineChangeSettingsButton: element("button"),
+    aiEngineOverrideModel: element("input"),
+    aiEngineOverrideModelOptions: element("datalist"),
+    aiEngineOverrideReasoning: element("select"),
+    aiEngineRegenerateButton: element("button"),
+    aiEngineSummary: element("section"),
+    aiEngineSummaryDetail: element("div"),
+    aiEngineSummaryPill: element("span"),
+    aiEngineTemporaryOverride: element("input"),
     focusActiveEditor() {
       context.focusedActiveEditor = true;
     },
@@ -236,6 +248,42 @@ function collectNodes(node, predicate, result) {
 
 function nodesByPatchAction(context, action) {
   return collectNodes(context.diffView, (node) => node.dataset && node.dataset.patchAction === action);
+}
+
+function tick() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function createSettingsContext() {
+  return {
+    apiKeyInput: element("input"),
+    cancelButton: element("button"),
+    closeButton: element("button"),
+    dialog: element("div"),
+    endpointInput: element("input"),
+    form: element("form"),
+    modeMock: element("input"),
+    modeServer: element("input"),
+    modelInput: element("input"),
+    modelListButton: element("button"),
+    modelOptions: element("datalist"),
+    modelSelect: element("select"),
+    overlay: element("div"),
+    providerHint: element("div"),
+    providerSelect: element("select"),
+    reasoningEffort: element("select"),
+    reasoningEffortLabel: element("span"),
+    reasoningEnabled: element("input"),
+    reasoningEnabledLabel: element("span"),
+    reasoningLegend: element("legend"),
+    reasoningSummary: element("input"),
+    reasoningSummaryLabel: element("span"),
+    reasoningTokenBudget: element("input"),
+    reasoningTokenBudgetLabel: element("span"),
+    saveButton: element("button"),
+    statusElement: element("div"),
+    testButton: element("button")
+  };
 }
 
 (async function () {
@@ -348,6 +396,315 @@ function nodesByPatchAction(context, action) {
     assert.equal(context.resultText.value, "Hello LocalDraftAI world");
     assert.equal(context.diffSummary.textContent, "+ 1 added   - 0 removed   ~ 1 changed");
     assert.equal(context.diffView.children.length, 1);
+  });
+
+  await runTest("AI review dialog renders engine summary for mock mode", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model",
+            provider: "mock"
+          };
+        },
+        run() {
+          return Promise.resolve("result");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    assert.equal(context.aiEngineSummary.hidden, false);
+    assert.equal(context.aiEngineSummaryPill.textContent, "Local mock · No reasoning");
+    assert.match(context.aiEngineSummaryDetail.textContent, /No server request was sent/);
+  });
+
+  await runTest("AI review dialog renders server model and reasoning summary", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "http://127.0.0.1:11434/api/chat",
+            model: "qwen3:1.7b",
+            provider: "ollama",
+            providerLabel: "Ollama",
+            reasoning: {
+              enabled: true,
+              effort: "low"
+            },
+            reasoningMode: "low"
+          };
+        },
+        run() {
+          return Promise.resolve("result");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    assert.match(context.aiEngineSummaryPill.textContent, /Ollama/);
+    assert.match(context.aiEngineSummaryPill.textContent, /qwen3:1\.7b/);
+    assert.match(context.aiEngineSummaryPill.textContent, /Reasoning: Low/);
+  });
+
+  await runTest("Advanced panel is hidden by default and toggles", async function () {
+    const context = createContext();
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    assert.equal(context.aiEngineAdvancedPanel.hidden, true);
+    assert.equal(context.aiEngineAdvancedToggle.attributes["aria-expanded"], "false");
+
+    context.aiEngineAdvancedToggle.dispatchEvent("click");
+    assert.equal(context.aiEngineAdvancedPanel.hidden, false);
+    assert.equal(context.aiEngineAdvancedToggle.attributes["aria-expanded"], "true");
+
+    context.aiEngineAdvancedToggle.dispatchEvent("click");
+    assert.equal(context.aiEngineAdvancedPanel.hidden, true);
+    assert.equal(context.aiEngineAdvancedToggle.attributes["aria-expanded"], "false");
+  });
+
+  await runTest("Change Settings opens the global AI settings dialog", async function () {
+    const previousSettings = window.MarkdownEditor.aiSettings;
+    let opened = false;
+    let bound = false;
+
+    window.MarkdownEditor.aiSettings = {
+      create() {
+        return {
+          bindEvents() {
+            bound = true;
+          },
+          close() {},
+          isOpen() {
+            return false;
+          },
+          open() {
+            opened = true;
+          }
+        };
+      }
+    };
+
+    try {
+      const context = createContext({
+        settings: createSettingsContext()
+      });
+      const assistant = bindAssistant(context);
+
+      await assistant.requestAction("correctGrammar", {
+        selection: {
+          end: 4,
+          mode: "markdown",
+          start: 0,
+          text: "text"
+        }
+      });
+      context.aiEngineChangeSettingsButton.dispatchEvent("click");
+
+      assert.equal(bound, true);
+      assert.equal(opened, true);
+    } finally {
+      window.MarkdownEditor.aiSettings = previousSettings;
+    }
+  });
+
+  await runTest("changing Advanced fields marks the override dirty", async function () {
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "http://127.0.0.1:11434/api/chat",
+            model: "qwen3:1.7b",
+            provider: "ollama",
+            providerLabel: "Ollama",
+            reasoning: {
+              enabled: true,
+              effort: "low"
+            },
+            reasoningMode: "low"
+          };
+        },
+        run() {
+          return Promise.resolve("result");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.aiEngineOverrideModel.value = "qwen3:4b";
+    context.aiEngineOverrideModel.dispatchEvent("input");
+
+    assert.equal(context.aiEngineAdvancedStatus.dataset.status, "warning");
+    assert.match(context.aiEngineAdvancedStatus.textContent, /Regenerate Result/);
+  });
+
+  await runTest("Regenerate uses settingsOverride and Apply uses the visible result", async function () {
+    const calls = [];
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "http://127.0.0.1:11434/api/chat",
+            model: "qwen3:1.7b",
+            provider: "ollama",
+            providerLabel: "Ollama",
+            reasoning: {
+              enabled: true,
+              effort: "low"
+            },
+            reasoningMode: "low"
+          };
+        },
+        resolveActionSettings(actionId, settings) {
+          return Object.assign({}, settings, {
+            reasoning: Object.assign({}, settings.reasoning)
+          });
+        },
+        run(actionId, text, options) {
+          calls.push({
+            actionId,
+            options,
+            text
+          });
+          return Promise.resolve(calls.length === 1 ? "first result" : "second result");
+        },
+        summarizeSettings(settings) {
+          return {
+            endpoint: settings.endpoint,
+            mode: settings.endpoint ? "server" : "mock",
+            model: settings.model,
+            providerLabel: settings.providerLabel || "Ollama",
+            reasoningMode: settings.reasoningMode
+          };
+        }
+      }
+    });
+    context.markdownEditor.value = "text tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.aiEngineOverrideModel.value = "qwen3:4b";
+    context.aiEngineOverrideModel.dispatchEvent("input");
+    context.aiEngineOverrideReasoning.value = "high";
+    context.aiEngineOverrideReasoning.dispatchEvent("change");
+    context.aiEngineRegenerateButton.dispatchEvent("click");
+    await tick();
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].options.settingsOverride.model, "qwen3:4b");
+    assert.equal(calls[1].options.settingsOverride.reasoningMode, "high");
+    assert.equal(context.resultText.value, "second result");
+    assert.match(context.reviewLog.children[context.reviewLog.children.length - 1].children[1].textContent, /^Regenerate completed in \d+ ms\.$/);
+
+    context.applyButton.dispatchEvent("click");
+    assert.equal(context.markdownEditor.value, "second result tail");
+  });
+
+  await runTest("Apply does not regenerate after Advanced settings change", async function () {
+    const calls = [];
+    const context = createContext({
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "http://127.0.0.1:11434/api/chat",
+            model: "qwen3:1.7b",
+            provider: "ollama",
+            providerLabel: "Ollama",
+            reasoning: {
+              enabled: true,
+              effort: "low"
+            },
+            reasoningMode: "low"
+          };
+        },
+        run(actionId, text, options) {
+          calls.push({
+            actionId,
+            options,
+            text
+          });
+          return Promise.resolve("visible result");
+        }
+      }
+    });
+    context.markdownEditor.value = "text tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.aiEngineOverrideModel.value = "qwen3:4b";
+    context.aiEngineOverrideModel.dispatchEvent("input");
+    context.applyButton.dispatchEvent("click");
+
+    assert.equal(calls.length, 1);
+    assert.equal(context.markdownEditor.value, "visible result tail");
   });
 
   await runTest("refreshes diff when editable AI result changes", async function () {

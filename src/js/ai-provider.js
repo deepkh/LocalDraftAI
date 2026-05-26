@@ -49,14 +49,20 @@
         ? compatibleProvider.modelsEndpoint({ baseUrl: value, endpoint: value })
         : value;
     },
+    normalizeReasoningMode: function (value, fallback) {
+      return requireManager().normalizeReasoningMode(value, fallback);
+    },
     readSettings: function (settings) {
       return requireManager().readSettings(settings);
     },
-    run: function (actionId, selectedText) {
-      return requireManager().run(actionId, selectedText);
+    resolveActionSettings: function (actionId, settings) {
+      return requireManager().resolveActionSettings(actionId, settings);
     },
-    runDetailed: function (actionId, selectedText, settings) {
-      return requireManager().runDetailed(actionId, selectedText, settings);
+    run: function (actionId, selectedText, options) {
+      return requireManager().run(actionId, selectedText, options);
+    },
+    runDetailed: function (actionId, selectedText, options) {
+      return requireManager().runDetailed(actionId, selectedText, options);
     },
     saveSettings: function (settings) {
       return requireManager().saveSettings(settings);
@@ -68,6 +74,9 @@
     },
     testConnection: function (settings) {
       return requireManager().testConnection(settings);
+    },
+    summarizeSettings: function (settings) {
+      return requireManager().summarizeSettings(settings);
     }
   };
 }());

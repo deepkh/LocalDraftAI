@@ -38,6 +38,13 @@
     var testing = false;
     var loadingModels = false;
     var listedModels = [];
+    var REASONING_MODE_OPTIONS = [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+      { value: "low", label: "Low" },
+      { value: "medium", label: "Medium" },
+      { value: "high", label: "High" }
+    ];
 
     function readSettings(overrides) {
       if (provider && typeof provider.readSettings === "function") {
@@ -111,6 +118,24 @@
       return descriptor.defaultBaseUrl || "http://127.0.0.1:11434/v1/";
     }
 
+    function normalizeReasoningMode(value, fallback) {
+      if (provider && typeof provider.normalizeReasoningMode === "function") {
+        return provider.normalizeReasoningMode(value, fallback);
+      }
+
+      value = String(value || "").trim().toLowerCase();
+      if (value === "minimal") {
+        return "low";
+      }
+      if (value === "xhigh") {
+        return "high";
+      }
+      if (["auto", "off", "low", "medium", "high"].indexOf(value) > -1) {
+        return value;
+      }
+      return fallback || "auto";
+    }
+
     function displayBaseUrl(settings) {
       if (settings && settings.baseUrl !== undefined) {
         return settings.baseUrl || defaultBaseUrl(settings.provider);
@@ -125,10 +150,17 @@
 
     function reasoningSettingsFromForm() {
       var descriptor = getProvider(activeProviderId());
+      var supportsReasoning = Boolean(descriptor && descriptor.supportsReasoning);
+      var mode = normalizeReasoningMode(reasoningEffort ? reasoningEffort.value : "auto");
+
+      if (!supportsReasoning || reasoningEnabled && !reasoningEnabled.checked) {
+        mode = "off";
+      }
 
       return {
-        enabled: Boolean(descriptor && descriptor.supportsReasoning && reasoningEnabled && reasoningEnabled.checked),
-        effort: reasoningEffort ? reasoningEffort.value : "medium",
+        enabled: mode !== "off",
+        effort: mode === "auto" ? "medium" : mode,
+        mode: mode,
         showSummary: reasoningSummary ? reasoningSummary.checked : false,
         tokenBudget: reasoningTokenBudget ? reasoningTokenBudget.value : 2048
       };
@@ -137,6 +169,8 @@
     function formSettings() {
       var providerId = activeProviderId();
 
+      var reasoningSettings = reasoningSettingsFromForm();
+
       return {
         apiKey: apiKeyInput.value,
         baseUrl: endpointInput.value.trim(),
@@ -144,7 +178,8 @@
         mode: providerId === "mock" ? "mock" : "server",
         model: modelInput.value.trim(),
         provider: providerId,
-        reasoning: reasoningSettingsFromForm()
+        reasoning: reasoningSettings,
+        reasoningMode: reasoningSettings.mode
       };
     }
 
@@ -232,10 +267,10 @@
         reasoningEffort.disabled = !supportsReasoning || reasoningEnabled && !reasoningEnabled.checked;
       }
       if (reasoningSummary) {
-        reasoningSummary.disabled = !supportsReasoningSummary || reasoningEnabled && !reasoningEnabled.checked;
+        reasoningSummary.disabled = !supportsReasoningSummary || reasoningEnabled && !reasoningEnabled.checked || reasoningEffort && reasoningEffort.value === "off";
       }
       if (reasoningTokenBudget) {
-        reasoningTokenBudget.disabled = !supportsReasoningBudget || reasoningEnabled && !reasoningEnabled.checked;
+        reasoningTokenBudget.disabled = !supportsReasoningBudget || reasoningEnabled && !reasoningEnabled.checked || reasoningEffort && reasoningEffort.value === "off";
       }
       updateProviderHint();
       updateReasoningLabels();
@@ -267,6 +302,8 @@
       }
 
       return {
+        auto: "Auto",
+        off: "Off",
         high: "High",
         low: "Low",
         medium: "Medium",
@@ -277,18 +314,16 @@
 
     function reasoningEfforts(descriptor) {
       if (!descriptor || !descriptor.supportsReasoning) {
-        return [];
+        return REASONING_MODE_OPTIONS;
       }
 
-      return descriptor.reasoningEfforts && descriptor.reasoningEfforts.length
-        ? descriptor.reasoningEfforts.slice()
-        : ["minimal", "low", "medium", "high", "xhigh"];
+      return REASONING_MODE_OPTIONS;
     }
 
     function syncReasoningEffortOptions(preferredEffort) {
       var descriptor = getProvider(activeProviderId());
       var efforts = reasoningEfforts(descriptor);
-      var preferred = preferredEffort || reasoningEffort && reasoningEffort.value || "medium";
+      var preferred = normalizeReasoningMode(preferredEffort || reasoningEffort && reasoningEffort.value || "auto");
       var nextValue;
 
       if (!reasoningEffort) {
@@ -308,7 +343,7 @@
       efforts = efforts.map(effortValue);
       nextValue = efforts.indexOf(preferred) > -1
         ? preferred
-        : efforts.indexOf("medium") > -1 ? "medium" : efforts[0];
+        : efforts.indexOf("auto") > -1 ? "auto" : efforts[0];
       reasoningEffort.value = nextValue;
     }
 
@@ -401,14 +436,15 @@
 
     function setReasoningFields(settings) {
       var values = settings.reasoning || {};
+      var mode = normalizeReasoningMode(settings.reasoningMode || values.mode || (values.enabled === false ? "off" : values.effort), "auto");
 
       if (reasoningEnabled) {
-        reasoningEnabled.checked = values.enabled !== false;
+        reasoningEnabled.checked = mode !== "off";
       }
-      syncReasoningEffortOptions(values.effort);
+      syncReasoningEffortOptions(mode);
       if (reasoningEffort) {
-        if (values.effort && reasoningEffort.options && reasoningEffort.options.length) {
-          syncReasoningEffortOptions(values.effort);
+        if (mode && reasoningEffort.options && reasoningEffort.options.length) {
+          syncReasoningEffortOptions(mode);
         }
       }
       if (reasoningSummary) {
@@ -573,6 +609,16 @@
       }
       if (reasoningEnabled) {
         reasoningEnabled.addEventListener("change", updateFieldState);
+      }
+      if (reasoningEffort) {
+        reasoningEffort.addEventListener("change", function () {
+          if (reasoningEnabled && reasoningEffort.value === "off") {
+            reasoningEnabled.checked = false;
+          } else if (reasoningEnabled && activeProviderId() !== "mock") {
+            reasoningEnabled.checked = true;
+          }
+          updateFieldState();
+        });
       }
       if (modelListButton) {
         modelListButton.addEventListener("click", function () {

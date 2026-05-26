@@ -102,9 +102,11 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - The right pane is a read-only live preview and can be hidden.
 - AI actions should operate on selected text and show a review dialog before applying changes.
 - AI review should keep AI Result editable and refresh the visual diff when it changes.
+- AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
+- AI review Advanced overrides should be temporary to the current action dialog and should only affect output after Regenerate Result succeeds.
 - AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
 - AI provider mode should support local mock mode, native Ollama, OpenAI, Claude, Gemini, and OpenAI-compatible custom server mode.
-- AI reasoning mode should map LocalDraftAI effort settings to provider-supported reasoning controls and only show provider-returned summaries when requested.
+- AI reasoning mode should support Auto, Off, Low, Medium, and High, map them to provider-supported reasoning controls, and only show provider-returned summaries when requested.
 - AI errors should be visible and recoverable, not silent.
 - The feedback hint should link to the GitHub issues page.
 

@@ -32,8 +32,8 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
-- **Reasoning mode**: enable provider-supported reasoning effort and optional provider-returned reasoning summaries.
-- **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, and an interactive accept/reject mode before it replaces selected text.
+- **Reasoning mode**: choose Auto, Off, Low, Medium, or High reasoning for providers that support it; Auto uses per-action defaults.
+- **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, the AI engine used for the result, and an interactive accept/reject mode before it replaces selected text.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
@@ -253,10 +253,10 @@ To use a real model, choose an AI provider in settings. LocalDraftAI only sends 
 5. Enter the Base URL.
 6. Enter a model name, or click **List Models** and choose one from the dropdown.
 7. Enter an API key if your server requires one.
-8. Adjust **Reasoning** options if the provider supports them.
+8. Adjust **Reasoning** options if the provider supports them. **Auto** uses a conservative default for each AI action.
 9. Click **Test Connection**.
 10. Click **Save**.
-11. Select text in the editor, choose an AI action, review the result, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
+11. Select text in the editor, choose an AI action, review the result and AI Engine summary, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
 
 Provider options:
 
@@ -285,14 +285,22 @@ Model: gemma4:e2b
 API Key: optional
 ```
 
-Reasoning controls use provider-specific wording:
+Reasoning controls use the same compact values across providers:
 
-- **Ollama local**: Ollama think, with Low think, Medium think, or High think.
-- **OpenAI**: OpenAI reasoning effort, including Minimal and Extra High when supported by the selected model.
-- **Claude**: Claude extended thinking, with Adaptive low, Adaptive medium, or Adaptive high.
-- **Gemini**: Gemini thinking, with Thinking level options. Gemini 2.5 models use a thinking budget instead of a thinking level.
+- **Off**: explicitly disable reasoning for the AI request. LocalDraftAI sends the action normally without provider reasoning controls.
+- **Auto**: choose a reasoning level from the AI action default:
+  - Grammar Correction: Off
+  - Improve Wording: Low
+  - Make Professional: Medium
+  - Summarize: Medium
+  - Make Shorter: Low
+  - Beautify Markdown: Low
+  - Fix Markdown Syntax: Medium
+- **Low / Medium / High**: use the selected reasoning level for every action when the provider supports reasoning.
 
-Reasoning summaries are only shown when the provider returns a summary and the setting is enabled.
+Each AI review dialog shows the provider, model, and reasoning setting that generated the current result. The **Advanced** section can temporarily override the model or reasoning for that one result; click **Regenerate Result** to run the same action with the override. **Apply** always applies the visible result only and never silently regenerates.
+
+Reasoning summaries are only shown when the provider returns a summary and the setting is enabled. Provider adapters map the compact reasoning levels to each provider's supported request fields.
 
 Cloud API keys entered in the settings dialog are stored only in local browser storage, but they are still visible to that browser profile and developer tools. For safer cloud usage, run a local proxy on `127.0.0.1` and keep provider API keys in proxy environment variables.
 

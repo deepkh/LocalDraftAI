@@ -90,9 +90,46 @@ function resetSettings() {
 
     assert.equal(window.localStorage.getItem("localDraftAI.ai.provider"), "ollama");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.baseUrl"), "http://127.0.0.1:11434");
+    assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.mode"), "high");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.effort"), "high");
     assert.equal(window.localStorage.getItem("localDraftAI.ai.reasoning.showSummary"), "true");
     assert.equal(manager.readSettings().endpoint, "http://127.0.0.1:11434/api/chat");
+  });
+
+  await runTest("uses action reasoning defaults when global reasoning is auto", function () {
+    resetSettings();
+
+    const grammar = manager.resolveActionSettings("correctGrammar", {
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:e2b",
+      provider: "ollama",
+      reasoningMode: "auto"
+    });
+    const summarize = manager.resolveActionSettings("summarize", {
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:e2b",
+      provider: "ollama",
+      reasoningMode: "auto"
+    });
+
+    assert.equal(grammar.reasoningMode, "off");
+    assert.equal(grammar.reasoning.enabled, false);
+    assert.equal(summarize.reasoningMode, "medium");
+    assert.equal(summarize.reasoning.enabled, true);
+  });
+
+  await runTest("global reasoning mode wins over action defaults", function () {
+    resetSettings();
+
+    const settings = manager.resolveActionSettings("correctGrammar", {
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:e2b",
+      provider: "ollama",
+      reasoningMode: "high"
+    });
+
+    assert.equal(settings.reasoningMode, "high");
+    assert.equal(settings.reasoning.effort, "high");
   });
 
   await runTest("returns a normalized detailed mock result", async function () {

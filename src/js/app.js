@@ -53,6 +53,18 @@
   var aiPatchAcceptAll = document.getElementById("aiPatchAcceptAll");
   var aiPatchRejectAll = document.getElementById("aiPatchRejectAll");
   var aiPatchReset = document.getElementById("aiPatchReset");
+  var aiEngineSummary = document.getElementById("aiEngineSummary");
+  var aiEngineSummaryPill = document.getElementById("aiEngineSummaryPill");
+  var aiEngineSummaryDetail = document.getElementById("aiEngineSummaryDetail");
+  var aiEngineChangeSettingsButton = document.getElementById("aiEngineChangeSettingsButton");
+  var aiEngineAdvancedToggle = document.getElementById("aiEngineAdvancedToggle");
+  var aiEngineAdvancedPanel = document.getElementById("aiEngineAdvancedPanel");
+  var aiEngineOverrideModel = document.getElementById("aiEngineOverrideModel");
+  var aiEngineOverrideModelOptions = document.getElementById("aiEngineOverrideModelOptions");
+  var aiEngineOverrideReasoning = document.getElementById("aiEngineOverrideReasoning");
+  var aiEngineTemporaryOverride = document.getElementById("aiEngineTemporaryOverride");
+  var aiEngineAdvancedStatus = document.getElementById("aiEngineAdvancedStatus");
+  var aiEngineRegenerateButton = document.getElementById("aiEngineRegenerateButton");
   var aiReviewApply = document.getElementById("aiReviewApply");
   var aiReviewCancel = document.getElementById("aiReviewCancel");
   var aiReviewClose = document.getElementById("aiReviewClose");
@@ -1815,6 +1827,18 @@
       diffSummary: aiDiffSummary,
       diffUnifiedButton: aiDiffUnifiedButton,
       diffView: aiDiffView,
+      aiEngineAdvancedPanel: aiEngineAdvancedPanel,
+      aiEngineAdvancedStatus: aiEngineAdvancedStatus,
+      aiEngineAdvancedToggle: aiEngineAdvancedToggle,
+      aiEngineChangeSettingsButton: aiEngineChangeSettingsButton,
+      aiEngineOverrideModel: aiEngineOverrideModel,
+      aiEngineOverrideModelOptions: aiEngineOverrideModelOptions,
+      aiEngineOverrideReasoning: aiEngineOverrideReasoning,
+      aiEngineRegenerateButton: aiEngineRegenerateButton,
+      aiEngineSummary: aiEngineSummary,
+      aiEngineSummaryDetail: aiEngineSummaryDetail,
+      aiEngineSummaryPill: aiEngineSummaryPill,
+      aiEngineTemporaryOverride: aiEngineTemporaryOverride,
       patchAcceptAllButton: aiPatchAcceptAll,
       patchRejectAllButton: aiPatchRejectAll,
       patchResetButton: aiPatchReset,

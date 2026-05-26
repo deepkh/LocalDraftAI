@@ -51,6 +51,35 @@ function resetSettings() {
 }
 
 (async function () {
+  await runTest("summarizeSettings returns Local mock when no endpoint is configured", function () {
+    var summary;
+
+    resetSettings();
+    summary = providerApi.summarizeSettings(providerApi.readSettings());
+
+    assert.equal(summary.mode, "mock");
+    assert.equal(summary.providerLabel, "Local mock");
+    assert.equal(summary.reasoningMode, "off");
+  });
+
+  await runTest("summarizeSettings returns server model and reasoning", function () {
+    var summary;
+
+    resetSettings();
+    summary = providerApi.summarizeSettings({
+      baseUrl: "http://127.0.0.1:11434",
+      model: "qwen3:1.7b",
+      provider: "ollama",
+      reasoningMode: "low"
+    });
+
+    assert.equal(summary.mode, "server");
+    assert.equal(summary.providerLabel, "Ollama");
+    assert.equal(summary.endpoint, "http://127.0.0.1:11434/api/chat");
+    assert.equal(summary.model, "qwen3:1.7b");
+    assert.equal(summary.reasoningMode, "low");
+  });
+
   await runTest("runs local mock action when no endpoint is configured", async function () {
     var provider;
     var result;
@@ -104,6 +133,49 @@ function resetSettings() {
     assert.equal(request.body.model, "gemma4:e2b");
     assert.equal(request.body.stream, false);
     assert.match(request.body.messages[0].content, /Improve the wording/);
+  });
+
+  await runTest("run accepts a settingsOverride option", async function () {
+    var provider;
+    var request;
+    var result;
+
+    resetSettings();
+    window.fetch = async function (url, options) {
+      request = {
+        body: JSON.parse(options.body),
+        url: url
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async function () {
+          return {
+            choices: [
+              {
+                message: {
+                  content: "Override result"
+                }
+              }
+            ]
+          };
+        }
+      };
+    };
+
+    provider = providerApi.create();
+    result = await provider.run("improveWording", "text", {
+      settingsOverride: {
+        endpoint: "http://localhost:11434/v1/chat/completions",
+        model: "override-model",
+        provider: "openai-compatible"
+      }
+    });
+
+    assert.equal(result, "Override result");
+    assert.equal(request.url, "http://localhost:11434/v1/chat/completions");
+    assert.equal(request.body.model, "override-model");
   });
 
   await runTest("tests configured provider connections", async function () {

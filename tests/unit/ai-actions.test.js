@@ -40,6 +40,16 @@ runTest("builds prompt messages for selected Markdown", function () {
   assert.match(messages[1].content, /# Teh title/);
 });
 
+runTest("defines per-action reasoning defaults", function () {
+  assert.equal(aiActions.defaultReasoningMode("correctGrammar"), "off");
+  assert.equal(aiActions.defaultReasoningMode("improveWording"), "low");
+  assert.equal(aiActions.defaultReasoningMode("makeProfessional"), "medium");
+  assert.equal(aiActions.defaultReasoningMode("summarize"), "medium");
+  assert.equal(aiActions.defaultReasoningMode("makeShorter"), "low");
+  assert.equal(aiActions.defaultReasoningMode("beautifyMarkdown"), "low");
+  assert.equal(aiActions.defaultReasoningMode("fixMarkdownSyntax"), "medium");
+});
+
 runTest("mock grammar correction preserves inline code and links", function () {
   const result = repair.runAction(
     "correctGrammar",

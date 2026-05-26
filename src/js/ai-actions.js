@@ -152,6 +152,15 @@
       ]
     }
   ];
+  var ACTION_REASONING_DEFAULTS = {
+    beautifyMarkdown: "low",
+    correctGrammar: "off",
+    fixMarkdownSyntax: "medium",
+    improveWording: "low",
+    makeProfessional: "medium",
+    makeShorter: "low",
+    summarize: "medium"
+  };
 
   Object.keys(ACTIONS).forEach(function (actionId) {
     ACTIONS[actionId].id = actionId;
@@ -189,8 +198,13 @@
     ];
   }
 
+  function defaultReasoningMode(actionId) {
+    return ACTION_REASONING_DEFAULTS[actionId] || "low";
+  }
+
   ME.aiActions = {
     buildMessages: buildMessages,
+    defaultReasoningMode: defaultReasoningMode,
     get: get,
     groups: groups
   };
