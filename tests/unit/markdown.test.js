@@ -160,3 +160,29 @@ runTest("converts rendered nested lists back to indented Markdown", function () 
 
   assert.equal(markdown.htmlToMarkdown(root), "- Parent\n  - Child\n- Next\n\n1. Parent\n  1. Child\n2. Next");
 });
+
+runTest("converts browser-indented sibling lists back to nested Markdown", function () {
+  const unordered = elementNode("ul", {}, [
+    elementNode("li", {}, [textNode("Coffee")]),
+    elementNode("li", {}, [textNode("Tea")]),
+    elementNode("ul", {}, [
+      elementNode("li", {}, [textNode("Black tea")]),
+      elementNode("li", {}, [textNode("Green tea")])
+    ]),
+    elementNode("li", {}, [textNode("Milk")])
+  ]);
+  const ordered = elementNode("ol", {}, [
+    elementNode("li", {}, [textNode("One")]),
+    elementNode("li", {}, [textNode("Two")]),
+    elementNode("ol", {}, [
+      elementNode("li", {}, [textNode("Two point one")])
+    ]),
+    elementNode("li", {}, [textNode("Three")])
+  ]);
+  const root = elementNode("div", {}, [unordered, ordered]);
+
+  assert.equal(
+    markdown.htmlToMarkdown(root),
+    "- Coffee\n- Tea\n  - Black tea\n  - Green tea\n- Milk\n\n1. One\n2. Two\n  1. Two point one\n3. Three"
+  );
+});

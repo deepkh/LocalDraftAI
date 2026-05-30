@@ -487,6 +487,44 @@
     return output;
   }
 
+  function listChildrenToMarkdown(list, markerForItem, depth) {
+    var items = [];
+    var itemIndex = 0;
+
+    Array.prototype.forEach.call(list.childNodes, function (child) {
+      var rendered;
+
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      if (child.tagName && child.tagName.toLowerCase() === "li") {
+        itemIndex += 1;
+        items.push(listItemToMarkdown(child, markerForItem(itemIndex), depth));
+        return;
+      }
+
+      if (isListElement(child)) {
+        rendered = nodeToMarkdown(child, false, depth + 1).trim();
+        if (!rendered) {
+          return;
+        }
+
+        rendered = rendered.split("\n").map(function (line) {
+          return "  " + line;
+        }).join("\n");
+
+        if (items.length) {
+          items[items.length - 1] += "\n" + rendered;
+        } else {
+          items.push(rendered.replace(/^ {2}/gm, ""));
+        }
+      }
+    });
+
+    return items.join("\n");
+  }
+
   function nodeToMarkdown(node, inline, depth) {
     var childDepth = depth || 0;
 
@@ -555,15 +593,15 @@
     }
 
     if (tag === "ul") {
-      return Array.prototype.map.call(node.children, function (item) {
-        return listItemToMarkdown(item, "-", childDepth);
-      }).join("\n");
+      return listChildrenToMarkdown(node, function () {
+        return "-";
+      }, childDepth);
     }
 
     if (tag === "ol") {
-      return Array.prototype.map.call(node.children, function (item, index) {
-        return listItemToMarkdown(item, String(index + 1) + ".", childDepth);
-      }).join("\n");
+      return listChildrenToMarkdown(node, function (index) {
+        return String(index) + ".";
+      }, childDepth);
     }
 
     if (tag === "li") {
