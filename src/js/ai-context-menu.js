@@ -72,11 +72,12 @@
 
     function handleContextMenu(event) {
       var range = options.captureSelection ? options.captureSelection() : guards.selectedRange(markdownEditor);
+      var mode = range && range.mode ? range.mode : options.getActiveMode();
 
       if (!guards.canShowContextMenu({
         event: event,
         editor: options.wysiwygEditor,
-        mode: options.getActiveMode(),
+        mode: mode,
         range: range,
         textarea: markdownEditor
       })) {

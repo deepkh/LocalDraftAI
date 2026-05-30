@@ -147,7 +147,8 @@ global.document = {
 require("../../src/js/utils.js");
 require("../../src/js/viewport.js");
 
-function createViewportFixture() {
+function createViewportFixture(initialMode) {
+  let activeMode = initialMode || "wysiwyg";
   const wysiwygEditor = createScrollElement({
     raf,
     scrollTop: 100,
@@ -160,13 +161,6 @@ function createViewportFixture() {
     scrollHeight: 1000,
     clientHeight: 100
   });
-  const preview = createScrollElement({
-    raf,
-    scrollTop: 0,
-    scrollHeight: 1000,
-    clientHeight: 100
-  });
-
   wysiwygEditor.anchors = [
     createAnchor(wysiwygEditor, {
       baseTop: 80,
@@ -174,29 +168,23 @@ function createViewportFixture() {
       text: "Synchronized block"
     })
   ];
-  preview.anchors = [
-    createAnchor(preview, {
-      baseTop: 200,
-      line: 10,
-      text: "Synchronized block"
-    })
-  ];
 
   const viewport = window.MarkdownEditor.viewport.create({
     getActiveMode() {
-      return "wysiwyg";
+      return activeMode;
     },
     getMarkdownText() {
-      return "Synchronized block";
+      return "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\nSynchronized block";
     },
     markdownEditor,
-    preview,
     wysiwygEditor
   });
 
   return {
     markdownEditor,
-    preview,
+    setActiveMode(mode) {
+      activeMode = mode;
+    },
     viewport,
     wysiwygEditor
   };
@@ -212,64 +200,53 @@ function runTest(name, callback) {
   }
 }
 
-runTest("ignores preview scroll events caused by editor-to-preview sync", function () {
+runTest("captures the visible WYSIWYG block as a viewport anchor", function () {
   const fixture = createViewportFixture();
+  const anchor = fixture.viewport.capture();
 
-  fixture.preview.setScrollListener(function () {
-    fixture.viewport.scheduleEditorSync();
-  });
-
-  fixture.viewport.schedulePreviewSync();
-  raf.runFrame();
-  raf.runFrame();
-  raf.runFrame();
-
-  assert.equal(Math.round(fixture.preview.scrollTop), 220);
-  assert.equal(Math.round(fixture.wysiwygEditor.scrollTop), 100);
+  assert.equal(anchor.mode, "wysiwyg");
+  assert.equal(anchor.line, 10);
+  assert.equal(anchor.blockRatio, 0.5);
 });
 
-runTest("still syncs editor from user-driven preview scrolls", function () {
+runTest("restores the Markdown source editor to a matching Markdown line", function () {
   const fixture = createViewportFixture();
 
-  fixture.wysiwygEditor.scrollTop = 60;
-  fixture.preview.scrollTop = 220;
-  fixture.viewport.scheduleEditorSync();
-  raf.runFrame();
+  fixture.setActiveMode("markdown");
+  fixture.viewport.restore({
+    mode: "wysiwyg",
+    line: 10,
+    blockRatio: 0.5,
+    scrollRatio: 0,
+    textHint: "Synchronized block"
+  });
 
-  assert.equal(Math.round(fixture.wysiwygEditor.scrollTop), 100);
+  assert.equal(Math.round(fixture.markdownEditor.scrollTop), 240);
 });
 
-runTest("suppresses preview scroll feedback during editor-driven preview renders", function () {
+runTest("restores the WYSIWYG editor to a matching rendered block", function () {
   const fixture = createViewportFixture();
 
-  fixture.preview.setScrollListener(function () {
-    fixture.viewport.scheduleEditorSync();
+  fixture.setActiveMode("wysiwyg");
+  fixture.viewport.restore({
+    mode: "markdown",
+    line: 10,
+    lineOffset: 0,
+    blockRatio: 0,
+    scrollRatio: 0
   });
 
-  fixture.viewport.suppressPreviewFeedback();
-  fixture.preview.scrollTop = 220;
-  raf.runFrame();
-  raf.runFrame();
-
-  assert.equal(Math.round(fixture.wysiwygEditor.scrollTop), 100);
+  assert.equal(Math.round(fixture.wysiwygEditor.scrollTop), 80);
 });
 
-runTest("suppresses all pane sync during programmatic scroll restoration", function () {
+runTest("keeps a pending view-switch anchor until consumed", function () {
   const fixture = createViewportFixture();
 
-  fixture.wysiwygEditor.setScrollListener(function () {
-    fixture.viewport.schedulePreviewSync();
-  });
-  fixture.preview.setScrollListener(function () {
-    fixture.viewport.scheduleEditorSync();
-  });
+  fixture.viewport.prepareModeSwitchAnchor();
+  fixture.setActiveMode("markdown");
 
-  fixture.viewport.suppressScrollSync();
-  fixture.wysiwygEditor.scrollTop = 60;
-  fixture.preview.scrollTop = 220;
-  raf.runFrame();
-  raf.runFrame();
+  const anchor = fixture.viewport.consumeModeSwitchAnchor();
 
-  assert.equal(Math.round(fixture.wysiwygEditor.scrollTop), 60);
-  assert.equal(Math.round(fixture.preview.scrollTop), 220);
+  assert.equal(anchor.mode, "wysiwyg");
+  assert.equal(anchor.line, 10);
 });

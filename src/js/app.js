@@ -6,29 +6,35 @@
   var fileStore = ME.fileStore;
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
+  var VIEW_MODES = {
+    MARKDOWN_ONLY: "markdown-only",
+    SPLIT: "split",
+    WYSIWYG_ONLY: "wysiwyg-only"
+  };
+  var VIEW_MODE_STORAGE_KEY = "localdraftai.viewMode";
 
   var tabs = null;
   var recentRecords = [];
-  var previewVisible = true;
   var focusModeEnabled = false;
+  var focusModePreviousSource = null;
   var syncTimer = 0;
+  var markdownRenderTimer = 0;
   var wysiwygNeedsSync = false;
+  var isSyncingEditors = false;
+  var activeEditSource = null;
 
   var workspace = document.getElementById("workspace");
   var wysiwygEditor = document.getElementById("wysiwygEditor");
   var markdownEditor = document.getElementById("markdownEditor");
-  var preview = document.getElementById("preview");
-  var previewPane = document.getElementById("previewPane");
   var paneResizer = document.getElementById("paneResizer");
   var wysiwygMode = document.getElementById("wysiwygMode");
   var markdownMode = document.getElementById("markdownMode");
+  var splitMarkdownMode = document.getElementById("splitMarkdownMode");
   var modeLabel = document.getElementById("modeLabel");
   var wordCount = document.getElementById("wordCount");
   var charCount = document.getElementById("charCount");
   var formatBlock = document.getElementById("formatBlock");
-  var togglePreview = document.getElementById("togglePreview");
   var toggleFocusMode = document.getElementById("toggleFocusMode");
-  var previewStatus = document.getElementById("previewStatus");
   var aboutButton = document.getElementById("aboutButton");
   var aboutOverlay = document.getElementById("aboutOverlay");
   var aboutDialog = document.querySelector(".about-dialog");
@@ -144,6 +150,56 @@
     return session ? session.activeMode : "wysiwyg";
   }
 
+  function normalizeViewMode(mode) {
+    if (
+      mode === VIEW_MODES.WYSIWYG_ONLY ||
+      mode === VIEW_MODES.MARKDOWN_ONLY ||
+      mode === VIEW_MODES.SPLIT
+    ) {
+      return mode;
+    }
+
+    return VIEW_MODES.SPLIT;
+  }
+
+  function readStoredViewMode() {
+    try {
+      return normalizeViewMode(window.localStorage.getItem(VIEW_MODE_STORAGE_KEY));
+    } catch (error) {
+      return VIEW_MODES.SPLIT;
+    }
+  }
+
+  function storeViewMode(mode) {
+    try {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, normalizeViewMode(mode));
+    } catch (error) {
+      // Storage is optional; the editor still works without it.
+    }
+  }
+
+  function getViewMode() {
+    var session = getActiveSession();
+    return normalizeViewMode(session ? session.viewMode : readStoredViewMode());
+  }
+
+  function setActiveEditorSource(source) {
+    var session = getActiveSession();
+    var normalized = source === "markdown" ? "markdown" : "wysiwyg";
+
+    activeEditSource = normalized;
+    if (session) {
+      session.activeMode = normalized;
+      session.activeEditorSource = normalized;
+    }
+    if (modeLabel) {
+      modeLabel.textContent = normalized === "markdown" ? "Markdown" : "WYSIWYG";
+    }
+    if (actions) {
+      actions.updateFormatSelect();
+    }
+  }
+
   function getActiveHistory() {
     var session = getActiveSession();
     return session ? session.history : null;
@@ -187,7 +243,8 @@
     return {
       editor: editor,
       editorScrollTop: editor.scrollTop,
-      previewScrollTop: preview.scrollTop,
+      wysiwygScrollTop: wysiwygEditor.scrollTop,
+      markdownScrollTop: markdownEditor.scrollTop,
       windowScrollX: window.scrollX,
       windowScrollY: window.scrollY
     };
@@ -203,11 +260,12 @@
     }
 
     scrollState.editor.scrollTop = scrollState.editorScrollTop;
-    preview.scrollTop = scrollState.previewScrollTop;
+    wysiwygEditor.scrollTop = scrollState.wysiwygScrollTop;
+    markdownEditor.scrollTop = scrollState.markdownScrollTop;
     window.scrollTo(scrollState.windowScrollX, scrollState.windowScrollY);
   }
 
-  function renderPreview(options) {
+  function renderWysiwygFromMarkdown(options) {
     var scrollState;
     var html = renderMarkdownForSession(getMarkdownText());
 
@@ -216,13 +274,18 @@
       scrollState = capturePaneScrollState();
     }
 
-    if (viewport && options.preservePaneScroll && viewport.suppressScrollSync) {
-      viewport.suppressScrollSync();
-    } else if (viewport && viewport.suppressPreviewFeedback) {
-      viewport.suppressPreviewFeedback();
+    if (document.activeElement === wysiwygEditor && options.force !== true) {
+      return;
     }
 
-    preview.innerHTML = html || '<p class="preview-empty">Preview</p>';
+    if (viewport && options.preservePaneScroll && viewport.suppressScrollSync) {
+      viewport.suppressScrollSync();
+    }
+
+    isSyncingEditors = true;
+    wysiwygEditor.innerHTML = html;
+    isSyncingEditors = false;
+    wysiwygNeedsSync = false;
 
     if (scrollState) {
       restorePaneScrollState(scrollState);
@@ -230,6 +293,27 @@
         restorePaneScrollState(scrollState);
       });
     }
+  }
+
+  function scheduleWysiwygRenderFromMarkdown(options) {
+    window.clearTimeout(markdownRenderTimer);
+    markdownRenderTimer = window.setTimeout(function () {
+      markdownRenderTimer = 0;
+      renderWysiwygFromMarkdown(options);
+    }, 140);
+  }
+
+  function flushPendingMarkdownRender() {
+    if (!markdownRenderTimer) {
+      return;
+    }
+
+    window.clearTimeout(markdownRenderTimer);
+    markdownRenderTimer = 0;
+    renderWysiwygFromMarkdown({
+      force: true,
+      preservePaneScroll: true
+    });
   }
 
   function updateCounts() {
@@ -298,6 +382,9 @@
     session.history = session.history || createSessionHistory();
     session.history.reset(session.markdownText);
     session.dirty = Boolean(options && options.dirty);
+    session.viewMode = normalizeViewMode(session.viewMode || (options && options.viewMode) || readStoredViewMode());
+    session.activeMode = activeSourceForViewMode(session.viewMode, session.activeMode);
+    session.activeEditorSource = session.activeMode;
 
     return session;
   }
@@ -326,20 +413,31 @@
   function resetScrollPositions() {
     wysiwygEditor.scrollTop = 0;
     markdownEditor.scrollTop = 0;
-    preview.scrollTop = 0;
     window.scrollTo(window.scrollX, 0);
   }
 
   function updateModeControls() {
-    var inWysiwyg = getActiveMode() === "wysiwyg";
+    var viewMode = getViewMode();
+    var activeMode = getActiveMode();
+    var inWysiwygOnly = viewMode === VIEW_MODES.WYSIWYG_ONLY;
+    var inMarkdownOnly = viewMode === VIEW_MODES.MARKDOWN_ONLY;
+    var inSplit = viewMode === VIEW_MODES.SPLIT;
 
-    wysiwygMode.classList.toggle("is-active", inWysiwyg);
-    markdownMode.classList.toggle("is-active", !inWysiwyg);
-    wysiwygMode.setAttribute("aria-pressed", String(inWysiwyg));
-    markdownMode.setAttribute("aria-pressed", String(!inWysiwyg));
-    wysiwygEditor.hidden = !inWysiwyg;
-    markdownEditor.hidden = inWysiwyg;
-    modeLabel.textContent = inWysiwyg ? "WYSIWYG" : "Markdown";
+    wysiwygMode.classList.toggle("is-active", inWysiwygOnly);
+    markdownMode.classList.toggle("is-active", inMarkdownOnly);
+    splitMarkdownMode.classList.toggle("is-active", inSplit);
+    wysiwygMode.setAttribute("aria-pressed", String(inWysiwygOnly));
+    markdownMode.setAttribute("aria-pressed", String(inMarkdownOnly));
+    splitMarkdownMode.setAttribute("aria-pressed", String(inSplit));
+
+    workspace.classList.toggle("view-wysiwyg-only", inWysiwygOnly);
+    workspace.classList.toggle("view-markdown-only", inMarkdownOnly);
+    workspace.classList.toggle("view-split", inSplit);
+    wysiwygEditor.hidden = false;
+    markdownEditor.hidden = false;
+    if (modeLabel) {
+      modeLabel.textContent = activeMode === "markdown" ? "Markdown" : "WYSIWYG";
+    }
   }
 
   function setActiveSession(session, options) {
@@ -353,8 +451,13 @@
     }
 
     window.clearTimeout(syncTimer);
+    window.clearTimeout(markdownRenderTimer);
     previousSession = getActiveSession();
 
+    if (previousSession && previousSession !== session) {
+      previousSession.wysiwygScrollTop = wysiwygEditor.scrollTop;
+      previousSession.markdownScrollTop = markdownEditor.scrollTop;
+    }
     if (previousSession && previousSession !== session && viewport && viewport.capture) {
       previousSession.scrollState = viewport.capture();
     }
@@ -367,7 +470,7 @@
     markdownEditor.value = activeSession.markdownText;
     wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
     wysiwygNeedsSync = false;
-    renderPreview();
+    activeEditSource = activeSession.activeMode;
     updateCounts();
     updateModeControls();
     activeSession.history.updateControls();
@@ -375,8 +478,12 @@
     renderTabs();
 
     window.requestAnimationFrame(function () {
-      if (options.restoreScroll && activeSession.scrollState && viewport) {
-        viewport.restore(activeSession.scrollState);
+      if (options.restoreScroll) {
+        wysiwygEditor.scrollTop = activeSession.wysiwygScrollTop || 0;
+        markdownEditor.scrollTop = activeSession.markdownScrollTop || 0;
+        if (activeSession.scrollState && viewport) {
+          viewport.restore(activeSession.scrollState);
+        }
       } else {
         resetScrollPositions();
       }
@@ -397,12 +504,28 @@
     }
 
     activeSession.markdownText = String(value || "");
-    if (source !== "textarea") {
+    if (source !== "textarea" && source !== "markdown" && document.activeElement !== markdownEditor) {
       markdownEditor.value = activeSession.markdownText;
     }
-    renderPreview({
-      preservePaneScroll: source === "textarea" || source === "wysiwyg"
-    });
+
+    if (source === "textarea" || source === "markdown") {
+      if (options.renderWysiwyg === "defer") {
+        scheduleWysiwygRenderFromMarkdown({
+          preservePaneScroll: true
+        });
+      } else {
+        renderWysiwygFromMarkdown({
+          force: options.forceWysiwygRender === true,
+          preservePaneScroll: true
+        });
+      }
+    } else if (source !== "wysiwyg") {
+      renderWysiwygFromMarkdown({
+        force: true,
+        preservePaneScroll: source === "restore"
+      });
+    }
+
     updateCounts();
 
     if (history && options.history !== false) {
@@ -425,6 +548,11 @@
     var activeSession = getActiveSession();
     var converted = markdown.htmlToMarkdown(wysiwygEditor);
 
+    if (isSyncingEditors) {
+      return;
+    }
+
+    activeEditSource = "wysiwyg";
     if (
       activeSession &&
       /\n$/.test(activeSession.markdownText) &&
@@ -439,9 +567,13 @@
   }
 
   function scheduleSyncFromWysiwyg() {
+    if (isSyncingEditors) {
+      return;
+    }
+
     wysiwygNeedsSync = true;
     window.clearTimeout(syncTimer);
-    syncTimer = window.setTimeout(syncFromWysiwyg, 0);
+    syncTimer = window.setTimeout(syncFromWysiwyg, 140);
   }
 
   function focusActiveEditor() {
@@ -453,12 +585,14 @@
   }
 
   function flushActiveEditor() {
-    if (getActiveMode() === "wysiwyg") {
-      window.clearTimeout(syncTimer);
-      if (wysiwygNeedsSync) {
-        syncFromWysiwyg();
-      }
-    } else {
+    window.clearTimeout(syncTimer);
+    window.clearTimeout(markdownRenderTimer);
+    markdownRenderTimer = 0;
+    if (wysiwygNeedsSync) {
+      syncFromWysiwyg();
+    }
+
+    if (getActiveMode() === "markdown") {
       setMarkdown(markdownEditor.value, "textarea");
     }
   }
@@ -472,11 +606,12 @@
 
     activeSession.markdownText = String(value || "");
     markdownEditor.value = activeSession.markdownText;
-    renderPreview();
+    renderWysiwygFromMarkdown({
+      force: true
+    });
     updateCounts();
 
     if (getActiveMode() === "wysiwyg") {
-      wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
       wysiwygNeedsSync = false;
       wysiwygEditor.focus();
       placeCaretAtEnd(wysiwygEditor);
@@ -500,12 +635,27 @@
     updateDirtyState();
   }
 
-  function switchMode(mode) {
+  function activeSourceForViewMode(viewMode, currentSource) {
+    if (viewMode === VIEW_MODES.MARKDOWN_ONLY) {
+      return "markdown";
+    }
+
+    if (viewMode === VIEW_MODES.WYSIWYG_ONLY) {
+      return "wysiwyg";
+    }
+
+    return currentSource === "markdown" ? "markdown" : "wysiwyg";
+  }
+
+  function switchViewMode(viewMode) {
     var activeSession = getActiveSession();
     var viewportAnchor;
+    var nextViewMode = normalizeViewMode(viewMode);
+    var nextActiveSource;
 
-    if (!activeSession || mode === getActiveMode()) {
+    if (!activeSession || nextViewMode === getViewMode()) {
       viewport.consumeModeSwitchAnchor();
+      focusActiveEditor();
       return;
     }
 
@@ -515,20 +665,19 @@
 
     viewportAnchor = viewport.consumeModeSwitchAnchor();
 
-    if (getActiveMode() === "wysiwyg") {
-      flushActiveEditor();
-    } else {
-      setMarkdown(markdownEditor.value, "textarea");
-    }
+    flushActiveEditor();
 
-    activeSession.activeMode = mode;
+    activeSession.viewMode = nextViewMode;
+    nextActiveSource = activeSourceForViewMode(nextViewMode, getActiveMode());
+    activeSession.activeMode = nextActiveSource;
+    activeSession.activeEditorSource = nextActiveSource;
+    storeViewMode(nextViewMode);
 
-    if (getActiveMode() === "wysiwyg") {
-      wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
-      wysiwygNeedsSync = false;
-    } else {
-      markdownEditor.value = activeSession.markdownText;
-    }
+    markdownEditor.value = activeSession.markdownText;
+    renderWysiwygFromMarkdown({
+      force: true,
+      preservePaneScroll: true
+    });
 
     updateModeControls();
 
@@ -540,22 +689,26 @@
           viewport.restore(viewportAnchor);
           viewport.remember();
           activeSession.scrollState = viewport.capture();
+          activeSession.wysiwygScrollTop = wysiwygEditor.scrollTop;
+          activeSession.markdownScrollTop = markdownEditor.scrollTop;
         });
       });
     });
   }
 
-  function togglePreviewPane() {
-    previewVisible = !previewVisible;
-    previewPane.hidden = !previewVisible;
-    workspace.classList.toggle("preview-hidden", !previewVisible);
-    togglePreview.setAttribute("aria-pressed", String(previewVisible));
-    togglePreview.title = previewVisible ? "Hide preview" : "Show preview";
-    previewStatus.textContent = previewVisible ? "Live" : "Hidden";
-  }
-
   function setFocusMode(enabled) {
-    focusModeEnabled = Boolean(enabled);
+    var nextEnabled = Boolean(enabled);
+
+    if (nextEnabled && !focusModeEnabled) {
+      flushActiveEditor();
+      focusModePreviousSource = getActiveMode();
+      setActiveEditorSource("wysiwyg");
+    } else if (!nextEnabled && focusModeEnabled && focusModePreviousSource) {
+      setActiveEditorSource(focusModePreviousSource);
+      focusModePreviousSource = null;
+    }
+
+    focusModeEnabled = nextEnabled;
     document.body.classList.toggle("focus-mode", focusModeEnabled);
 
     if (toggleFocusMode) {
@@ -1266,7 +1419,8 @@
       nextSession = createSession({
         activeMode: session.activeMode || "wysiwyg",
         markdownText: "",
-        title: "Untitled.md"
+        title: "Untitled.md",
+        viewMode: session.viewMode || getViewMode()
       });
       tabs.addSession(nextSession, { activate: false });
       setActiveSession(nextSession, { restoreScroll: false });
@@ -1298,7 +1452,8 @@
     session = tabs.createUntitledSession({
       activate: false,
       activeMode: getActiveMode(),
-      markdownText: ""
+      markdownText: "",
+      viewMode: getViewMode()
     });
     setActiveSession(session, { restoreScroll: false });
     focusActiveEditor();
@@ -1329,7 +1484,8 @@
         activeMode: getActiveMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
-        title: fileData.title
+        title: fileData.title,
+        viewMode: getViewMode()
       });
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
@@ -1402,7 +1558,8 @@
         activeMode: getActiveMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
-        title: fileData.title
+        title: fileData.title,
+        viewMode: getViewMode()
       });
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
@@ -1534,9 +1691,11 @@
   }
 
   function dropSelection(event) {
-    if (getActiveMode() === "wysiwyg") {
+    if (event.currentTarget === wysiwygEditor) {
+      setActiveEditorSource("wysiwyg");
       actions.placeWysiwygCaretAtPoint(event.clientX, event.clientY);
     } else {
+      setActiveEditorSource("markdown");
       markdownEditor.focus();
     }
 
@@ -1599,16 +1758,20 @@
 
     wysiwygMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
     markdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
+    splitMarkdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
 
     wysiwygMode.addEventListener("click", function () {
-      switchMode("wysiwyg");
+      switchViewMode(VIEW_MODES.WYSIWYG_ONLY);
     });
 
     markdownMode.addEventListener("click", function () {
-      switchMode("markdown");
+      switchViewMode(VIEW_MODES.MARKDOWN_ONLY);
     });
 
-    togglePreview.addEventListener("click", togglePreviewPane);
+    splitMarkdownMode.addEventListener("click", function () {
+      switchViewMode(VIEW_MODES.SPLIT);
+    });
+
     if (toggleFocusMode) {
       toggleFocusMode.addEventListener("click", toggleFocusModeState);
     }
@@ -1666,11 +1829,28 @@
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
     window.addEventListener("resize", updateTabScrollButtons);
     window.addEventListener("beforeunload", handleBeforeUnload);
-    wysiwygEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
-    markdownEditor.addEventListener("scroll", viewport.schedulePreviewSync, { passive: true });
-    preview.addEventListener("scroll", viewport.scheduleEditorSync, { passive: true });
+    wysiwygEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
+    markdownEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
 
-    wysiwygEditor.addEventListener("input", scheduleSyncFromWysiwyg);
+    wysiwygEditor.addEventListener("focus", function () {
+      flushPendingMarkdownRender();
+      setActiveEditorSource("wysiwyg");
+    });
+    wysiwygEditor.addEventListener("pointerdown", function () {
+      flushPendingMarkdownRender();
+      setActiveEditorSource("wysiwyg");
+    });
+    markdownEditor.addEventListener("focus", function () {
+      setActiveEditorSource("markdown");
+    });
+    markdownEditor.addEventListener("pointerdown", function () {
+      setActiveEditorSource("markdown");
+    });
+
+    wysiwygEditor.addEventListener("input", function () {
+      setActiveEditorSource("wysiwyg");
+      scheduleSyncFromWysiwyg();
+    });
     wysiwygEditor.addEventListener("keyup", actions.updateFormatSelect);
     wysiwygEditor.addEventListener("mouseup", actions.updateFormatSelect);
 
@@ -1707,7 +1887,16 @@
     });
 
     markdownEditor.addEventListener("input", function () {
-      setMarkdown(markdownEditor.value, "textarea");
+      if (isSyncingEditors) {
+        return;
+      }
+      activeEditSource = "markdown";
+      setActiveEditorSource("markdown");
+      window.clearTimeout(syncTimer);
+      wysiwygNeedsSync = false;
+      setMarkdown(markdownEditor.value, "textarea", {
+        renderWysiwyg: "defer"
+      });
     });
 
     wysiwygEditor.addEventListener("keydown", function (event) {
@@ -1786,7 +1975,6 @@
       getActiveMode: getActiveMode,
       getMarkdownText: getMarkdownText,
       markdownEditor: markdownEditor,
-      preview: preview,
       wysiwygEditor: wysiwygEditor
     });
 
@@ -1801,7 +1989,7 @@
     });
 
     resizer = ME.resizer.create({
-      isPreviewVisible: function () { return previewVisible; },
+      isSplitView: function () { return getViewMode() === VIEW_MODES.SPLIT && !focusModeEnabled; },
       paneResizer: paneResizer,
       workspace: workspace
     });
@@ -1892,7 +2080,8 @@
     });
     initialSession = createSession({
       markdownText: "",
-      title: "Untitled.md"
+      title: "Untitled.md",
+      viewMode: readStoredViewMode()
     });
     tabs.addSession(initialSession, { activate: false });
     setActiveSession(initialSession, { restoreScroll: false });
@@ -1900,7 +2089,7 @@
     aiAssistant.bindEvents();
     updateFileControls();
     refreshRecentFiles();
-    resizer.updateValue(workspace.querySelector(".editor-pane").getBoundingClientRect().width);
+    resizer.updateValue(workspace.querySelector(".wysiwyg-pane").getBoundingClientRect().width);
     focusActiveEditor();
   }
 

@@ -2,7 +2,7 @@
 
 ## Project
 
-LocalDraftAI is a local-first, browser-based Markdown editor with WYSIWYG editing, plain Markdown editing, live preview, local file access, image asset handling, multi-tab sessions, and AI-assisted writing actions.
+LocalDraftAI is a local-first, browser-based Markdown editor with WYSIWYG editing, split Markdown source editing, local file access, image asset handling, multi-tab sessions, and AI-assisted writing actions.
 
 The app is currently a dependency-free static HTML/CSS/JavaScript project. Preserve that structure unless the user explicitly asks for a build system or new dependencies.
 
@@ -84,7 +84,7 @@ Use these routes:
 - Formatting buttons and editor commands:
   - `.agents/skills/editor-actions.md`
   - `src/js/editor-actions.js`
-- Layout, preview pane, resizing, focus mode, viewport behavior:
+- Layout, split Markdown pane, resizing, focus mode, viewport behavior:
   - `.agents/skills/styles.md`
   - `.agents/skills/resizer.md`
   - `.agents/skills/viewport.md`
@@ -100,7 +100,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG mode supports rich HTML paste.
 - Markdown mode should accept plain Markdown text.
 - Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, and horizontal rules.
-- The right pane is a read-only live preview and can be hidden.
+- The right pane is an editable Markdown source editor in Split Markdown view.
+- WYSIWYG remains the editable rendered view.
+- Markdown remains the source of truth for saving and syncing.
 - AI actions should operate on selected text and show a review dialog before applying changes.
 - AI review should keep AI Result editable and refresh the visual diff when it changes.
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.

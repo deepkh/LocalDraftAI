@@ -1004,12 +1004,13 @@
     }
 
     function unavailableMessage() {
-      return "AI Assistant works on selected text in WYSIWYG mode or Markdown mode. Select text first.";
+      return "AI Assistant works on selected text in the WYSIWYG editor or Markdown editor. Select text first.";
     }
 
     async function requestAction(actionId, options) {
       var action = actions.get(actionId);
       var range = options && options.selection ? options.selection : options && options.range ? options.range : selectedRange();
+      var selectionMode = range && range.mode ? range.mode : context.getActiveMode();
       var result;
       var providerResult;
 
@@ -1023,7 +1024,7 @@
         return;
       }
 
-      if (!guards.canUseMarkdownSelection(context.getActiveMode(), range)) {
+      if (!guards.canUseMarkdownSelection(selectionMode, range)) {
         if (!options || options.source === "toolbar") {
           window.alert(unavailableMessage());
         }
@@ -1145,12 +1146,6 @@
             ? ME.markdown.renderMarkdown(replacement, 0, {})
             : replacement);
         context.insertHtmlAtSelection(renderedHtml, reviewState.selection);
-        closeReview();
-        return;
-      }
-
-      if (context.getActiveMode() !== "markdown") {
-        window.alert("The active Markdown selection changed. Please run the AI action again.");
         closeReview();
         return;
       }

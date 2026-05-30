@@ -22,7 +22,7 @@
     }
 
     function setEditorWidth(leftWidth) {
-      if (!context.isPreviewVisible() || !isWideLayout()) {
+      if (!context.isSplitView() || !isWideLayout()) {
         return;
       }
 
@@ -30,9 +30,9 @@
       var resizerWidth = paneResizer.offsetWidth || 12;
       var available = Math.max(rect.width - resizerWidth, 1);
       var minEditor = Math.min(320, available * 0.7);
-      var minPreview = Math.min(320, available * 0.7);
+      var minMarkdown = Math.min(320, available * 0.7);
       var minWidth = Math.min(minEditor, available * 0.45);
-      var maxWidth = Math.max(minWidth, available - minPreview);
+      var maxWidth = Math.max(minWidth, available - minMarkdown);
       var nextWidth = clamp(leftWidth, minWidth, maxWidth);
 
       workspace.style.setProperty("--editor-width", nextWidth + "px");
@@ -46,7 +46,7 @@
 
     function resizeByKeyboard(delta) {
       var rect = workspace.getBoundingClientRect();
-      var currentWidth = workspace.querySelector(".editor-pane").getBoundingClientRect().width;
+      var currentWidth = workspace.querySelector(".wysiwyg-pane").getBoundingClientRect().width;
       var resizerWidth = paneResizer.offsetWidth || 12;
 
       if (delta === "home") {
@@ -60,7 +60,7 @@
 
     function bindEvents() {
       paneResizer.addEventListener("pointerdown", function (event) {
-        if (!context.isPreviewVisible() || !isWideLayout()) {
+        if (!context.isSplitView() || !isWideLayout()) {
           return;
         }
 
@@ -99,7 +99,7 @@
       });
 
       paneResizer.addEventListener("keydown", function (event) {
-        if (!context.isPreviewVisible() || !isWideLayout()) {
+        if (!context.isSplitView() || !isWideLayout()) {
           return;
         }
 

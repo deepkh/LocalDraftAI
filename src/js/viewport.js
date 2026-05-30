@@ -11,12 +11,8 @@
     var pendingModeSwitchAnchor = null;
     var latestEditorViewportAnchor = null;
     var viewportTrackTimer = 0;
-    var scrollSource = null;
-    var scrollSourceTimer = 0;
     var wysiwygEditor = context.wysiwygEditor;
     var markdownEditor = context.markdownEditor;
-    var preview = context.preview;
-    var scrollSourceReleaseDelay = 120;
 
     function hasInternalScroll(element) {
       return element.scrollHeight - element.clientHeight > 1;
@@ -61,10 +57,6 @@
 
     function getEditorViewportTop(element) {
       return getElementViewportTop(element, true);
-    }
-
-    function getPreviewViewportTop(element) {
-      return getElementViewportTop(element, false);
     }
 
     function getMarkdownLineHeight() {
@@ -163,23 +155,6 @@
         blockIndex: lineAnchor ? lineAnchor.index : null,
         blockRatio: clamp((targetY - anchor.rect.top) / anchor.rect.height, 0, 1),
         line: lineAnchor ? lineAnchor.line : null,
-        textHint: elementTextHint(anchor.element)
-      };
-    }
-
-    function getPreviewTopBlockIndex() {
-      var targetY = getPreviewViewportTop(preview);
-      var anchor = findTopViewportElement(getLineAnchorElements(preview), targetY, elementMarkdownLine);
-
-      if (!anchor) {
-        return null;
-      }
-
-      return {
-        mode: "preview",
-        blockRatio: clamp((targetY - anchor.rect.top) / anchor.rect.height, 0, 1),
-        line: anchor.line,
-        scrollRatio: getScrollRatio(preview),
         textHint: elementTextHint(anchor.element)
       };
     }
@@ -359,10 +334,6 @@
       restoreElementScroll(anchor, wysiwygEditor, getEditorViewportTop);
     }
 
-    function restorePreviewScroll(anchor) {
-      restoreElementScroll(anchor, preview, getPreviewViewportTop);
-    }
-
     function restoreEditorViewport(anchor) {
       if (context.getActiveMode() === "markdown") {
         restoreMarkdownScroll(anchor);
@@ -371,83 +342,8 @@
       }
     }
 
-    function holdScrollSource(source) {
-      scrollSource = source;
-      window.clearTimeout(scrollSourceTimer);
-      scrollSourceTimer = window.setTimeout(function () {
-        scrollSource = null;
-        scrollSourceTimer = 0;
-      }, scrollSourceReleaseDelay);
-    }
-
-    function isFeedbackScroll(kind) {
-      if (scrollSource === "programmatic") {
-        return true;
-      }
-
-      return (scrollSource === "editor" && kind === "preview") ||
-        (scrollSource === "preview" && kind === "editor");
-    }
-
-    function withScrollSource(source, callback) {
-      holdScrollSource(source);
-      callback();
-    }
-
-    function suppressPreviewFeedback() {
-      holdScrollSource("editor");
-    }
-
     function suppressScrollSync() {
-      holdScrollSource("programmatic");
-    }
-
-    function syncPreviewToEditor() {
-      if (isFeedbackScroll("editor")) {
-        return;
-      }
-
-      var anchor = captureEditorViewport();
-      latestEditorViewportAnchor = anchor;
-
-      withScrollSource("editor", function () {
-        restorePreviewScroll(anchor);
-      });
-    }
-
-    function syncEditorToPreview() {
-      if (isFeedbackScroll("preview")) {
-        return;
-      }
-
-      var anchor = getPreviewTopBlockIndex();
-
-      if (!anchor) {
-        return;
-      }
-
-      withScrollSource("preview", function () {
-        restoreEditorViewport(anchor);
-      });
-      latestEditorViewportAnchor = captureEditorViewport();
-    }
-
-    function schedulePreviewToEditorSync() {
-      if (isFeedbackScroll("editor")) {
-        return;
-      }
-
-      window.cancelAnimationFrame(viewportTrackTimer);
-      viewportTrackTimer = window.requestAnimationFrame(syncPreviewToEditor);
-    }
-
-    function scheduleEditorToPreviewSync() {
-      if (isFeedbackScroll("preview")) {
-        return;
-      }
-
-      window.cancelAnimationFrame(viewportTrackTimer);
-      viewportTrackTimer = window.requestAnimationFrame(syncEditorToPreview);
+      return;
     }
 
     function prepareModeSwitchAnchor() {
@@ -472,10 +368,7 @@
       prepareModeSwitchAnchor: prepareModeSwitchAnchor,
       remember: rememberEditorViewport,
       restore: restoreEditorViewport,
-      suppressPreviewFeedback: suppressPreviewFeedback,
       suppressScrollSync: suppressScrollSync,
-      scheduleEditorSync: scheduleEditorToPreviewSync,
-      schedulePreviewSync: schedulePreviewToEditorSync,
       scheduleTracking: scheduleViewportTracking
     };
   }

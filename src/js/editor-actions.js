@@ -383,12 +383,15 @@
       var container;
       var text;
 
-      if (context.getActiveMode() === "markdown") {
+      if (document.activeElement === markdownEditor) {
         return selectedTextareaRange();
       }
 
       selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
+        if (context.getActiveMode() === "markdown") {
+          return selectedTextareaRange();
+        }
         return {
           mode: "wysiwyg",
           range: null
@@ -396,12 +399,16 @@
       }
 
       range = selection.getRangeAt(0);
+      if (!isSelectionInsideWysiwyg(range)) {
+        return selectedTextareaRange();
+      }
+
       container = document.createElement("div");
       container.appendChild(range.cloneContents());
       text = ME.markdown.htmlToMarkdown(container) || selection.toString();
       return {
         mode: "wysiwyg",
-        range: isSelectionInsideWysiwyg(range) ? range.cloneRange() : null,
+        range: range.cloneRange(),
         text: text,
         value: text
       };

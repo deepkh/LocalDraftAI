@@ -6,7 +6,7 @@
 
 **Your local AI-powered Markdown editor.**
 
-LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you a WYSIWYG editor, plain Markdown editing, live preview, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
+LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you WYSIWYG editing with an optional split Markdown source editor, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
 
 Use it immediately at [https://localdraft.ai/](https://localdraft.ai/), or run the same static app from this repo when you want a fully local/offline copy.
 
@@ -24,8 +24,8 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 
 - **Use instantly online**: open [localdraft.ai](https://localdraft.ai/) and start writing without installing anything.
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
-- **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text.
-- **Live preview**: preview rendered Markdown beside the editor.
+- **WYSIWYG + Markdown modes**: edit visually, work directly with Markdown text, or use both side by side.
+- **Split Markdown view**: edit visually on the left while directly editing Markdown source on the right.
 - **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, and horizontal rules.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
@@ -58,7 +58,7 @@ Typical workflow:
 ```text
 Open LocalDraftAI
   -> create or open a Markdown file
-  -> write in WYSIWYG or Markdown mode
+  -> write in WYSIWYG, Markdown, or Split Markdown view
   -> select text
   -> run an AI Assistant action
   -> review the result and diff

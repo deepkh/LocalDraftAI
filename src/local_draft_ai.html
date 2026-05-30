@@ -34,6 +34,7 @@
           <div class="segmented">
             <button type="button" id="wysiwygMode" class="is-active" aria-pressed="true">WYSIWYG</button>
             <button type="button" id="markdownMode" aria-pressed="false">Markdown</button>
+            <button type="button" id="splitMarkdownMode" aria-pressed="false">Split Markdown</button>
           </div>
         </div>
         <div class="group" aria-label="Text style">
@@ -65,9 +66,6 @@
           <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo">&lt;-</button>
           <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)" aria-label="Redo">-&gt;</button>
         </div>
-        <div class="group" aria-label="Preview">
-          <button type="button" id="togglePreview" class="wide-button" aria-pressed="true" title="Hide preview">Preview</button>
-        </div>
         <div class="group focus-mode-group" aria-label="Focus mode">
           <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false" title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
         </div>
@@ -85,8 +83,8 @@
       </div>
     </header>
 
-    <main id="workspace" class="workspace">
-      <section class="editor-pane" aria-label="Editor">
+    <main id="workspace" class="workspace view-split">
+      <section id="wysiwygPane" class="editor-pane wysiwyg-pane" aria-label="WYSIWYG editor">
         <div class="pane-status">
           <span id="modeLabel">WYSIWYG</span>
           <span class="feedback-hint">Found a bug or have an idea? <a href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send feedback on GitHub.</a></span>
@@ -97,18 +95,17 @@
         </div>
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true" data-placeholder="Start writing"></div>
-          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" placeholder="Start writing markdown" hidden></textarea>
         </div>
       </section>
 
-      <div id="paneResizer" class="pane-resizer" role="separator" aria-label="Resize editor and preview panes" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="55" tabindex="0"></div>
+      <div id="paneResizer" class="pane-resizer" role="separator" aria-label="Resize WYSIWYG and Markdown panes" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="55" tabindex="0"></div>
 
-      <aside id="previewPane" class="preview-pane" aria-label="Markdown preview">
-        <div class="preview-header">
-          <span>Preview</span>
-          <span id="previewStatus">Live</span>
+      <aside id="markdownPane" class="markdown-pane" aria-label="Markdown source editor">
+        <div class="markdown-header">
+          <span>Markdown</span>
+          <span id="markdownStatus">Source</span>
         </div>
-        <div id="preview" class="preview" aria-live="polite"></div>
+        <textarea id="markdownEditor" class="markdown-editor markdown-source-editor" spellcheck="false" placeholder="Start writing Markdown"></textarea>
       </aside>
     </main>
 
