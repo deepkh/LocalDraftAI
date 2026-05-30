@@ -92,13 +92,19 @@ runTest("renders nested ordered lists from indented Markdown", function () {
 runTest("renders Markdown thematic breaks as horizontal rules", function () {
   const html = markdown.renderMarkdown("Before\n\n---\n\nAfter");
 
-  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p>\n<hr data-md-line="2">\n<p data-md-line="4"><span data-md-line="4">After<\/span><\/p>/);
+  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p><hr data-md-line="2"><p data-md-line="4"><span data-md-line="4">After<\/span><\/p>/);
+});
+
+runTest("renders adjacent Markdown blocks without whitespace text nodes", function () {
+  const html = markdown.renderMarkdown("# Heading 1\nText\n- 1");
+
+  assert.equal(html, '<h1 data-md-line="0" data-md-heading-level="1">Heading 1</h1><p data-md-line="1"><span data-md-line="1">Text</span></p><ul data-md-line="2"><li data-md-line="2">1</li></ul>');
 });
 
 runTest("splits paragraphs when a thematic break appears between lines", function () {
   const html = markdown.renderMarkdown("Before\n---\nAfter");
 
-  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p>\n<hr data-md-line="1">\n<p data-md-line="2"><span data-md-line="2">After<\/span><\/p>/);
+  assert.match(html, /<p data-md-line="0"><span data-md-line="0">Before<\/span><\/p><hr data-md-line="1"><p data-md-line="2"><span data-md-line="2">After<\/span><\/p>/);
 });
 
 runTest("renders fenced code language info into data attributes", function () {

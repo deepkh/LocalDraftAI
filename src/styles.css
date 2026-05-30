@@ -626,7 +626,7 @@
       overflow: scroll;
       overflow-wrap: normal;
       scrollbar-color: var(--border-strong) var(--panel-alt);
-      scrollbar-gutter: stable both-edges;
+      scrollbar-gutter: stable;
       scrollbar-width: auto;
       word-break: normal;
     }
@@ -729,6 +729,10 @@
     .wysiwyg h6 {
       margin: 0.8em 0 0.35em;
       line-height: 1.3;
+    }
+
+    .wysiwyg > :first-child {
+      margin-top: 0;
     }
 
     .wysiwyg p {

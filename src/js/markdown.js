@@ -329,7 +329,7 @@
       }
     }
 
-    return html.join("\n");
+    return html.join("");
   }
 
   function inlineNodesToMarkdown(node) {
