@@ -81,6 +81,18 @@
       outline-offset: 2px;
     }
 
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+      white-space: nowrap;
+    }
+
     button[aria-pressed="true"],
     button.is-active {
       border-color: rgba(15, 118, 110, 0.45);
@@ -88,15 +100,17 @@
       color: var(--accent-strong);
     }
 
-    #toggleEditorMode[aria-pressed="true"] {
-      border-color: var(--border);
-      background: var(--panel);
-      color: var(--text);
+    #toggleEditorMode {
+      border-color: rgba(15, 118, 110, 0.45);
+      background: #e6f3f1;
+      color: var(--accent-strong);
     }
 
+    #toggleEditorMode:hover,
     #toggleEditorMode[aria-pressed="true"]:hover {
-      border-color: var(--border-strong);
-      background: var(--panel-alt);
+      border-color: rgba(15, 118, 110, 0.65);
+      background: #d7ece8;
+      color: var(--accent-strong);
     }
 
     .app {
@@ -572,6 +586,13 @@
       color: var(--muted);
       font-size: 13px;
       font-weight: 650;
+    }
+
+    .status-controls {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 8px;
     }
 
     .status-meta {

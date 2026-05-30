@@ -30,12 +30,6 @@
         </div>
       </div>
       <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
-        <div class="group" aria-label="Editor mode">
-          <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false" title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
-        </div>
-        <div class="group" aria-label="Soft wrap">
-          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true" title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
-        </div>
         <div class="group" aria-label="Text style">
           <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
             <option value="P">Text</option>
@@ -65,6 +59,9 @@
           <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo">&lt;-</button>
           <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)" aria-label="Redo">-&gt;</button>
         </div>
+        <div class="group" aria-label="Soft wrap">
+          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true" title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
+        </div>
         <div class="group focus-mode-group" aria-label="Focus mode">
           <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false" title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
         </div>
@@ -85,7 +82,10 @@
     <main id="workspace" class="workspace">
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="pane-status">
-          <span id="modeLabel">WYSIWYG</span>
+          <div class="status-controls" role="toolbar" aria-label="Editor view controls">
+            <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false" title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+          </div>
+          <span id="modeLabel" class="visually-hidden">WYSIWYG</span>
           <span class="feedback-hint">Found a bug or have an idea? <a href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send feedback on GitHub.</a></span>
           <span class="status-meta">
             <span id="wordCount">0 words</span>
