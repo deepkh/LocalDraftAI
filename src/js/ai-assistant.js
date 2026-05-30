@@ -1312,6 +1312,7 @@
         getActiveMode: context.getActiveMode,
         markdownEditor: markdownEditor,
         wysiwygEditor: context.wysiwygEditor,
+        onClipboardAction: context.onClipboardAction,
         onAction: requestAction
       });
       contextMenu.bindEvents();

@@ -6,7 +6,7 @@
 
 **Your local AI-powered Markdown editor.**
 
-LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you WYSIWYG editing with an optional split Markdown source editor, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
+LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you WYSIWYG or Markdown editing in one focused editor surface, Soft Wrap for long Markdown lines, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
 
 Use it immediately at [https://localdraft.ai/](https://localdraft.ai/), or run the same static app from this repo when you want a fully local/offline copy.
 
@@ -24,9 +24,11 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 
 - **Use instantly online**: open [localdraft.ai](https://localdraft.ai/) and start writing without installing anything.
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
-- **WYSIWYG + Markdown modes**: edit visually, work directly with Markdown text, or use both side by side.
-- **Split Markdown view**: edit visually on the left while directly editing Markdown source on the right.
+- **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text in one main editor.
+- **Soft Wrap**: wrap long lines visually in WYSIWYG and Markdown modes without inserting real line breaks.
+- **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps rich HTML when the browser clipboard allows it.
 - **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, and horizontal rules.
+- **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
@@ -37,6 +39,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
+- **Reserved side workspace**: the right-hand workspace is intentionally reserved for future AI Assistant features.
 - **No build step required**: static HTML, CSS, and JavaScript.
 
 ---
@@ -58,7 +61,7 @@ Typical workflow:
 ```text
 Open LocalDraftAI
   -> create or open a Markdown file
-  -> write in WYSIWYG, Markdown, or Split Markdown view
+  -> write in WYSIWYG or Markdown mode
   -> select text
   -> run an AI Assistant action
   -> review the result and diff
@@ -217,6 +220,8 @@ sudo systemctl restart localdraftai.service
 LocalDraftAI works best in Chromium-based browsers such as Chrome or Edge.
 
 Browsers without the File System Access API can still use the editor, but local open/save controls may be limited or disabled. Local image storage also requires browser file and folder access.
+
+Right-click Paste uses the browser Clipboard API, so some browsers may ask for clipboard permission or require the app to be served from `localhost`.
 
 When you paste, drop, or insert the first local image, the app asks for a workspace folder. It then creates or reuses an `assets/` folder and inserts Markdown image links such as:
 
@@ -393,6 +398,7 @@ Restart Ollama after changing the environment variable.
 │       ├── ai-status.js
 │       ├── document-session.js
 │       ├── editor-actions.js
+│       ├── editor-mode.js
 │       ├── file-store.js
 │       ├── history.js
 │       ├── markdown.js
@@ -404,6 +410,8 @@ Restart Ollama after changing the environment variable.
 │       ├── utils.js
 │       └── viewport.js
 ├── tests/
+│   ├── e2e/
+│   │   └── soft-wrap-mode-switch.headless.mjs
 │   └── unit/
 │       ├── ai-actions.test.js
 │       ├── ai-assistant.test.js
@@ -441,6 +449,7 @@ Restart Ollama after changing the environment variable.
 | `src/js/document-session.js` | Per-tab document state |
 | `src/js/tab-manager.js` | Multi-tab behavior |
 | `src/js/markdown.js` | Markdown parsing/rendering helpers |
+| `src/js/editor-mode.js` | Editor mode, Soft Wrap, and caret/offset helpers |
 | `src/js/editor-actions.js` | Editor formatting commands |
 | `src/js/file-store.js` | Local file open/save helpers |
 | `src/js/recent-files.js` | Recent file list storage |
@@ -484,6 +493,7 @@ node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
 node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
+node tests/unit/editor-mode.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/tab-manager.test.js
@@ -495,6 +505,12 @@ Or run all unit tests from a shell:
 for test in tests/unit/*.test.js; do
   node "$test"
 done
+```
+
+Run the headless browser Soft Wrap and mode-switch smoke test with Chrome available on `PATH`:
+
+```bash
+node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
 ```
 
 ---

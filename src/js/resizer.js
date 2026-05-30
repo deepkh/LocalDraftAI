@@ -22,7 +22,7 @@
     }
 
     function setEditorWidth(leftWidth) {
-      if (!context.isSplitView() || !isWideLayout()) {
+      if (!context.isResizableLayout() || !isWideLayout()) {
         return;
       }
 
@@ -60,7 +60,7 @@
 
     function bindEvents() {
       paneResizer.addEventListener("pointerdown", function (event) {
-        if (!context.isSplitView() || !isWideLayout()) {
+        if (!context.isResizableLayout() || !isWideLayout()) {
           return;
         }
 
@@ -99,7 +99,7 @@
       });
 
       paneResizer.addEventListener("keydown", function (event) {
-        if (!context.isSplitView() || !isWideLayout()) {
+        if (!context.isResizableLayout() || !isWideLayout()) {
           return;
         }
 

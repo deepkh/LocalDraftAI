@@ -2,7 +2,7 @@
 
 ## Project
 
-LocalDraftAI is a local-first, browser-based Markdown editor with WYSIWYG editing, split Markdown source editing, local file access, image asset handling, multi-tab sessions, and AI-assisted writing actions.
+LocalDraftAI is a local-first, browser-based Markdown editor with WYSIWYG editing, Markdown source editing, Soft Wrap, local file access, image asset handling, multi-tab sessions, and AI-assisted writing actions.
 
 The app is currently a dependency-free static HTML/CSS/JavaScript project. Preserve that structure unless the user explicitly asks for a build system or new dependencies.
 
@@ -28,6 +28,7 @@ src/js/app.js                App startup and wiring
 src/js/document-session.js   Per-tab document state
 src/js/tab-manager.js        Multi-tab behavior
 src/js/markdown.js           Markdown conversion/rendering
+src/js/editor-mode.js        Editor mode, Soft Wrap, and caret/offset helpers
 src/js/editor-actions.js     Editor formatting commands
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
@@ -48,10 +49,11 @@ src/js/ai-provider-gemini.js Gemini compatibility registration
 src/js/ai-reasoning.js       Reasoning mode normalization and provider mappings
 src/js/ai-settings.js        AI settings dialog
 src/js/ai-status.js          AI connection/status display
-src/js/ai-context-menu.js    Right-click AI action menu
+src/js/ai-context-menu.js    Right-click editor clipboard and AI action menu
 src/js/markdown-ai-guards.js AI output safety checks for Markdown
 src/js/markdown-repair.js    Markdown cleanup helpers
 tests/unit/                  Dependency-free unit tests
+tests/e2e/                   Dependency-free browser smoke tests
 .agents/skills/              More detailed subsystem guidance
 ```
 
@@ -84,7 +86,7 @@ Use these routes:
 - Formatting buttons and editor commands:
   - `.agents/skills/editor-actions.md`
   - `src/js/editor-actions.js`
-- Layout, split Markdown pane, resizing, focus mode, viewport behavior:
+- Layout, editor surface, Soft Wrap, focus mode, viewport behavior:
   - `.agents/skills/styles.md`
   - `.agents/skills/resizer.md`
   - `.agents/skills/viewport.md`
@@ -98,11 +100,16 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
 - WYSIWYG mode supports rich HTML paste.
+- The editor right-click menu should include Cut, Copy, and Paste; Markdown mode uses plain text, while WYSIWYG mode should preserve rich HTML clipboard data when the browser allows it.
 - Markdown mode should accept plain Markdown text.
 - Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, and horizontal rules.
-- The right pane is an editable Markdown source editor in Split Markdown view.
+- Escaped Markdown punctuation should render and round-trip as literal text in WYSIWYG mode.
+- LocalDraftAI uses one main editor surface.
+- Only one editor mode is visible at a time: WYSIWYG or Markdown.
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
+- Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
+- The right-hand workspace should remain available for future AI Assistant panels.
 - AI actions should operate on selected text and show a review dialog before applying changes.
 - AI review should keep AI Result editable and refresh the visual diff when it changes.
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
@@ -137,6 +144,7 @@ node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
 node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
+node tests/unit/editor-mode.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/tab-manager.test.js
@@ -148,6 +156,12 @@ Run all tests:
 for test in tests/unit/*.test.js; do
   node "$test"
 done
+```
+
+Run the headless browser Soft Wrap and mode-switch smoke test with Chrome available on `PATH`:
+
+```bash
+node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
 ```
 
 ## Documentation

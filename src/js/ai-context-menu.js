@@ -12,20 +12,58 @@
     return element;
   }
 
-  function renderMenuItems(menu, onAction) {
-    menu.innerHTML = "";
+  function appendSeparator(menu) {
+    var separator = document.createElement("div");
+    separator.className = "ai-menu-separator";
+    separator.setAttribute("role", "separator");
+    menu.appendChild(separator);
+  }
+
+  function renderClipboardItems(menu, options) {
+    var title = document.createElement("div");
+    var hasSelection = Boolean(options.range && options.range.text);
+
+    title.className = "ai-menu-title";
+    title.textContent = "Edit";
+    menu.appendChild(title);
+
+    [
+      { id: "cut", label: "Cut", needsSelection: true },
+      { id: "copy", label: "Copy", needsSelection: true },
+      { id: "paste", label: "Paste", needsSelection: false }
+    ].forEach(function (action) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.dataset.clipboardAction = action.id;
+      item.textContent = action.label;
+      item.disabled = action.needsSelection && !hasSelection;
+      item.addEventListener("click", function () {
+        if (item.disabled) {
+          return;
+        }
+        options.onClipboardAction(action.id, {
+          selection: options.range,
+          source: "context"
+        });
+      });
+      menu.appendChild(item);
+    });
+  }
+
+  function renderAiItems(menu, onAction) {
+    var renderedAny = false;
 
     ME.aiActions.groups().forEach(function (group, groupIndex) {
+      if (groupIndex > 0) {
+        appendSeparator(menu);
+      }
+
       if (groupIndex === 0) {
         var title = document.createElement("div");
         title.className = "ai-menu-title";
         title.textContent = "AI Assistant";
         menu.appendChild(title);
-      } else {
-        var separator = document.createElement("div");
-        separator.className = "ai-menu-separator";
-        separator.setAttribute("role", "separator");
-        menu.appendChild(separator);
       }
 
       group.actions.forEach(function (action) {
@@ -38,8 +76,26 @@
           onAction(action);
         });
         menu.appendChild(item);
+        renderedAny = true;
       });
     });
+
+    return renderedAny;
+  }
+
+  function renderMenuItems(menu, options) {
+    menu.innerHTML = "";
+
+    if (options.onClipboardAction) {
+      renderClipboardItems(menu, options);
+    }
+
+    if (options.canShowAi) {
+      if (options.onClipboardAction) {
+        appendSeparator(menu);
+      }
+      renderAiItems(menu, options.onAiAction);
+    }
   }
 
   function createAiContextMenu(options) {
@@ -70,29 +126,47 @@
       fitToViewport(event.clientX, event.clientY);
     }
 
+    function isEditorContext(event, mode) {
+      if (mode === "markdown") {
+        return event.target === markdownEditor;
+      }
+
+      return Boolean(options.wysiwygEditor && options.wysiwygEditor.contains(event.target));
+    }
+
     function handleContextMenu(event) {
       var range = options.captureSelection ? options.captureSelection() : guards.selectedRange(markdownEditor);
       var mode = range && range.mode ? range.mode : options.getActiveMode();
-
-      if (!guards.canShowContextMenu({
+      var canShowAi = guards.canShowContextMenu({
         event: event,
         editor: options.wysiwygEditor,
         mode: mode,
         range: range,
         textarea: markdownEditor
-      })) {
+      });
+      var canShowClipboard = Boolean(options.onClipboardAction && isEditorContext(event, mode));
+
+      if (!canShowAi && !canShowClipboard) {
         hide();
         return;
       }
 
       event.preventDefault();
-      renderMenuItems(menu, function (action) {
-        var range = currentRange;
-        hide();
-        options.onAction(action.id, {
-          selection: range,
-          source: "context"
-        });
+      renderMenuItems(menu, {
+        canShowAi: canShowAi,
+        onAiAction: function (action) {
+          var range = currentRange;
+          hide();
+          options.onAction(action.id, {
+            selection: range,
+            source: "context"
+          });
+        },
+        onClipboardAction: options.onClipboardAction ? function (actionId, detail) {
+          hide();
+          options.onClipboardAction(actionId, detail);
+        } : null,
+        range: range
       });
       show(event, range);
     }

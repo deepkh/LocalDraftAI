@@ -31,11 +31,10 @@
       </div>
       <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
         <div class="group" aria-label="Editor mode">
-          <div class="segmented">
-            <button type="button" id="wysiwygMode" class="is-active" aria-pressed="true">WYSIWYG</button>
-            <button type="button" id="markdownMode" aria-pressed="false">Markdown</button>
-            <button type="button" id="splitMarkdownMode" aria-pressed="false">Split Markdown</button>
-          </div>
+          <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false" title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+        </div>
+        <div class="group" aria-label="Soft wrap">
+          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true" title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
         </div>
         <div class="group" aria-label="Text style">
           <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
@@ -83,8 +82,8 @@
       </div>
     </header>
 
-    <main id="workspace" class="workspace view-split">
-      <section id="wysiwygPane" class="editor-pane wysiwyg-pane" aria-label="WYSIWYG editor">
+    <main id="workspace" class="workspace">
+      <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="pane-status">
           <span id="modeLabel">WYSIWYG</span>
           <span class="feedback-hint">Found a bug or have an idea? <a href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send feedback on GitHub.</a></span>
@@ -95,18 +94,9 @@
         </div>
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true" data-placeholder="Start writing"></div>
+          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" placeholder="Start writing Markdown" hidden></textarea>
         </div>
       </section>
-
-      <div id="paneResizer" class="pane-resizer" role="separator" aria-label="Resize WYSIWYG and Markdown panes" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="55" tabindex="0"></div>
-
-      <aside id="markdownPane" class="markdown-pane" aria-label="Markdown source editor">
-        <div class="markdown-header">
-          <span>Markdown</span>
-          <span id="markdownStatus">Source</span>
-        </div>
-        <textarea id="markdownEditor" class="markdown-editor markdown-source-editor" spellcheck="false" placeholder="Start writing Markdown"></textarea>
-      </aside>
     </main>
 
     <div id="aboutOverlay" class="about-overlay" hidden>
@@ -312,6 +302,7 @@ SOFTWARE.</pre>
 
   <script src="js/utils.js"></script>
   <script src="js/markdown.js"></script>
+  <script src="js/editor-mode.js"></script>
   <script src="js/history.js"></script>
   <script src="js/document-session.js"></script>
   <script src="js/tab-manager.js"></script>

@@ -6,30 +6,22 @@
   var fileStore = ME.fileStore;
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
-  var VIEW_MODES = {
-    MARKDOWN_ONLY: "markdown-only",
-    SPLIT: "split",
-    WYSIWYG_ONLY: "wysiwyg-only"
-  };
-  var VIEW_MODE_STORAGE_KEY = "localdraftai.viewMode";
+  var editorMode = ME.editorMode;
+  var EDITOR_MODES = editorMode.EDITOR_MODES;
 
   var tabs = null;
   var recentRecords = [];
   var focusModeEnabled = false;
-  var focusModePreviousSource = null;
   var syncTimer = 0;
-  var markdownRenderTimer = 0;
   var wysiwygNeedsSync = false;
   var isSyncingEditors = false;
   var activeEditSource = null;
+  var softWrapEnabled = editorMode.readStoredSoftWrap();
 
-  var workspace = document.getElementById("workspace");
   var wysiwygEditor = document.getElementById("wysiwygEditor");
   var markdownEditor = document.getElementById("markdownEditor");
-  var paneResizer = document.getElementById("paneResizer");
-  var wysiwygMode = document.getElementById("wysiwygMode");
-  var markdownMode = document.getElementById("markdownMode");
-  var splitMarkdownMode = document.getElementById("splitMarkdownMode");
+  var toggleEditorMode = document.getElementById("toggleEditorMode");
+  var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
   var wordCount = document.getElementById("wordCount");
   var charCount = document.getElementById("charCount");
@@ -122,7 +114,6 @@
 
   var viewport;
   var actions;
-  var resizer;
   var aiAssistant;
   var suppressNextTabClick = false;
   var tabDrag = {
@@ -147,48 +138,20 @@
 
   function getActiveMode() {
     var session = getActiveSession();
-    return session ? session.activeMode : "wysiwyg";
+    return editorMode.normalizeEditorMode(session ? session.editorMode || session.activeMode : editorMode.readStoredEditorMode());
   }
 
-  function normalizeViewMode(mode) {
-    if (
-      mode === VIEW_MODES.WYSIWYG_ONLY ||
-      mode === VIEW_MODES.MARKDOWN_ONLY ||
-      mode === VIEW_MODES.SPLIT
-    ) {
-      return mode;
-    }
-
-    return VIEW_MODES.SPLIT;
-  }
-
-  function readStoredViewMode() {
-    try {
-      return normalizeViewMode(window.localStorage.getItem(VIEW_MODE_STORAGE_KEY));
-    } catch (error) {
-      return VIEW_MODES.SPLIT;
-    }
-  }
-
-  function storeViewMode(mode) {
-    try {
-      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, normalizeViewMode(mode));
-    } catch (error) {
-      // Storage is optional; the editor still works without it.
-    }
-  }
-
-  function getViewMode() {
-    var session = getActiveSession();
-    return normalizeViewMode(session ? session.viewMode : readStoredViewMode());
+  function getEditorMode() {
+    return getActiveMode();
   }
 
   function setActiveEditorSource(source) {
     var session = getActiveSession();
-    var normalized = source === "markdown" ? "markdown" : "wysiwyg";
+    var normalized = editorMode.normalizeEditorMode(source);
 
     activeEditSource = normalized;
     if (session) {
+      session.editorMode = normalized;
       session.activeMode = normalized;
       session.activeEditorSource = normalized;
     }
@@ -235,6 +198,360 @@
 
   function getActiveEditorElement() {
     return getActiveMode() === "markdown" ? markdownEditor : wysiwygEditor;
+  }
+
+  function getWysiwygCaretTextOffset(root) {
+    var selection = window.getSelection();
+    var range;
+    var preRange;
+
+    if (!selection || !selection.rangeCount) {
+      return 0;
+    }
+
+    range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) {
+      return 0;
+    }
+
+    preRange = range.cloneRange();
+    preRange.selectNodeContents(root);
+    preRange.setEnd(range.endContainer, range.endOffset);
+    return preRange.toString().length;
+  }
+
+  function getWysiwygCaretTextHint(root) {
+    var selection = window.getSelection();
+    var range;
+    var node;
+    var offset;
+    var text;
+
+    if (!selection || !selection.rangeCount) {
+      return null;
+    }
+
+    range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) {
+      return null;
+    }
+
+    node = range.endContainer;
+    offset = range.endOffset;
+    if (node && node.nodeType !== Node.TEXT_NODE) {
+      node = node.childNodes[offset] || node.childNodes[offset - 1] || node;
+      if (node && node.nodeType !== Node.TEXT_NODE) {
+        text = node.textContent || "";
+        offset = Math.min(offset, text.length);
+      }
+    }
+
+    text = node && node.nodeType === Node.TEXT_NODE ? node.nodeValue || "" : text || "";
+    if (!text) {
+      return null;
+    }
+
+    return {
+      after: text.slice(offset, offset + 48).trim(),
+      before: text.slice(Math.max(0, offset - 48), offset).trim(),
+      text: text.trim()
+    };
+  }
+
+  function placeCaretAtEnd(element) {
+    var range = document.createRange();
+    var selection = window.getSelection();
+
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function placeCaretAtStart(element) {
+    var range = document.createRange();
+    var selection = window.getSelection();
+
+    range.selectNodeContents(element);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function restoreWysiwygCaretByTextOffset(root, targetOffset) {
+    return restoreWysiwygCaretWithinElement(root, targetOffset);
+  }
+
+  function restoreWysiwygCaretWithinElement(root, targetOffset) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var current = 0;
+    var node;
+    var next;
+    var range;
+    var selection;
+
+    targetOffset = Math.max(0, Number(targetOffset) || 0);
+    while ((node = walker.nextNode())) {
+      next = current + node.nodeValue.length;
+      if (targetOffset <= next) {
+        range = document.createRange();
+        selection = window.getSelection();
+        range.setStart(node, Math.max(0, targetOffset - current));
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return true;
+      }
+      current = next;
+    }
+
+    placeCaretAtEnd(root);
+    return false;
+  }
+
+  function closestMarkdownLineElement(node) {
+    while (node && node !== wysiwygEditor) {
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        node.hasAttribute &&
+        node.hasAttribute("data-md-line")
+      ) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+
+    return null;
+  }
+
+  function wysiwygCaretLineAnchor(root) {
+    var selection = window.getSelection();
+    var range;
+    var lineElement;
+    var preRange;
+    var line;
+
+    if (!selection || !selection.rangeCount) {
+      return null;
+    }
+
+    range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) {
+      return null;
+    }
+
+    lineElement = closestMarkdownLineElement(range.endContainer);
+    if (!lineElement) {
+      return null;
+    }
+
+    line = Number(lineElement.getAttribute("data-md-line"));
+    if (!Number.isFinite(line)) {
+      return null;
+    }
+
+    preRange = range.cloneRange();
+    preRange.selectNodeContents(lineElement);
+    preRange.setEnd(range.endContainer, range.endOffset);
+    return {
+      column: preRange.toString().length,
+      line: line
+    };
+  }
+
+  function findWysiwygLineElement(line) {
+    var elements = Array.prototype.slice.call(wysiwygEditor.querySelectorAll("[data-md-line]"));
+    var selected = null;
+
+    elements.forEach(function (element) {
+      var elementLine = Number(element.getAttribute("data-md-line"));
+
+      if (!Number.isFinite(elementLine) || elementLine > line) {
+        return;
+      }
+
+      if (!selected || elementLine > selected.line) {
+        selected = {
+          element: element,
+          line: elementLine
+        };
+      } else if (selected.line === elementLine && selected.element.contains(element)) {
+        selected = {
+          element: element,
+          line: elementLine
+        };
+      }
+    });
+
+    return selected ? selected.element : null;
+  }
+
+  function restoreScrollRatio(element, anchor) {
+    var maxOld;
+    var maxNew;
+    var ratio;
+
+    if (!element || !anchor || !anchor.scrollHeight) {
+      return;
+    }
+
+    maxOld = Math.max(1, anchor.scrollHeight - anchor.clientHeight);
+    maxNew = Math.max(1, element.scrollHeight - element.clientHeight);
+    ratio = (anchor.scrollTop || 0) / maxOld;
+    element.scrollTop = Math.round(maxNew * ratio);
+  }
+
+  function captureMarkdownAnchor() {
+    var text = markdownEditor.value;
+    var start = markdownEditor.selectionStart || 0;
+    var lineColumn = editorMode.getLineColumnFromOffset(text, start);
+    var lines = text.split("\n");
+
+    return {
+      clientHeight: markdownEditor.clientHeight,
+      column: lineColumn.column,
+      line: lineColumn.line,
+      lineText: lines[lineColumn.line] || "",
+      markdownOffset: start,
+      markdownSelectionEnd: markdownEditor.selectionEnd || start,
+      scrollHeight: markdownEditor.scrollHeight,
+      scrollTop: markdownEditor.scrollTop,
+      source: "markdown",
+      visibleTextOffset: editorMode.markdownOffsetToVisibleTextOffset(text, start)
+    };
+  }
+
+  function captureWysiwygAnchor() {
+    var lineAnchor = wysiwygCaretLineAnchor(wysiwygEditor);
+
+    return {
+      clientHeight: wysiwygEditor.clientHeight,
+      column: lineAnchor ? lineAnchor.column : null,
+      line: lineAnchor ? lineAnchor.line : null,
+      scrollHeight: wysiwygEditor.scrollHeight,
+      scrollTop: wysiwygEditor.scrollTop,
+      source: "wysiwyg",
+      textHint: getWysiwygCaretTextHint(wysiwygEditor),
+      visibleTextOffset: getWysiwygCaretTextOffset(wysiwygEditor)
+    };
+  }
+
+  function captureEditorAnchor(mode) {
+    return editorMode.normalizeEditorMode(mode) === EDITOR_MODES.MARKDOWN
+      ? captureMarkdownAnchor()
+      : captureWysiwygAnchor();
+  }
+
+  function findMarkdownOffsetFromTextHint(markdownText, textHint) {
+    var text = String(markdownText || "");
+    var lines = text.split("\n");
+    var offset = 0;
+    var before = textHint && textHint.before;
+    var after = textHint && textHint.after;
+    var fullText = textHint && textHint.text;
+    var i;
+    var line;
+    var index;
+
+    for (i = 0; i < lines.length; i += 1) {
+      line = lines[i];
+      if (before) {
+        index = line.indexOf(before);
+        if (index !== -1) {
+          return offset + index + before.length;
+        }
+      }
+      if (after) {
+        index = line.indexOf(after);
+        if (index !== -1) {
+          return offset + index;
+        }
+      }
+      if (fullText) {
+        index = line.indexOf(fullText.slice(0, Math.min(48, fullText.length)));
+        if (index !== -1) {
+          return offset + index;
+        }
+      }
+      offset += line.length + 1;
+    }
+
+    return null;
+  }
+
+  function restoreMarkdownAnchor(anchor) {
+    var text = markdownEditor.value;
+    var offset = 0;
+    var hintedOffset;
+    var lineOffset;
+    var lines;
+
+    hintedOffset = anchor && anchor.source === "wysiwyg" ? findMarkdownOffsetFromTextHint(text, anchor.textHint) : null;
+
+    if (
+      anchor &&
+      anchor.source === "wysiwyg" &&
+      typeof anchor.line === "number" &&
+      typeof anchor.column === "number"
+    ) {
+      lines = text.split("\n");
+      lineOffset = editorMode.visibleTextOffsetToMarkdownOffset(lines[anchor.line] || "", anchor.column);
+      offset = editorMode.getOffsetFromLineColumn(text, anchor.line, lineOffset);
+    } else if (typeof hintedOffset === "number") {
+      offset = hintedOffset;
+    } else if (anchor && typeof anchor.markdownOffset === "number") {
+      offset = Math.min(anchor.markdownOffset, text.length);
+    } else if (anchor && typeof anchor.visibleTextOffset === "number") {
+      offset = editorMode.visibleTextOffsetToMarkdownOffset(text, anchor.visibleTextOffset);
+    } else if (anchor && typeof anchor.line === "number") {
+      offset = editorMode.getOffsetFromLineColumn(text, anchor.line, anchor.column || 0);
+    }
+
+    markdownEditor.selectionStart = offset;
+    markdownEditor.selectionEnd = offset;
+    restoreScrollRatio(markdownEditor, anchor);
+  }
+
+  function restoreWysiwygAnchor(anchor) {
+    var visibleTextOffset = anchor && typeof anchor.visibleTextOffset === "number"
+      ? anchor.visibleTextOffset
+      : editorMode.markdownOffsetToVisibleTextOffset(getMarkdownText(), anchor ? anchor.markdownOffset || 0 : 0);
+    var lineElement;
+    var lineColumn;
+
+    if (anchor && anchor.source === "markdown" && typeof anchor.line === "number") {
+      lineElement = findWysiwygLineElement(anchor.line);
+      if (lineElement) {
+        lineColumn = editorMode.markdownOffsetToVisibleTextOffset(anchor.lineText || "", anchor.column || 0);
+        if (restoreWysiwygCaretWithinElement(lineElement, lineColumn)) {
+          restoreScrollRatio(wysiwygEditor, anchor);
+          return;
+        }
+      }
+    }
+
+    restoreWysiwygCaretByTextOffset(wysiwygEditor, visibleTextOffset);
+    restoreScrollRatio(wysiwygEditor, anchor);
+  }
+
+  function saveActiveEditorState(session) {
+    var markdownAnchor;
+
+    if (!session) {
+      return;
+    }
+
+    session.wysiwygScrollTop = wysiwygEditor.scrollTop;
+    session.markdownScrollTop = markdownEditor.scrollTop;
+    if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+      markdownAnchor = captureMarkdownAnchor();
+      session.markdownSelectionStart = markdownAnchor.markdownOffset;
+      session.markdownSelectionEnd = markdownAnchor.markdownSelectionEnd;
+      session.lastKnownLine = markdownAnchor.line;
+      session.lastKnownColumn = markdownAnchor.column;
+    } else {
+      session.wysiwygTextOffset = getWysiwygCaretTextOffset(wysiwygEditor);
+    }
   }
 
   function capturePaneScrollState() {
@@ -293,27 +610,6 @@
         restorePaneScrollState(scrollState);
       });
     }
-  }
-
-  function scheduleWysiwygRenderFromMarkdown(options) {
-    window.clearTimeout(markdownRenderTimer);
-    markdownRenderTimer = window.setTimeout(function () {
-      markdownRenderTimer = 0;
-      renderWysiwygFromMarkdown(options);
-    }, 140);
-  }
-
-  function flushPendingMarkdownRender() {
-    if (!markdownRenderTimer) {
-      return;
-    }
-
-    window.clearTimeout(markdownRenderTimer);
-    markdownRenderTimer = 0;
-    renderWysiwygFromMarkdown({
-      force: true,
-      preservePaneScroll: true
-    });
   }
 
   function updateCounts() {
@@ -382,8 +678,8 @@
     session.history = session.history || createSessionHistory();
     session.history.reset(session.markdownText);
     session.dirty = Boolean(options && options.dirty);
-    session.viewMode = normalizeViewMode(session.viewMode || (options && options.viewMode) || readStoredViewMode());
-    session.activeMode = activeSourceForViewMode(session.viewMode, session.activeMode);
+    session.editorMode = editorMode.normalizeEditorMode(session.editorMode || (options && options.editorMode) || session.activeMode || editorMode.readStoredEditorMode());
+    session.activeMode = session.editorMode;
     session.activeEditorSource = session.activeMode;
 
     return session;
@@ -413,31 +709,63 @@
   function resetScrollPositions() {
     wysiwygEditor.scrollTop = 0;
     markdownEditor.scrollTop = 0;
+    markdownEditor.selectionStart = 0;
+    markdownEditor.selectionEnd = 0;
+    placeCaretAtStart(wysiwygEditor);
     window.scrollTo(window.scrollX, 0);
   }
 
-  function updateModeControls() {
-    var viewMode = getViewMode();
-    var activeMode = getActiveMode();
-    var inWysiwygOnly = viewMode === VIEW_MODES.WYSIWYG_ONLY;
-    var inMarkdownOnly = viewMode === VIEW_MODES.MARKDOWN_ONLY;
-    var inSplit = viewMode === VIEW_MODES.SPLIT;
-
-    wysiwygMode.classList.toggle("is-active", inWysiwygOnly);
-    markdownMode.classList.toggle("is-active", inMarkdownOnly);
-    splitMarkdownMode.classList.toggle("is-active", inSplit);
-    wysiwygMode.setAttribute("aria-pressed", String(inWysiwygOnly));
-    markdownMode.setAttribute("aria-pressed", String(inMarkdownOnly));
-    splitMarkdownMode.setAttribute("aria-pressed", String(inSplit));
-
-    workspace.classList.toggle("view-wysiwyg-only", inWysiwygOnly);
-    workspace.classList.toggle("view-markdown-only", inMarkdownOnly);
-    workspace.classList.toggle("view-split", inSplit);
+  function showWysiwygEditor() {
     wysiwygEditor.hidden = false;
+    markdownEditor.hidden = true;
+    setActiveEditorSource(EDITOR_MODES.WYSIWYG);
+  }
+
+  function showMarkdownEditor() {
+    markdownEditor.value = getMarkdownText();
+    wysiwygEditor.hidden = true;
     markdownEditor.hidden = false;
-    if (modeLabel) {
-      modeLabel.textContent = activeMode === "markdown" ? "Markdown" : "WYSIWYG";
+    setActiveEditorSource(EDITOR_MODES.MARKDOWN);
+  }
+
+  function applySoftWrapState() {
+    markdownEditor.classList.toggle("is-soft-wrap", softWrapEnabled);
+    wysiwygEditor.classList.toggle("is-soft-wrap", softWrapEnabled);
+
+    if (toggleSoftWrap) {
+      toggleSoftWrap.classList.toggle("is-active", softWrapEnabled);
+      toggleSoftWrap.setAttribute("aria-pressed", String(softWrapEnabled));
+      toggleSoftWrap.title = softWrapEnabled
+        ? "Disable Soft Wrap and allow horizontal scrolling"
+        : "Enable Soft Wrap to visually wrap long lines";
     }
+  }
+
+  function updateModeControls() {
+    var mode = getEditorMode();
+
+    if (toggleEditorMode) {
+      toggleEditorMode.textContent = mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
+      toggleEditorMode.setAttribute("aria-pressed", String(mode === EDITOR_MODES.MARKDOWN));
+      toggleEditorMode.title = mode === EDITOR_MODES.MARKDOWN
+        ? "Switch to WYSIWYG editing"
+        : "Switch to Markdown editing";
+    }
+
+    if (modeLabel) {
+      modeLabel.textContent = mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
+    }
+
+    applySoftWrapState();
+    if (actions) {
+      actions.updateFormatSelect();
+    }
+  }
+
+  function toggleSoftWrapState() {
+    softWrapEnabled = !softWrapEnabled;
+    editorMode.storeSoftWrap(softWrapEnabled);
+    applySoftWrapState();
   }
 
   function setActiveSession(session, options) {
@@ -451,12 +779,10 @@
     }
 
     window.clearTimeout(syncTimer);
-    window.clearTimeout(markdownRenderTimer);
     previousSession = getActiveSession();
 
     if (previousSession && previousSession !== session) {
-      previousSession.wysiwygScrollTop = wysiwygEditor.scrollTop;
-      previousSession.markdownScrollTop = markdownEditor.scrollTop;
+      saveActiveEditorState(previousSession);
     }
     if (previousSession && previousSession !== session && viewport && viewport.capture) {
       previousSession.scrollState = viewport.capture();
@@ -471,6 +797,11 @@
     wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
     wysiwygNeedsSync = false;
     activeEditSource = activeSession.activeMode;
+    if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+      showMarkdownEditor();
+    } else {
+      showWysiwygEditor();
+    }
     updateCounts();
     updateModeControls();
     activeSession.history.updateControls();
@@ -479,8 +810,16 @@
 
     window.requestAnimationFrame(function () {
       if (options.restoreScroll) {
-        wysiwygEditor.scrollTop = activeSession.wysiwygScrollTop || 0;
-        markdownEditor.scrollTop = activeSession.markdownScrollTop || 0;
+        if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+          if (typeof activeSession.markdownSelectionStart === "number") {
+            markdownEditor.selectionStart = Math.min(activeSession.markdownSelectionStart, markdownEditor.value.length);
+            markdownEditor.selectionEnd = Math.min(activeSession.markdownSelectionEnd || activeSession.markdownSelectionStart, markdownEditor.value.length);
+          }
+          markdownEditor.scrollTop = activeSession.markdownScrollTop || 0;
+        } else {
+          restoreWysiwygCaretByTextOffset(wysiwygEditor, activeSession.wysiwygTextOffset || 0);
+          wysiwygEditor.scrollTop = activeSession.wysiwygScrollTop || 0;
+        }
         if (activeSession.scrollState && viewport) {
           viewport.restore(activeSession.scrollState);
         }
@@ -504,25 +843,14 @@
     }
 
     activeSession.markdownText = String(value || "");
-    if (source !== "textarea" && source !== "markdown" && document.activeElement !== markdownEditor) {
+    if (source !== "textarea" && source !== "markdown" && getEditorMode() === EDITOR_MODES.MARKDOWN) {
       markdownEditor.value = activeSession.markdownText;
     }
 
-    if (source === "textarea" || source === "markdown") {
-      if (options.renderWysiwyg === "defer") {
-        scheduleWysiwygRenderFromMarkdown({
-          preservePaneScroll: true
-        });
-      } else {
-        renderWysiwygFromMarkdown({
-          force: options.forceWysiwygRender === true,
-          preservePaneScroll: true
-        });
-      }
-    } else if (source !== "wysiwyg") {
+    if (source !== "wysiwyg" && getEditorMode() === EDITOR_MODES.WYSIWYG) {
       renderWysiwygFromMarkdown({
         force: true,
-        preservePaneScroll: source === "restore"
+        preservePaneScroll: source === "restore" || source === "textarea" || source === "markdown"
       });
     }
 
@@ -586,8 +914,6 @@
 
   function flushActiveEditor() {
     window.clearTimeout(syncTimer);
-    window.clearTimeout(markdownRenderTimer);
-    markdownRenderTimer = 0;
     if (wysiwygNeedsSync) {
       syncFromWysiwyg();
     }
@@ -635,26 +961,13 @@
     updateDirtyState();
   }
 
-  function activeSourceForViewMode(viewMode, currentSource) {
-    if (viewMode === VIEW_MODES.MARKDOWN_ONLY) {
-      return "markdown";
-    }
-
-    if (viewMode === VIEW_MODES.WYSIWYG_ONLY) {
-      return "wysiwyg";
-    }
-
-    return currentSource === "markdown" ? "markdown" : "wysiwyg";
-  }
-
-  function switchViewMode(viewMode) {
+  function setEditorMode(nextMode) {
     var activeSession = getActiveSession();
-    var viewportAnchor;
-    var nextViewMode = normalizeViewMode(viewMode);
-    var nextActiveSource;
+    var currentMode = getEditorMode();
+    var normalized = editorMode.normalizeEditorMode(nextMode);
+    var anchor;
 
-    if (!activeSession || nextViewMode === getViewMode()) {
-      viewport.consumeModeSwitchAnchor();
+    if (!activeSession || normalized === currentMode) {
       focusActiveEditor();
       return;
     }
@@ -663,50 +976,55 @@
       aiAssistant.hideTransientUi();
     }
 
-    viewportAnchor = viewport.consumeModeSwitchAnchor();
-
+    anchor = captureEditorAnchor(currentMode);
     flushActiveEditor();
 
-    activeSession.viewMode = nextViewMode;
-    nextActiveSource = activeSourceForViewMode(nextViewMode, getActiveMode());
-    activeSession.activeMode = nextActiveSource;
-    activeSession.activeEditorSource = nextActiveSource;
-    storeViewMode(nextViewMode);
+    activeSession.editorMode = normalized;
+    activeSession.activeMode = normalized;
+    activeSession.activeEditorSource = normalized;
+    editorMode.storeEditorMode(normalized);
 
-    markdownEditor.value = activeSession.markdownText;
-    renderWysiwygFromMarkdown({
-      force: true,
-      preservePaneScroll: true
-    });
+    if (normalized === EDITOR_MODES.MARKDOWN) {
+      markdownEditor.value = activeSession.markdownText || "";
+      showMarkdownEditor();
+    } else {
+      renderWysiwygFromMarkdown({
+        force: true
+      });
+      showWysiwygEditor();
+    }
 
     updateModeControls();
+    updateCounts();
 
     window.requestAnimationFrame(function () {
+      if (normalized === EDITOR_MODES.MARKDOWN) {
+        restoreMarkdownAnchor(anchor);
+      } else {
+        restoreWysiwygAnchor(anchor);
+      }
       focusActiveEditor();
       window.requestAnimationFrame(function () {
-        viewport.restore(viewportAnchor);
-        window.requestAnimationFrame(function () {
-          viewport.restore(viewportAnchor);
-          viewport.remember();
-          activeSession.scrollState = viewport.capture();
-          activeSession.wysiwygScrollTop = wysiwygEditor.scrollTop;
-          activeSession.markdownScrollTop = markdownEditor.scrollTop;
-        });
+        if (normalized === EDITOR_MODES.MARKDOWN) {
+          restoreMarkdownAnchor(anchor);
+        } else {
+          restoreWysiwygAnchor(anchor);
+        }
+        saveActiveEditorState(activeSession);
       });
     });
+  }
+
+  function toggleEditorModeState() {
+    setEditorMode(getEditorMode() === EDITOR_MODES.WYSIWYG
+      ? EDITOR_MODES.MARKDOWN
+      : EDITOR_MODES.WYSIWYG);
   }
 
   function setFocusMode(enabled) {
     var nextEnabled = Boolean(enabled);
 
-    if (nextEnabled && !focusModeEnabled) {
-      flushActiveEditor();
-      focusModePreviousSource = getActiveMode();
-      setActiveEditorSource("wysiwyg");
-    } else if (!nextEnabled && focusModeEnabled && focusModePreviousSource) {
-      setActiveEditorSource(focusModePreviousSource);
-      focusModePreviousSource = null;
-    }
+    flushActiveEditor();
 
     focusModeEnabled = nextEnabled;
     document.body.classList.toggle("focus-mode", focusModeEnabled);
@@ -875,6 +1193,23 @@
     }
 
     window.alert(action + " failed. " + (error && error.message ? error.message : ""));
+  }
+
+  function showClipboardError(action, error) {
+    window.alert(action + " failed. " + (error && error.message ? error.message : ""));
+  }
+
+  function handleClipboardAction(actionId, detail) {
+    var labels = {
+      copy: "Copy",
+      cut: "Cut",
+      paste: "Paste"
+    };
+
+    actions.applyClipboardAction(actionId, detail && detail.selection).catch(function (error) {
+      showClipboardError(labels[actionId] || "Clipboard action", error);
+      focusActiveEditor();
+    });
   }
 
   async function saveImagesForInsertion(session, files, options) {
@@ -1418,9 +1753,9 @@
     if (!tabs.listSessions().length) {
       nextSession = createSession({
         activeMode: session.activeMode || "wysiwyg",
+        editorMode: session.editorMode || getEditorMode(),
         markdownText: "",
-        title: "Untitled.md",
-        viewMode: session.viewMode || getViewMode()
+        title: "Untitled.md"
       });
       tabs.addSession(nextSession, { activate: false });
       setActiveSession(nextSession, { restoreScroll: false });
@@ -1452,8 +1787,8 @@
     session = tabs.createUntitledSession({
       activate: false,
       activeMode: getActiveMode(),
-      markdownText: "",
-      viewMode: getViewMode()
+      editorMode: getEditorMode(),
+      markdownText: ""
     });
     setActiveSession(session, { restoreScroll: false });
     focusActiveEditor();
@@ -1482,10 +1817,10 @@
 
       session = createSession({
         activeMode: getActiveMode(),
+        editorMode: getEditorMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
-        title: fileData.title,
-        viewMode: getViewMode()
+        title: fileData.title
       });
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
@@ -1556,10 +1891,10 @@
 
       session = createSession({
         activeMode: getActiveMode(),
+        editorMode: getEditorMode(),
         fileHandle: fileData.fileHandle,
         markdownText: fileData.markdownText,
-        title: fileData.title,
-        viewMode: getViewMode()
+        title: fileData.title
       });
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
@@ -1734,6 +2069,275 @@
     });
   }
 
+  function wysiwygBlockForRange(range) {
+    var node = range && range.startContainer;
+
+    if (node && node.nodeType === Node.TEXT_NODE) {
+      node = node.parentNode;
+    }
+
+    while (node && node !== wysiwygEditor) {
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        /^(blockquote|div|h[1-6]|li|ol|p|pre|ul)$/i.test(node.tagName)
+      ) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+
+    return null;
+  }
+
+  function isHeadingBlock(node) {
+    return Boolean(node && node.nodeType === Node.ELEMENT_NODE && /^h[1-6]$/i.test(node.tagName));
+  }
+
+  function isParagraphLikeBlock(node) {
+    return Boolean(node && node.nodeType === Node.ELEMENT_NODE && /^(div|p)$/i.test(node.tagName));
+  }
+
+  function isEmptyEditableBlock(node) {
+    return Boolean(
+      node &&
+      node.nodeType === Node.ELEMENT_NODE &&
+      isParagraphLikeBlock(node) &&
+      !(node.textContent || "").trim()
+    );
+  }
+
+  function isRangeAtStartOfBlock(range, block) {
+    var preRange;
+
+    if (!range || !block || !block.contains(range.startContainer)) {
+      return false;
+    }
+
+    preRange = range.cloneRange();
+    preRange.selectNodeContents(block);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    return preRange.toString().length === 0;
+  }
+
+  function isRangeAtEndOfBlock(range, block) {
+    var postRange;
+
+    if (!range || !block || !block.contains(range.startContainer)) {
+      return false;
+    }
+
+    postRange = range.cloneRange();
+    postRange.selectNodeContents(block);
+    postRange.setStart(range.startContainer, range.startOffset);
+    return postRange.toString().length === 0;
+  }
+
+  function insertParagraphBeforeBlock(block) {
+    var paragraph = document.createElement("p");
+
+    paragraph.appendChild(document.createElement("br"));
+    block.parentNode.insertBefore(paragraph, block);
+    wysiwygEditor.focus();
+    restoreWysiwygCaretWithinElement(block, 0);
+    window.setTimeout(function () {
+      if (block.parentNode) {
+        wysiwygEditor.focus();
+        restoreWysiwygCaretWithinElement(block, 0);
+      }
+    }, 0);
+  }
+
+  function insertParagraphAfterBlock(block) {
+    var paragraph = document.createElement("p");
+
+    paragraph.appendChild(document.createElement("br"));
+    block.parentNode.insertBefore(paragraph, block.nextSibling);
+    restoreWysiwygCaretWithinElement(paragraph, 0);
+  }
+
+  function removeEmptyBlockBeforeHeading(block) {
+    var next = block && block.nextElementSibling;
+
+    if (!isEmptyEditableBlock(block) || !isHeadingBlock(next)) {
+      return false;
+    }
+
+    block.parentNode.removeChild(block);
+    restoreWysiwygCaretWithinElement(next, 0);
+    return true;
+  }
+
+  function mergeParagraphIntoPreviousHeadingAsParagraph(block) {
+    var previous = block && block.previousElementSibling;
+    var paragraph;
+    var caretOffset;
+    var child;
+
+    if (!isParagraphLikeBlock(block) || !isHeadingBlock(previous)) {
+      return false;
+    }
+
+    caretOffset = previous.textContent.length;
+    paragraph = document.createElement("p");
+
+    while (previous.firstChild) {
+      paragraph.appendChild(previous.firstChild);
+    }
+
+    while (block.firstChild) {
+      child = block.firstChild;
+      block.removeChild(child);
+      if (!(child.nodeType === Node.ELEMENT_NODE && child.tagName === "BR")) {
+        paragraph.appendChild(child);
+      }
+    }
+
+    previous.parentNode.insertBefore(paragraph, previous);
+    previous.parentNode.removeChild(previous);
+    block.parentNode.removeChild(block);
+    restoreWysiwygCaretWithinElement(paragraph, caretOffset);
+    return true;
+  }
+
+  function mergeHeadingIntoPreviousParagraphAsParagraph(block) {
+    var previous = block && block.previousElementSibling;
+    var caretOffset;
+    var child;
+
+    if (!isHeadingBlock(block) || !isParagraphLikeBlock(previous)) {
+      return false;
+    }
+
+    caretOffset = previous.textContent.length;
+    while (block.firstChild) {
+      child = block.firstChild;
+      block.removeChild(child);
+      if (!(child.nodeType === Node.ELEMENT_NODE && child.tagName === "BR")) {
+        previous.appendChild(child);
+      }
+    }
+
+    block.parentNode.removeChild(block);
+    restoreWysiwygCaretWithinElement(previous, caretOffset);
+    return true;
+  }
+
+  function normalizeNestedHeadingsInParagraphs() {
+    var changed = false;
+    var selection = window.getSelection();
+    var range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    var headings = Array.prototype.slice.call(wysiwygEditor.querySelectorAll("h1, h2, h3, h4, h5, h6"));
+
+    headings.forEach(function (heading) {
+      var paragraph = heading.parentElement;
+      var text = document.createTextNode(heading.textContent || "");
+      var caretOffset = null;
+      var preRange;
+
+      if (!isParagraphLikeBlock(paragraph) || paragraph === wysiwygEditor) {
+        return;
+      }
+
+      if (range && heading.contains(range.startContainer)) {
+        preRange = document.createRange();
+        preRange.selectNodeContents(paragraph);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        caretOffset = preRange.toString().length;
+      }
+
+      paragraph.replaceChild(text, heading);
+      if (caretOffset !== null) {
+        restoreWysiwygCaretWithinElement(paragraph, caretOffset);
+      }
+      changed = true;
+    });
+
+    return changed;
+  }
+
+  function handleWysiwygStructuralKey(event) {
+    var selection;
+    var range;
+    var block;
+
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
+      return false;
+    }
+
+    selection = window.getSelection();
+    range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    if (!range || !range.collapsed || !wysiwygEditor.contains(range.commonAncestorContainer)) {
+      return false;
+    }
+
+    block = wysiwygBlockForRange(range);
+    if (event.key === "Enter" && isHeadingBlock(block) && isRangeAtStartOfBlock(range, block)) {
+      event.preventDefault();
+      insertParagraphBeforeBlock(block);
+      return true;
+    }
+
+    if (event.key === "Enter" && isHeadingBlock(block) && isRangeAtEndOfBlock(range, block)) {
+      event.preventDefault();
+      insertParagraphAfterBlock(block);
+      scheduleSyncFromWysiwyg();
+      return true;
+    }
+
+    if (
+      event.key === "Backspace" &&
+      isHeadingBlock(block) &&
+      isRangeAtStartOfBlock(range, block) &&
+      (removeEmptyBlockBeforeHeading(block.previousElementSibling) ||
+        mergeHeadingIntoPreviousParagraphAsParagraph(block))
+    ) {
+      event.preventDefault();
+      scheduleSyncFromWysiwyg();
+      return true;
+    }
+
+    if (
+      event.key === "Backspace" &&
+      isRangeAtStartOfBlock(range, block) &&
+      mergeParagraphIntoPreviousHeadingAsParagraph(block)
+    ) {
+      event.preventDefault();
+      scheduleSyncFromWysiwyg();
+      return true;
+    }
+
+    if (event.key === "Delete") {
+      if (
+        isHeadingBlock(block) &&
+        isRangeAtStartOfBlock(range, block) &&
+        (removeEmptyBlockBeforeHeading(block.previousElementSibling) ||
+          mergeHeadingIntoPreviousParagraphAsParagraph(block))
+      ) {
+        event.preventDefault();
+        scheduleSyncFromWysiwyg();
+        return true;
+      }
+
+      if (
+        isParagraphLikeBlock(block) &&
+        isRangeAtEndOfBlock(range, block) &&
+        mergeHeadingIntoPreviousParagraphAsParagraph(block.nextElementSibling)
+      ) {
+        event.preventDefault();
+        scheduleSyncFromWysiwyg();
+        return true;
+      }
+
+      if (removeEmptyBlockBeforeHeading(block)) {
+        event.preventDefault();
+        scheduleSyncFromWysiwyg();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function bindEvents() {
     newFileButton.addEventListener("click", handleNewFile);
     newTabButton.addEventListener("click", handleNewFile);
@@ -1756,21 +2360,14 @@
     saveAsFileButton.addEventListener("click", handleSaveAsFile);
     recentFilesSelect.addEventListener("change", handleRecentFileChange);
 
-    wysiwygMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
-    markdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
-    splitMarkdownMode.addEventListener("pointerdown", viewport.prepareModeSwitchAnchor);
-
-    wysiwygMode.addEventListener("click", function () {
-      switchViewMode(VIEW_MODES.WYSIWYG_ONLY);
+    toggleEditorMode.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
     });
-
-    markdownMode.addEventListener("click", function () {
-      switchViewMode(VIEW_MODES.MARKDOWN_ONLY);
+    toggleSoftWrap.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
     });
-
-    splitMarkdownMode.addEventListener("click", function () {
-      switchViewMode(VIEW_MODES.SPLIT);
-    });
+    toggleEditorMode.addEventListener("click", toggleEditorModeState);
+    toggleSoftWrap.addEventListener("click", toggleSoftWrapState);
 
     if (toggleFocusMode) {
       toggleFocusMode.addEventListener("click", toggleFocusModeState);
@@ -1794,8 +2391,6 @@
         setFocusMode(false);
       }
     });
-    resizer.bindEvents();
-
     formatBlock.addEventListener("change", function () {
       if (getActiveMode() === "markdown") {
         actions.applyMarkdownFormat(formatBlock.value);
@@ -1833,11 +2428,9 @@
     markdownEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
 
     wysiwygEditor.addEventListener("focus", function () {
-      flushPendingMarkdownRender();
       setActiveEditorSource("wysiwyg");
     });
     wysiwygEditor.addEventListener("pointerdown", function () {
-      flushPendingMarkdownRender();
       setActiveEditorSource("wysiwyg");
     });
     markdownEditor.addEventListener("focus", function () {
@@ -1849,6 +2442,7 @@
 
     wysiwygEditor.addEventListener("input", function () {
       setActiveEditorSource("wysiwyg");
+      normalizeNestedHeadingsInParagraphs();
       scheduleSyncFromWysiwyg();
     });
     wysiwygEditor.addEventListener("keyup", actions.updateFormatSelect);
@@ -1887,6 +2481,8 @@
     });
 
     markdownEditor.addEventListener("input", function () {
+      var session;
+
       if (isSyncingEditors) {
         return;
       }
@@ -1894,12 +2490,20 @@
       setActiveEditorSource("markdown");
       window.clearTimeout(syncTimer);
       wysiwygNeedsSync = false;
-      setMarkdown(markdownEditor.value, "textarea", {
-        renderWysiwyg: "defer"
-      });
+      setMarkdown(markdownEditor.value, "textarea");
+      session = getActiveSession();
+      if (session) {
+        session.markdownSelectionStart = markdownEditor.selectionStart;
+        session.markdownSelectionEnd = markdownEditor.selectionEnd;
+        session.markdownScrollTop = markdownEditor.scrollTop;
+      }
     });
 
     wysiwygEditor.addEventListener("keydown", function (event) {
+      if (handleWysiwygStructuralKey(event)) {
+        return;
+      }
+
       if (event.key === "Tab") {
         event.preventDefault();
         actions.applyToolbarAction(event.shiftKey ? "outdentList" : "indentList");
@@ -1968,6 +2572,65 @@
     });
   }
 
+  function installTestApi() {
+    var params;
+
+    try {
+      params = new URLSearchParams(window.location.search);
+    } catch (error) {
+      return;
+    }
+
+    if (!params.has("e2e")) {
+      return;
+    }
+
+    ME.__testApi = {
+      getEditorStateForTest: function () {
+        var session = getActiveSession();
+        return {
+          editorMode: getEditorMode(),
+          softWrapEnabled: softWrapEnabled,
+          markdownText: session ? session.markdownText : "",
+          markdownSelectionStart: markdownEditor.selectionStart,
+          markdownSelectionEnd: markdownEditor.selectionEnd,
+          markdownScrollTop: markdownEditor.scrollTop,
+          wysiwygScrollTop: wysiwygEditor.scrollTop,
+          modeLabel: modeLabel.textContent,
+          markdownHidden: markdownEditor.hidden,
+          wysiwygHidden: wysiwygEditor.hidden
+        };
+      },
+      loadMarkdownForTest: function (filename, markdownText) {
+        var session = getActiveSession();
+
+        if (!session) {
+          return;
+        }
+
+        flushActiveEditor();
+        session.title = filename || "Test.md";
+        session.markdownText = String(markdownText || "");
+        markdownEditor.value = session.markdownText;
+        renderWysiwygFromMarkdown({ force: true });
+        if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+          showMarkdownEditor();
+        } else {
+          showWysiwygEditor();
+        }
+        if (session.history) {
+          session.history.reset(session.markdownText);
+        }
+        resetScrollPositions();
+        session.dirty = false;
+        updateCounts();
+        updateModeControls();
+        updateDocumentTitle();
+        renderTabs();
+      }
+    };
+  }
+
   function init() {
     var initialSession;
 
@@ -1986,12 +2649,6 @@
       scheduleSyncFromWysiwyg: scheduleSyncFromWysiwyg,
       setMarkdown: setMarkdown,
       wysiwygEditor: wysiwygEditor
-    });
-
-    resizer = ME.resizer.create({
-      isSplitView: function () { return getViewMode() === VIEW_MODES.SPLIT && !focusModeEnabled; },
-      paneResizer: paneResizer,
-      workspace: workspace
     });
 
     aiAssistant = ME.aiAssistant.create({
@@ -2032,6 +2689,7 @@
       patchAcceptAllButton: aiPatchAcceptAll,
       patchRejectAllButton: aiPatchRejectAll,
       patchResetButton: aiPatchReset,
+      onClipboardAction: handleClipboardAction,
       wysiwygEditor: wysiwygEditor,
       reviewDialog: aiReviewDialog,
       reviewLog: aiReviewLog,
@@ -2081,15 +2739,15 @@
     initialSession = createSession({
       markdownText: "",
       title: "Untitled.md",
-      viewMode: readStoredViewMode()
+      editorMode: editorMode.readStoredEditorMode()
     });
     tabs.addSession(initialSession, { activate: false });
     setActiveSession(initialSession, { restoreScroll: false });
     bindEvents();
     aiAssistant.bindEvents();
+    installTestApi();
     updateFileControls();
     refreshRecentFiles();
-    resizer.updateValue(workspace.querySelector(".wysiwyg-pane").getBoundingClientRect().width);
     focusActiveEditor();
   }
 

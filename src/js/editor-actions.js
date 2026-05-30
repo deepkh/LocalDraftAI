@@ -310,9 +310,361 @@
       selection.addRange(savedSelection.range);
     }
 
-    function insertHtmlAtSelection(html, savedSelection) {
+    function isParagraphLikeBlock(node) {
+      return Boolean(node && node.nodeType === Node.ELEMENT_NODE && /^(div|p)$/i.test(node.tagName));
+    }
+
+    function isRangeAtEndOfBlock(range, block) {
+      var postRange;
+
+      if (!range || !block || !block.contains(range.startContainer)) {
+        return false;
+      }
+
+      postRange = range.cloneRange();
+      postRange.selectNodeContents(block);
+      postRange.setStart(range.startContainer, range.startOffset);
+      return postRange.toString().length === 0;
+    }
+
+    function htmlIsHeadingFragment(html) {
+      var doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+      var meaningful = Array.prototype.filter.call(doc.body.childNodes, function (child) {
+        return child.nodeType === Node.ELEMENT_NODE ||
+          (child.nodeType === Node.TEXT_NODE && /\S/.test(child.nodeValue || ""));
+      });
+
+      return Boolean(meaningful.length) && meaningful.every(function (child) {
+        return child.nodeType === Node.ELEMENT_NODE && /^h[1-6]$/i.test(child.tagName);
+      });
+    }
+
+    function shouldInsertHeadingHtmlAsText(range, html) {
+      var block = wysiwygBlockForRange(range);
+
+      return Boolean(
+        range &&
+        range.collapsed &&
+        isParagraphLikeBlock(block) &&
+        (block.textContent || "").trim() &&
+        isRangeAtEndOfBlock(range, block) &&
+        htmlIsHeadingFragment(html)
+      );
+    }
+
+    function clipboardApi() {
+      return window.navigator && window.navigator.clipboard ? window.navigator.clipboard : null;
+    }
+
+    function blobFromText(text, type) {
+      return new Blob([String(text || "")], { type: type });
+    }
+
+    function fallbackCopyText(text) {
+      var textarea;
+      var selection;
+      var selectedRange = null;
+
+      if (!document.body || typeof document.execCommand !== "function") {
+        return false;
+      }
+
+      selection = window.getSelection ? window.getSelection() : null;
+      if (selection && selection.rangeCount) {
+        selectedRange = selection.getRangeAt(0).cloneRange();
+      }
+
+      textarea = document.createElement("textarea");
+      textarea.value = String(text || "");
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        return document.execCommand("copy");
+      } finally {
+        document.body.removeChild(textarea);
+        if (selectedRange && selection) {
+          selection.removeAllRanges();
+          selection.addRange(selectedRange);
+        }
+      }
+    }
+
+    function fallbackCopyHtml(html, plainText) {
+      var container;
+      var range;
+      var selection;
+      var selectedRange = null;
+
+      if (!document.body || typeof document.execCommand !== "function") {
+        return fallbackCopyText(plainText);
+      }
+
+      selection = window.getSelection();
+      if (selection && selection.rangeCount) {
+        selectedRange = selection.getRangeAt(0).cloneRange();
+      }
+
+      container = document.createElement("div");
+      container.contentEditable = "true";
+      container.style.position = "fixed";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.innerHTML = String(html || "");
+      if (!container.innerHTML) {
+        container.textContent = String(plainText || "");
+      }
+      document.body.appendChild(container);
+
+      range = document.createRange();
+      range.selectNodeContents(container);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      try {
+        return document.execCommand("copy");
+      } finally {
+        selection.removeAllRanges();
+        if (selectedRange) {
+          selection.addRange(selectedRange);
+        }
+        document.body.removeChild(container);
+      }
+    }
+
+    function writeTextToClipboard(text) {
+      var clipboard = clipboardApi();
+
+      if (clipboard && typeof clipboard.writeText === "function") {
+        return clipboard.writeText(String(text || "")).catch(function () {
+          if (!fallbackCopyText(text)) {
+            throw new Error("Clipboard write failed.");
+          }
+        });
+      }
+
+      return fallbackCopyText(text)
+        ? Promise.resolve()
+        : Promise.reject(new Error("Clipboard API is not available."));
+    }
+
+    function writeHtmlToClipboard(html, plainText) {
+      var clipboard = clipboardApi();
+
+      if (
+        clipboard &&
+        typeof clipboard.write === "function" &&
+        window.ClipboardItem
+      ) {
+        return clipboard.write([
+          new window.ClipboardItem({
+            "text/html": blobFromText(html, "text/html"),
+            "text/plain": blobFromText(plainText, "text/plain")
+          })
+        ]).catch(function () {
+          if (!fallbackCopyHtml(html, plainText)) {
+            throw new Error("Clipboard write failed.");
+          }
+        });
+      }
+
+      return fallbackCopyHtml(html, plainText)
+        ? Promise.resolve()
+        : writeTextToClipboard(plainText);
+    }
+
+    function selectedWysiwygClipboardData(savedSelection) {
+      var selection;
+      var range;
+      var container = document.createElement("div");
+
       wysiwygEditor.focus();
       restoreWysiwygSelection(savedSelection);
+      selection = window.getSelection();
+      range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+      if (!isSelectionInsideWysiwyg(range) || range.collapsed) {
+        return {
+          html: "",
+          text: ""
+        };
+      }
+
+      container.appendChild(range.cloneContents());
+      return {
+        html: container.innerHTML,
+        text: selection.toString()
+      };
+    }
+
+    function copySelectionToClipboard(savedSelection) {
+      var text;
+      var data;
+
+      if ((savedSelection && savedSelection.mode === "markdown") || context.getActiveMode() === "markdown") {
+        restoreTextareaSelection(savedSelection);
+        text = selectedTextareaRange().text;
+        return writeTextToClipboard(text);
+      }
+
+      data = selectedWysiwygClipboardData(savedSelection);
+      return writeHtmlToClipboard(data.html, data.text);
+    }
+
+    function cutSelectionToClipboard(savedSelection) {
+      if ((savedSelection && savedSelection.mode === "markdown") || context.getActiveMode() === "markdown") {
+        restoreTextareaSelection(savedSelection);
+        var range = selectedTextareaRange();
+        if (!range.text) {
+          return Promise.resolve();
+        }
+
+        return writeTextToClipboard(range.text).then(function () {
+          markdownEditor.setRangeText("", range.start, range.end, "start");
+          context.setMarkdown(markdownEditor.value, "textarea");
+          markdownEditor.focus();
+        });
+      }
+
+      return copySelectionToClipboard(savedSelection).then(function () {
+        var selection;
+        var range;
+
+        wysiwygEditor.focus();
+        restoreWysiwygSelection(savedSelection);
+        selection = window.getSelection();
+        range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+        if (!isSelectionInsideWysiwyg(range) || range.collapsed) {
+          return;
+        }
+
+        range.deleteContents();
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        context.scheduleSyncFromWysiwyg();
+      });
+    }
+
+    function textFromHtml(html) {
+      var container = document.createElement("div");
+      container.innerHTML = String(html || "");
+      return container.textContent || "";
+    }
+
+    function readClipboardData() {
+      var clipboard = clipboardApi();
+
+      if (clipboard && typeof clipboard.read === "function") {
+        return clipboard.read().then(function (items) {
+          var htmlPromise = Promise.resolve("");
+          var textPromise = Promise.resolve("");
+
+          items.some(function (item) {
+            if (item.types && item.types.indexOf("text/html") !== -1) {
+              htmlPromise = item.getType("text/html").then(function (blob) {
+                return blob.text();
+              });
+            }
+
+            if (item.types && item.types.indexOf("text/plain") !== -1) {
+              textPromise = item.getType("text/plain").then(function (blob) {
+                return blob.text();
+              });
+            }
+
+            return item.types && (item.types.indexOf("text/html") !== -1 || item.types.indexOf("text/plain") !== -1);
+          });
+
+          return Promise.all([htmlPromise, textPromise]).then(function (values) {
+            return {
+              html: values[0] || "",
+              text: values[1] || ""
+            };
+          });
+        }).catch(function () {
+          if (typeof clipboard.readText === "function") {
+            return clipboard.readText().then(function (text) {
+              return {
+                html: "",
+                text: text
+              };
+            });
+          }
+          throw new Error("Clipboard read failed.");
+        });
+      }
+
+      if (clipboard && typeof clipboard.readText === "function") {
+        return clipboard.readText().then(function (text) {
+          return {
+            html: "",
+            text: text
+          };
+        });
+      }
+
+      return Promise.reject(new Error("Clipboard API is not available."));
+    }
+
+    function pasteFromClipboard(savedSelection) {
+      return readClipboardData().then(function (data) {
+        var text = data.text || (data.html ? textFromHtml(data.html) : "");
+
+        if ((savedSelection && savedSelection.mode === "markdown") || context.getActiveMode() === "markdown") {
+          insertTextIntoTextarea(text, savedSelection);
+          return;
+        }
+
+        wysiwygEditor.focus();
+        restoreWysiwygSelection(savedSelection);
+        if (data.html) {
+          insertHtmlAtSelection(ME.markdown.sanitizePastedHtml(data.html), savedSelection);
+          return;
+        }
+
+        if (text) {
+          document.execCommand("insertText", false, text);
+          context.scheduleSyncFromWysiwyg();
+        }
+      });
+    }
+
+    function applyClipboardAction(action, savedSelection) {
+      if (action === "copy") {
+        return copySelectionToClipboard(savedSelection);
+      }
+
+      if (action === "cut") {
+        return cutSelectionToClipboard(savedSelection);
+      }
+
+      if (action === "paste") {
+        return pasteFromClipboard(savedSelection);
+      }
+
+      return Promise.resolve();
+    }
+
+    function insertHtmlAtSelection(html, savedSelection) {
+      var selection;
+      var range;
+
+      wysiwygEditor.focus();
+      restoreWysiwygSelection(savedSelection);
+      selection = window.getSelection();
+      range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+
+      if (shouldInsertHeadingHtmlAsText(range, html)) {
+        document.execCommand("insertText", false, textFromHtml(html));
+        context.scheduleSyncFromWysiwyg();
+        return;
+      }
+
       document.execCommand("insertHTML", false, html);
       context.scheduleSyncFromWysiwyg();
     }
@@ -497,6 +849,7 @@
     }
 
     return {
+      applyClipboardAction: applyClipboardAction,
       applyMarkdownFormat: applyMarkdownFormat,
       applyToolbarAction: applyToolbarAction,
       captureSelection: captureSelection,

@@ -116,3 +116,47 @@ runTest("converts rendered fenced code language info back to Markdown", function
 
   assert.equal(markdown.htmlToMarkdown(root), "```bash\nnpm test\n```");
 });
+
+runTest("renders escaped Markdown punctuation as literal WYSIWYG text", function () {
+  const html = markdown.renderMarkdown("\\# Heading\n\\*not emphasis\\*\n\\> quote\n1\\. not ordered");
+
+  assert.match(html, /# Heading/);
+  assert.match(html, /\*not emphasis\*/);
+  assert.match(html, /&gt; quote/);
+  assert.match(html, /1\. not ordered/);
+  assert.doesNotMatch(html, /<h1/);
+  assert.doesNotMatch(html, /<em>/);
+  assert.doesNotMatch(html, /<blockquote/);
+  assert.doesNotMatch(html, /<ol/);
+});
+
+runTest("escapes WYSIWYG literal Markdown markers when converting to source", function () {
+  const root = elementNode("div", {}, [
+    elementNode("p", {}, [textNode("# Heading")]),
+    elementNode("p", {}, [textNode("*not emphasis*")]),
+    elementNode("p", {}, [textNode("> quote")]),
+    elementNode("p", {}, [textNode("1. not ordered")])
+  ]);
+
+  assert.equal(markdown.htmlToMarkdown(root), "\\# Heading\n\n\\*not emphasis\\*\n\n\\> quote\n\n1\\. not ordered");
+});
+
+runTest("converts rendered nested lists back to indented Markdown", function () {
+  const nestedUnordered = elementNode("ul", {}, [
+    elementNode("li", {}, [textNode("Child")])
+  ]);
+  const unordered = elementNode("ul", {}, [
+    elementNode("li", {}, [textNode("Parent"), nestedUnordered]),
+    elementNode("li", {}, [textNode("Next")])
+  ]);
+  const nestedOrdered = elementNode("ol", {}, [
+    elementNode("li", {}, [textNode("Child")])
+  ]);
+  const ordered = elementNode("ol", {}, [
+    elementNode("li", {}, [textNode("Parent"), nestedOrdered]),
+    elementNode("li", {}, [textNode("Next")])
+  ]);
+  const root = elementNode("div", {}, [unordered, ordered]);
+
+  assert.equal(markdown.htmlToMarkdown(root), "- Parent\n  - Child\n- Next\n\n1. Parent\n  1. Child\n2. Next");
+});

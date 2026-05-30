@@ -202,6 +202,7 @@
       text = text.replace(/(\*\*|__)(.+?)\1/g, "$2");
       text = text.replace(/(^|[^\w*])\*([^*\n]+)\*/g, "$1$2");
       text = text.replace(/(^|[^\w_])_([^_\n]+)_/g, "$1$2");
+      text = text.replace(/\\([\\`*_{}\[\]()#\+\-.!|>])/g, "$1");
 
       return normalizeViewportText(text);
     }
