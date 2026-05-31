@@ -129,12 +129,16 @@ function runTest(name, callback) {
 function createSidebar(storage) {
   const root = createElement();
   const workspace = createElement();
+  const folderChanges = [];
 
   storage.values[workspaceSidebar.MODE_STORAGE_KEY] = "expanded";
   const sidebar = workspaceSidebar.create({
     rootElement: root,
     storage,
-    workspaceElement: workspace
+    workspaceElement: workspace,
+    onFolderStateChange(paths) {
+      folderChanges.push(paths);
+    }
   });
 
   sidebar.bindEvents();
@@ -150,7 +154,7 @@ function createSidebar(storage) {
     }
   });
 
-  return { root, sidebar };
+  return { folderChanges, root, sidebar };
 }
 
 runTest("collapses folders and persists relative paths per workspace", function () {
@@ -179,6 +183,34 @@ runTest("restores collapsed folders when the same workspace opens again", functi
 
   assert.deepEqual(view.sidebar.getCollapsedFolders(), ["docs"]);
   assert.doesNotMatch(view.root.innerHTML, /ai-agent\.md/);
+});
+
+runTest("applies collapsed folders from restored workspace session metadata", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.sidebar.setCollapsedFolders(["docs/archive", "plans"]);
+
+  assert.deepEqual(view.sidebar.getCollapsedFolders(), ["docs/archive", "plans"]);
+  assert.match(view.root.innerHTML, /ai-agent\.md/);
+  assert.doesNotMatch(view.root.innerHTML, /archive\.md/);
+  assert.doesNotMatch(view.root.innerHTML, /plan\.md/);
+  assert.deepEqual(JSON.parse(storage.values[workspaceSidebar.COLLAPSED_FOLDERS_STORAGE_KEY]), {
+    Project: ["docs/archive", "plans"]
+  });
+  assert.deepEqual(view.folderChanges[view.folderChanges.length - 1], ["docs/archive", "plans"]);
+});
+
+runTest("restored collapsed folders still reveal active file parents", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.sidebar.revealFile("docs/archive/archive.md");
+  view.sidebar.setCollapsedFolders(["docs", "docs/archive", "plans"]);
+
+  assert.deepEqual(view.sidebar.getCollapsedFolders(), ["plans"]);
+  assert.match(view.root.innerHTML, /archive\.md/);
+  assert.doesNotMatch(view.root.innerHTML, /plan\.md/);
 });
 
 runTest("revealing the active file expands collapsed parent folders", function () {

@@ -25,6 +25,7 @@ runTest("normalizes restorable session metadata", function () {
       { path: "README.md", mode: "wysiwyg", scrollTop: 10, softWrap: true },
       { path: "", mode: "markdown" }
     ],
+    collapsedFolders: ["docs", "plans/archive", "/absolute/path", "../outside", "notes\\drafts"],
     workspaceHandle: handle,
     workspaceName: "LocalDraftAI"
   });
@@ -33,6 +34,7 @@ runTest("normalizes restorable session metadata", function () {
   assert.equal(metadata.workspaceName, "LocalDraftAI");
   assert.equal(metadata.openedTabs.length, 1);
   assert.equal(metadata.openedTabs[0].title, "README.md");
+  assert.deepEqual(metadata.collapsedFolders, ["docs", "plans/archive", "notes/drafts"]);
 });
 
 runTest("queries permission state from stored handles", async function () {

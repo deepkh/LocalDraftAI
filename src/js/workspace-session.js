@@ -80,13 +80,33 @@
     };
   }
 
+  function normalizeCollapsedFolderPath(path) {
+    var raw = String(path || "").trim();
+    var parts;
+
+    if (!raw || raw.charAt(0) === "/" || /^[A-Za-z]:[\\/]/.test(raw)) {
+      return "";
+    }
+
+    parts = raw.replace(/\\/g, "/").split("/").filter(Boolean);
+    if (parts.some(function (part) {
+      return part === "." || part === "..";
+    })) {
+      return "";
+    }
+
+    return parts.join("/");
+  }
+
   function normalizeSessionMetadata(session) {
     var openedTabs = (session && session.openedTabs || []).map(normalizeTabMetadata).filter(function (tab) {
       return Boolean(tab.path);
     });
+    var collapsedFolders = (session && session.collapsedFolders || []).map(normalizeCollapsedFolderPath).filter(Boolean);
 
     return {
       activePath: String(session && session.activePath || ""),
+      collapsedFolders: collapsedFolders,
       openedTabs: openedTabs,
       savedAt: session && session.savedAt || Date.now(),
       workspaceHandle: session && session.workspaceHandle || null,

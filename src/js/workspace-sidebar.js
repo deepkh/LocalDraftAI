@@ -178,6 +178,7 @@
     var onRefresh = context.onRefresh || function () {};
     var onClose = context.onClose || function () {};
     var onContextAction = context.onContextAction || function () {};
+    var onFolderStateChange = context.onFolderStateChange || function () {};
     var onSearchContent = context.onSearchContent || function () {};
     var onRestoreAction = context.onRestoreAction || function () {};
     var state = {
@@ -256,6 +257,7 @@
       collapsedByWorkspace = readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY);
       collapsedByWorkspace[key] = pathsFromLookup(collapsedFolderPaths);
       writeJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY, collapsedByWorkspace);
+      onFolderStateChange(pathsFromLookup(collapsedFolderPaths));
     }
 
     function loadCollapsedFolders(rootName) {
@@ -311,6 +313,18 @@
         delete collapsedFolderPaths[path];
       });
       persistCollapsedFolders();
+      render();
+    }
+
+    function setCollapsedFolders(paths, options) {
+      options = options || {};
+      collapsedFolderPaths = lookupFromPaths(paths);
+      if (options.revealActive !== false) {
+        expandParentFolders(selectedPath, false);
+      }
+      if (options.persist !== false) {
+        persistCollapsedFolders();
+      }
       render();
     }
 
@@ -937,6 +951,7 @@
         render();
       },
       setDirtyPaths: setDirtyPaths,
+      setCollapsedFolders: setCollapsedFolders,
       setMode: setMode,
       setPanel: setPanel,
       setSelection: setSelection,

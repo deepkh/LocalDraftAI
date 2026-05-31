@@ -1449,6 +1449,9 @@
     activeSession = getActiveSession();
     workspaceSession.saveSession({
       activePath: sessionBelongsToWorkspace(activeSession) ? activeSession.workspacePath : "",
+      collapsedFolders: workspaceSidebar && typeof workspaceSidebar.getCollapsedFolders === "function"
+        ? workspaceSidebar.getCollapsedFolders()
+        : [],
       openedTabs: workspaceSessionTabs(),
       workspaceHandle: workspaceState.rootHandle,
       workspaceName: workspaceState.rootName
@@ -1762,6 +1765,9 @@
       result = await workspaceStore.scanWorkspace(restorableWorkspaceSession.workspaceHandle);
       result.workspaceId = "workspace-" + nextWorkspaceId++;
       applyWorkspaceScanResult(result);
+      if (workspaceSidebar && typeof workspaceSidebar.setCollapsedFolders === "function") {
+        workspaceSidebar.setCollapsedFolders(restorableWorkspaceSession.collapsedFolders || []);
+      }
       await restoreWorkspaceTabs(restorableWorkspaceSession);
       restorableWorkspaceSession = null;
       renderWorkspaceSidebar();
@@ -3954,6 +3960,7 @@
         onRefresh: handleRefreshWorkspace,
         onClose: handleCloseWorkspace,
         onRestoreAction: handleRestoreWorkspaceSession,
+        onFolderStateChange: scheduleWorkspaceSessionSave,
         onSearchContent: handleWorkspaceContentSearch
       });
       workspaceSidebar.bindEvents();

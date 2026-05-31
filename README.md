@@ -82,7 +82,7 @@ Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. Local
 
 The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Folders in the Files tree can also be collapsed or expanded; collapsed folder paths are saved per workspace using workspace-relative paths, and the active file's parent folders are revealed automatically. File-name filtering temporarily expands folders with matches without overwriting saved collapse state. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
-When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen workspace Markdown tabs, restore the active tab, and recover basic mode and scroll state. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
+When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen workspace Markdown tabs, restore the active tab, recover basic mode and scroll state, and restore the previous folder collapse state. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
 
 The sidebar has three views:
 
