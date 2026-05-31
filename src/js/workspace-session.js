@@ -4,9 +4,11 @@
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
 
   var DB_NAME = "localdraftai-workspace-session";
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var STORE_NAME = "sessions";
+  var RECENT_WORKSPACES_STORE_NAME = "recentWorkspaces";
   var CURRENT_KEY = "current";
+  var DEFAULT_MAX_RECENT_WORKSPACES = 10;
 
   function isSupported() {
     return typeof window.indexedDB !== "undefined";
@@ -28,6 +30,9 @@
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
+        if (!db.objectStoreNames.contains(RECENT_WORKSPACES_STORE_NAME)) {
+          db.createObjectStore(RECENT_WORKSPACES_STORE_NAME, { keyPath: "id", autoIncrement: true });
+        }
       };
       request.onsuccess = function () {
         resolve(request.result);
@@ -38,11 +43,11 @@
     });
   }
 
-  function withStore(mode, callback) {
+  function withNamedStore(storeName, mode, callback) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var transaction = db.transaction(STORE_NAME, mode);
-        var store = transaction.objectStore(STORE_NAME);
+        var transaction = db.transaction(storeName, mode);
+        var store = transaction.objectStore(storeName);
         var result;
 
         transaction.oncomplete = function () {
@@ -57,6 +62,10 @@
         result = callback(store);
       });
     });
+  }
+
+  function withStore(mode, callback) {
+    return withNamedStore(STORE_NAME, mode, callback);
   }
 
   function requestToPromise(request) {
@@ -123,6 +132,36 @@
     };
   }
 
+  function normalizeRecentWorkspaceRecord(record) {
+    var session = normalizeSessionMetadata({
+      activePath: record && record.activePath,
+      collapsedFolders: record && record.collapsedFolders,
+      openedTabs: record && record.openedTabs,
+      savedAt: record && record.savedAt,
+      sidebarScroll: record && record.sidebarScroll,
+      workspaceHandle: record && record.workspaceHandle,
+      workspaceName: record && (record.workspaceName || record.workspaceHandle && record.workspaceHandle.name)
+    });
+
+    return {
+      activePath: session.activePath,
+      collapsedFolders: session.collapsedFolders,
+      id: record && record.id,
+      lastOpened: Math.max(0, Number(record && record.lastOpened) || 0),
+      openedTabs: session.openedTabs,
+      savedAt: session.savedAt,
+      sidebarScroll: session.sidebarScroll,
+      workspaceHandle: session.workspaceHandle,
+      workspaceName: session.workspaceName
+    };
+  }
+
+  function sortRecentWorkspaceRecords(records) {
+    return (records || []).sort(function (left, right) {
+      return (right.lastOpened || 0) - (left.lastOpened || 0);
+    });
+  }
+
   function saveSession(session) {
     var normalized = normalizeSessionMetadata(session);
 
@@ -153,6 +192,145 @@
     });
   }
 
+  async function listRecentWorkspaces() {
+    var records;
+
+    if (!isSupported()) {
+      return [];
+    }
+
+    records = await withNamedStore(RECENT_WORKSPACES_STORE_NAME, "readonly", function (store) {
+      return requestToPromise(store.getAll());
+    });
+
+    return sortRecentWorkspaceRecords(records.map(normalizeRecentWorkspaceRecord).filter(function (record) {
+      return Boolean(record.workspaceHandle);
+    }));
+  }
+
+  async function removeRecentWorkspace(id) {
+    if (!isSupported()) {
+      return;
+    }
+
+    await withNamedStore(RECENT_WORKSPACES_STORE_NAME, "readwrite", function (store) {
+      return requestToPromise(store.delete(Number(id)));
+    });
+  }
+
+  async function pruneRecentWorkspaces(maxWorkspaces) {
+    var records = await listRecentWorkspaces();
+    var staleRecords = records.slice(Math.max(1, Number(maxWorkspaces) || DEFAULT_MAX_RECENT_WORKSPACES));
+    var i;
+
+    for (i = 0; i < staleRecords.length; i += 1) {
+      await removeRecentWorkspace(staleRecords[i].id);
+    }
+
+    return records.slice(0, Math.max(1, Number(maxWorkspaces) || DEFAULT_MAX_RECENT_WORKSPACES));
+  }
+
+  async function findMatchingRecentWorkspace(workspaceHandle) {
+    var records = await listRecentWorkspaces();
+    var i;
+
+    for (i = 0; i < records.length; i += 1) {
+      try {
+        if (
+          records[i].workspaceHandle &&
+          typeof records[i].workspaceHandle.isSameEntry === "function" &&
+          await records[i].workspaceHandle.isSameEntry(workspaceHandle)
+        ) {
+          return records[i];
+        }
+      } catch (error) {
+        await removeRecentWorkspace(records[i].id);
+      }
+    }
+
+    return null;
+  }
+
+  async function addRecentWorkspace(workspaceHandle, workspaceName, options) {
+    var maxWorkspaces = options && options.maxWorkspaces || DEFAULT_MAX_RECENT_WORKSPACES;
+    var existingRecord;
+    var record;
+    var sessionMetadata;
+
+    if (!isSupported() || !workspaceHandle) {
+      return [];
+    }
+
+    existingRecord = await findMatchingRecentWorkspace(workspaceHandle);
+    record = existingRecord || {};
+    if (options && options.session) {
+      sessionMetadata = normalizeSessionMetadata(options.session);
+      record.activePath = sessionMetadata.activePath;
+      record.collapsedFolders = sessionMetadata.collapsedFolders;
+      record.openedTabs = sessionMetadata.openedTabs;
+      record.savedAt = sessionMetadata.savedAt;
+      record.sidebarScroll = sessionMetadata.sidebarScroll;
+    }
+    record.workspaceHandle = workspaceHandle;
+    record.workspaceName = workspaceName || workspaceHandle.name || "Workspace";
+    record.lastOpened = Date.now();
+
+    await withNamedStore(RECENT_WORKSPACES_STORE_NAME, "readwrite", function (store) {
+      return requestToPromise(existingRecord ? store.put(record) : store.add(record));
+    });
+
+    return pruneRecentWorkspaces(maxWorkspaces);
+  }
+
+  async function saveRecentWorkspaceSession(session, options) {
+    var maxWorkspaces = options && options.maxWorkspaces || DEFAULT_MAX_RECENT_WORKSPACES;
+    var normalized = normalizeSessionMetadata(session);
+    var existingRecord;
+    var record;
+
+    if (!isSupported() || !normalized.workspaceHandle) {
+      return [];
+    }
+
+    existingRecord = await findMatchingRecentWorkspace(normalized.workspaceHandle);
+    record = existingRecord || {};
+    record.activePath = normalized.activePath;
+    record.collapsedFolders = normalized.collapsedFolders;
+    record.openedTabs = normalized.openedTabs;
+    record.savedAt = normalized.savedAt;
+    record.sidebarScroll = normalized.sidebarScroll;
+    record.workspaceHandle = normalized.workspaceHandle;
+    record.workspaceName = normalized.workspaceName;
+    record.lastOpened = record.lastOpened || Date.now();
+
+    await withNamedStore(RECENT_WORKSPACES_STORE_NAME, "readwrite", function (store) {
+      return requestToPromise(existingRecord ? store.put(record) : store.add(record));
+    });
+
+    return pruneRecentWorkspaces(maxWorkspaces);
+  }
+
+  async function openRecentWorkspace(record) {
+    var normalized = normalizeRecentWorkspaceRecord(record);
+    var permission;
+
+    if (!isSupported()) {
+      throw new Error("Recent workspaces are not supported in this browser.");
+    }
+
+    if (!normalized.workspaceHandle) {
+      throw new Error("Recent workspace entry was not found.");
+    }
+
+    permission = await requestWorkspacePermission(normalized.workspaceHandle, "read");
+    if (permission !== "granted") {
+      throw new Error("Permission was not granted for this workspace.");
+    }
+
+    normalized.workspaceName = normalized.workspaceHandle.name || normalized.workspaceName || "Workspace";
+    return normalized;
+  }
+
   async function queryWorkspacePermission(handle, mode) {
     if (!handle || typeof handle.queryPermission !== "function") {
       return "granted";
@@ -180,14 +358,20 @@
   }
 
   ME.workspaceSession = {
+    addRecentWorkspace: addRecentWorkspace,
     clearSession: clearSession,
     hasRestorableSession: hasRestorableSession,
     isSupported: isSupported,
+    listRecentWorkspaces: listRecentWorkspaces,
     loadSession: loadSession,
     normalizeSessionMetadata: normalizeSessionMetadata,
+    normalizeRecentWorkspaceRecord: normalizeRecentWorkspaceRecord,
     normalizeTabMetadata: normalizeTabMetadata,
+    openRecentWorkspace: openRecentWorkspace,
     queryWorkspacePermission: queryWorkspacePermission,
+    removeRecentWorkspace: removeRecentWorkspace,
     requestWorkspacePermission: requestWorkspacePermission,
+    saveRecentWorkspaceSession: saveRecentWorkspaceSession,
     saveSession: saveSession
   };
 }());

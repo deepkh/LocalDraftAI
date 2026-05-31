@@ -34,7 +34,7 @@ src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
 src/js/workspace-store.js    Local folder workspace scanning and Markdown file tree model
 src/js/workspace-sidebar.js  Left workspace sidebar rendering, persisted mode, and resizing
-src/js/workspace-session.js  IndexedDB workspace handle and opened-tab session restore
+src/js/workspace-session.js  IndexedDB workspace handle, recent workspaces, and opened-tab session restore
 src/js/workspace-operations.js Safe Markdown file/folder operations from the workspace sidebar
 src/js/workspace-search.js   Markdown workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
@@ -118,7 +118,8 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
 - The left workspace sidebar is a Markdown-focused browser for local folders; it lists `.md` and `.markdown` files, keeps non-Markdown files hidden, and opens workspace Markdown files in tabs.
 - The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, supports Files, Search, and Related views, and lets folders in the Files tree collapse or expand with workspace-relative persisted state.
-- Workspace session restore uses IndexedDB for the previous workspace handle, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. It must restore only after explicit user action and must not store full document contents for normal restore.
+- Workspace session restore uses IndexedDB for the previous workspace handle, up to 10 recent workspace handles, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. It must restore or reopen workspaces only after explicit user action and must not store full document contents for normal restore.
+- Switching to a different workspace removes Markdown tabs owned by the previous workspace from the tab bar while preserving lightweight restore metadata for that workspace. If any of those tabs are dirty, the user must confirm before the switch completes.
 - Workspace file operations must stay safe: New Markdown File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed; Delete is out of scope.
 - Workspace content search only scans `.md` and `.markdown` files and should cap matches to avoid runaway UI work.
 - Related files are simple rule-based context only: same folder, Markdown links, recently opened workspace files, and plan files. Do not add embeddings or AI context execution here.

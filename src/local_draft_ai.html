@@ -22,6 +22,13 @@
           <div id="workspaceMenu" class="ai-menu workspace-menu" role="menu" hidden>
             <button type="button" id="openWorkspaceFolder" role="menuitem">Open Folder</button>
             <button type="button" id="restoreWorkspace" role="menuitem">Restore Workspace</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <label class="menu-select-label" for="recentWorkspaces">Recent Workspaces</label>
+            <select id="recentWorkspaces" class="recent-select" title="Open or remove recent workspaces"
+              aria-label="Open or remove recent workspaces">
+              <option value="">No recent</option>
+            </select>
+            <div class="ai-menu-separator" role="separator"></div>
             <button type="button" id="refreshWorkspace" role="menuitem">Refresh Workspace</button>
             <button type="button" id="closeWorkspace" role="menuitem">Close Workspace</button>
             <div class="ai-menu-separator" role="separator"></div>

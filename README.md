@@ -31,7 +31,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
-- **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files with collapsible folders, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
+- **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files with collapsible folders, reopen recent workspaces, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -83,6 +83,10 @@ Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. Local
 The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Folders in the Files tree can also be collapsed or expanded; collapsed folder paths are saved per workspace using workspace-relative paths, and the active file's parent folders are revealed automatically. File-name filtering temporarily expands folders with matches without overwriting saved collapse state. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
 When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen workspace Markdown tabs, restore the active tab, recover basic mode and scroll state, and restore the previous folder collapse and sidebar scroll position. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
+
+The `Workspace` menu also remembers up to 10 recently opened workspaces. Use `Recent Workspaces` to reopen a folder from a date/time ordered list or remove an entry from the list. Reopening a recent workspace may ask for browser permission again before scanning the folder.
+
+When you switch to a different workspace, open Markdown tabs from the previous workspace are removed from the tab bar so the tab strip stays scoped to the active workspace. LocalDraftAI keeps their lightweight restore metadata, so reopening that workspace from `Recent Workspaces` can restore the same Markdown tabs. If any removed tabs have unsaved changes, LocalDraftAI asks before discarding those unsaved edits.
 
 The sidebar has three views:
 

@@ -16,6 +16,7 @@
 
   var tabs = null;
   var recentRecords = [];
+  var recentWorkspaceRecords = [];
   var focusModeEnabled = false;
   var syncTimer = 0;
   var wysiwygNeedsSync = false;
@@ -126,6 +127,7 @@
   var workspaceMenu = document.getElementById("workspaceMenu");
   var openWorkspaceFolderButton = document.getElementById("openWorkspaceFolder");
   var restoreWorkspaceButton = document.getElementById("restoreWorkspace");
+  var recentWorkspacesSelect = document.getElementById("recentWorkspaces");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
@@ -175,6 +177,7 @@
   var restorableWorkspaceSession = null;
   var recentlyOpenedWorkspacePaths = [];
   var workspaceSessionSaveTimer = 0;
+  var suppressWorkspaceSessionSave = false;
   var suppressNextTabClick = false;
   var tabDrag = {
     active: false,
@@ -1282,6 +1285,100 @@
     }
   }
 
+  function formatRecentWorkspaceTime(timestamp) {
+    var date = new Date(Number(timestamp) || 0);
+
+    if (!timestamp || Number.isNaN(date.getTime())) {
+      return "unknown time";
+    }
+
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: "short",
+        timeStyle: "short"
+      }).format(date);
+    } catch (error) {
+      return date.toLocaleString();
+    }
+  }
+
+  function renderRecentWorkspaces(records) {
+    var placeholder = document.createElement("option");
+    var openGroup;
+    var removeGroup;
+
+    if (!recentWorkspacesSelect) {
+      return;
+    }
+
+    recentWorkspaceRecords = records || [];
+    recentWorkspacesSelect.innerHTML = "";
+    placeholder.value = "";
+    placeholder.textContent = recentWorkspaceRecords.length ? "Recent" : "No recent";
+    recentWorkspacesSelect.appendChild(placeholder);
+
+    if (recentWorkspaceRecords.length) {
+      openGroup = document.createElement("optgroup");
+      openGroup.label = "Open";
+      removeGroup = document.createElement("optgroup");
+      removeGroup.label = "Remove from Recent";
+
+      recentWorkspaceRecords.forEach(function (record) {
+        var openOption = document.createElement("option");
+        var removeOption = document.createElement("option");
+        var name = record.workspaceName || "Workspace";
+        var openedAt = formatRecentWorkspaceTime(record.lastOpened);
+
+        openOption.value = "open:" + String(record.id);
+        openOption.textContent = name + " - " + openedAt;
+        openGroup.appendChild(openOption);
+
+        removeOption.value = "remove:" + String(record.id);
+        removeOption.textContent = "Remove " + name;
+        removeGroup.appendChild(removeOption);
+      });
+
+      recentWorkspacesSelect.appendChild(openGroup);
+      recentWorkspacesSelect.appendChild(removeGroup);
+    }
+
+    recentWorkspacesSelect.value = "";
+    recentWorkspacesSelect.disabled = !isWorkspaceSupported() || !recentWorkspaceRecords.length;
+  }
+
+  async function refreshRecentWorkspaces() {
+    if (!workspaceSession || !workspaceSession.isSupported || !workspaceSession.isSupported() || !workspaceSession.listRecentWorkspaces) {
+      renderRecentWorkspaces([]);
+      return;
+    }
+
+    try {
+      renderRecentWorkspaces(await workspaceSession.listRecentWorkspaces());
+    } catch (error) {
+      renderRecentWorkspaces([]);
+    }
+  }
+
+  async function addRecentWorkspace(workspaceHandle, workspaceName) {
+    if (
+      !workspaceSession ||
+      !workspaceSession.isSupported ||
+      !workspaceSession.isSupported() ||
+      !workspaceSession.addRecentWorkspace ||
+      !workspaceHandle
+    ) {
+      return;
+    }
+
+    try {
+      renderRecentWorkspaces(await workspaceSession.addRecentWorkspace(workspaceHandle, workspaceName, {
+        maxWorkspaces: 10
+      }));
+    } catch (error) {
+      await refreshRecentWorkspaces();
+    }
+  }
+
   function currentWorkspaceRootName() {
     return workspaceState.rootName || "";
   }
@@ -1400,6 +1497,9 @@
     if (restoreWorkspaceButton) {
       restoreWorkspaceButton.disabled = !restorableWorkspaceSession;
     }
+    if (recentWorkspacesSelect) {
+      recentWorkspacesSelect.disabled = !supported || !recentWorkspaceRecords.length;
+    }
     if (closeWorkspaceButton) {
       closeWorkspaceButton.disabled = !hasWorkspace;
     }
@@ -1439,15 +1539,15 @@
     });
   }
 
-  function saveCurrentWorkspaceSession() {
+  function currentWorkspaceSessionMetadata() {
     var activeSession;
 
-    if (!workspaceSession || !workspaceSession.isSupported || !workspaceSession.isSupported() || !workspaceState.rootHandle) {
-      return;
+    if (!workspaceState.rootHandle) {
+      return null;
     }
 
     activeSession = getActiveSession();
-    workspaceSession.saveSession({
+    return {
       activePath: sessionBelongsToWorkspace(activeSession) ? activeSession.workspacePath : "",
       collapsedFolders: workspaceSidebar && typeof workspaceSidebar.getCollapsedFolders === "function"
         ? workspaceSidebar.getCollapsedFolders()
@@ -1458,12 +1558,41 @@
         : null,
       workspaceHandle: workspaceState.rootHandle,
       workspaceName: workspaceState.rootName
-    }).catch(function () {
+    };
+  }
+
+  async function persistWorkspaceSessionMetadata(metadata, options) {
+    if (!workspaceSession || !workspaceSession.isSupported || !workspaceSession.isSupported() || !metadata) {
+      return;
+    }
+
+    options = options || {};
+    await workspaceSession.saveSession(metadata);
+    if (options.recent !== false && workspaceSession.saveRecentWorkspaceSession) {
+      await workspaceSession.saveRecentWorkspaceSession(metadata, {
+        maxWorkspaces: 10
+      });
+    }
+  }
+
+  function saveCurrentWorkspaceSession() {
+    var metadata;
+
+    if (suppressWorkspaceSessionSave) {
+      return;
+    }
+
+    metadata = currentWorkspaceSessionMetadata();
+    persistWorkspaceSessionMetadata(metadata).catch(function () {
       // Session restore is optional.
     });
   }
 
   function scheduleWorkspaceSessionSave() {
+    if (suppressWorkspaceSessionSave) {
+      return;
+    }
+
     window.clearTimeout(workspaceSessionSaveTimer);
     workspaceSessionSaveTimer = window.setTimeout(saveCurrentWorkspaceSession, 180);
   }
@@ -1629,6 +1758,137 @@
     updateWorkspaceMenuControls();
   }
 
+  async function isSameWorkspaceHandle(leftHandle, rightHandle) {
+    if (!leftHandle || !rightHandle) {
+      return false;
+    }
+    if (leftHandle === rightHandle) {
+      return true;
+    }
+    if (typeof leftHandle.isSameEntry === "function") {
+      try {
+        if (await leftHandle.isSameEntry(rightHandle)) {
+          return true;
+        }
+      } catch (error) {
+        // Try the other handle below before treating it as a different workspace.
+      }
+    }
+    if (typeof rightHandle.isSameEntry === "function") {
+      try {
+        return await rightHandle.isSameEntry(leftHandle);
+      } catch (error) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  async function closePreviousWorkspaceTabsForSwitch(nextRootHandle, options) {
+    var previousWorkspaceId = workspaceState.id;
+    var previousRootHandle = workspaceState.rootHandle;
+    var previousRootName = workspaceState.rootName || "the previous workspace";
+    var workspaceSessions;
+    var dirtySessions;
+    var activeSession;
+    var closedActiveSession;
+    var nextSession;
+
+    options = options || {};
+    if (!tabs || !previousWorkspaceId || !previousRootHandle || !nextRootHandle) {
+      return true;
+    }
+
+    if (await isSameWorkspaceHandle(previousRootHandle, nextRootHandle)) {
+      return true;
+    }
+
+    activeSession = getActiveSession();
+    if (activeSession && activeSession.workspaceId === previousWorkspaceId) {
+      flushActiveEditor();
+    }
+
+    workspaceSessions = tabs.listSessions().filter(function (session) {
+      return session.workspaceId === previousWorkspaceId && session.workspacePath;
+    });
+
+    if (!workspaceSessions.length) {
+      return true;
+    }
+
+    dirtySessions = workspaceSessions.filter(function (session) {
+      return session.dirty;
+    });
+
+    if (dirtySessions.length && !window.confirm(
+      "Close " + workspaceSessions.length + " open Markdown tab" + (workspaceSessions.length === 1 ? "" : "s") +
+      " from " + previousRootName + "?\n\n" +
+      dirtySessions.length + " tab" + (dirtySessions.length === 1 ? " has" : "s have") +
+      " unsaved changes that will be discarded."
+    )) {
+      focusActiveEditor();
+      return false;
+    }
+
+    await persistWorkspaceSessionMetadata(currentWorkspaceSessionMetadata()).catch(function () {
+      // Switching workspaces should continue even if optional restore metadata fails.
+    });
+
+    window.clearTimeout(workspaceSessionSaveTimer);
+    suppressWorkspaceSessionSave = true;
+    try {
+      closedActiveSession = Boolean(activeSession && workspaceSessions.some(function (session) {
+        return session.id === activeSession.id;
+      }));
+
+      workspaceSessions.forEach(function (session) {
+        revokeAssetObjectUrls(session);
+        tabs.closeSession(session.id);
+      });
+
+      if (!tabs.listSessions().length) {
+        if (options.deferEmptyTab) {
+          return true;
+        }
+
+        nextSession = createSession({
+          activeMode: activeSession ? activeSession.activeMode : getActiveMode(),
+          editorMode: activeSession ? activeSession.editorMode : getEditorMode(),
+          markdownText: "",
+          title: "Untitled.md"
+        });
+        tabs.addSession(nextSession, { activate: false });
+        setActiveSession(nextSession, { restoreScroll: false });
+        return true;
+      }
+
+      if (closedActiveSession || !tabs.getActiveSession()) {
+        setActiveSession(tabs.getActiveSession() || tabs.listSessions()[0], { restoreScroll: true });
+        return true;
+      }
+
+      renderTabs();
+      return true;
+    } finally {
+      suppressWorkspaceSessionSave = false;
+    }
+  }
+
+  async function assignWorkspaceIdForScanResult(result) {
+    if (
+      result &&
+      workspaceState.id &&
+      workspaceState.rootHandle &&
+      await isSameWorkspaceHandle(workspaceState.rootHandle, result.rootHandle)
+    ) {
+      result.workspaceId = workspaceState.id;
+      return result;
+    }
+
+    result.workspaceId = "workspace-" + nextWorkspaceId++;
+    return result;
+  }
+
   async function handleOpenWorkspaceFolder() {
     var result;
 
@@ -1647,9 +1907,13 @@
 
     try {
       result = await workspaceStore.openWorkspace();
-      result.workspaceId = "workspace-" + nextWorkspaceId++;
+      await assignWorkspaceIdForScanResult(result);
       restorableWorkspaceSession = null;
+      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle)) {
+        return;
+      }
       applyWorkspaceScanResult(result);
+      await addRecentWorkspace(result.rootHandle, result.rootName);
     } catch (error) {
       if (workspaceStore && workspaceStore.isAbortError(error)) {
         return;
@@ -1658,7 +1922,7 @@
     }
   }
 
-  async function restoreWorkspaceTabs(sessionData) {
+  async function restoreWorkspaceTabs(sessionData, options) {
     var openedTabs = sessionData.openedTabs || [];
     var restoredSessions = [];
     var activePath = sessionData.activePath || "";
@@ -1670,15 +1934,18 @@
     var session;
     var activeSession = null;
 
+    options = options || {};
     if (!openedTabs.length) {
       return;
     }
 
-    tabs.listSessions().forEach(function (existingSession) {
-      revokeAssetObjectUrls(existingSession);
-    });
-    if (typeof tabs.clearSessions === "function") {
-      tabs.clearSessions();
+    if (options.replaceAll !== false) {
+      tabs.listSessions().forEach(function (existingSession) {
+        revokeAssetObjectUrls(existingSession);
+      });
+      if (typeof tabs.clearSessions === "function") {
+        tabs.clearSessions();
+      }
     }
 
     for (i = 0; i < openedTabs.length; i += 1) {
@@ -1716,7 +1983,7 @@
       }
     }
 
-    if (!restoredSessions.length) {
+    if (!restoredSessions.length && options.replaceAll !== false) {
       session = createSession({
         editorMode: editorMode.readStoredEditorMode(),
         markdownText: "",
@@ -1727,7 +1994,9 @@
       return;
     }
 
-    setActiveSession(activeSession || restoredSessions[restoredSessions.length - 1], { restoreScroll: true });
+    if (restoredSessions.length) {
+      setActiveSession(activeSession || restoredSessions[restoredSessions.length - 1], { restoreScroll: true });
+    }
   }
 
   async function handleRestoreWorkspaceSession(action) {
@@ -1768,8 +2037,15 @@
       workspaceState.error = "";
       renderWorkspaceSidebar();
       result = await workspaceStore.scanWorkspace(restoredSession.workspaceHandle);
-      result.workspaceId = "workspace-" + nextWorkspaceId++;
+      await assignWorkspaceIdForScanResult(result);
+      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle)) {
+        workspaceState.isScanning = false;
+        renderWorkspaceSidebar();
+        updateWorkspaceMenuControls();
+        return;
+      }
       applyWorkspaceScanResult(result);
+      await addRecentWorkspace(result.rootHandle, result.rootName);
       if (workspaceSidebar && typeof workspaceSidebar.setCollapsedFolders === "function") {
         workspaceSidebar.setCollapsedFolders(restoredSession.collapsedFolders || []);
       }
@@ -1802,6 +2078,124 @@
       workspaceSidebar.setMode("expanded");
     }
     renderWorkspaceSidebar();
+  }
+
+  function findRecentWorkspaceRecord(id) {
+    var numericId = Number(id);
+    var i;
+
+    for (i = 0; i < recentWorkspaceRecords.length; i += 1) {
+      if (recentWorkspaceRecords[i].id === numericId) {
+        return recentWorkspaceRecords[i];
+      }
+    }
+
+    return null;
+  }
+
+  async function handleRecentWorkspaceOpen(recentId) {
+    var record = findRecentWorkspaceRecord(recentId);
+    var emptySession;
+    var openedRecord;
+    var result;
+
+    closeWorkspaceMenu();
+    if (!recentId || !record || !workspaceSession || !workspaceSession.openRecentWorkspace || !workspaceStore) {
+      return;
+    }
+
+    if (workspaceSidebar) {
+      workspaceSidebar.setMode("expanded");
+    }
+
+    try {
+      openedRecord = await workspaceSession.openRecentWorkspace(record);
+      workspaceState.isScanning = true;
+      workspaceState.error = "";
+      renderWorkspaceSidebar();
+      updateWorkspaceMenuControls();
+      result = await workspaceStore.scanWorkspace(openedRecord.workspaceHandle);
+      await assignWorkspaceIdForScanResult(result);
+      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle, {
+        deferEmptyTab: Boolean(openedRecord.openedTabs && openedRecord.openedTabs.length)
+      })) {
+        workspaceState.isScanning = false;
+        renderWorkspaceSidebar();
+        updateWorkspaceMenuControls();
+        return;
+      }
+      restorableWorkspaceSession = null;
+      applyWorkspaceScanResult(result);
+      await addRecentWorkspace(result.rootHandle, result.rootName);
+      if (workspaceSidebar && typeof workspaceSidebar.setCollapsedFolders === "function") {
+        workspaceSidebar.setCollapsedFolders(openedRecord.collapsedFolders || []);
+      }
+      await restoreWorkspaceTabs(openedRecord, { replaceAll: false });
+      if (!tabs.listSessions().length) {
+        emptySession = createSession({
+          editorMode: editorMode.readStoredEditorMode(),
+          markdownText: "",
+          title: "Untitled.md"
+        });
+        tabs.addSession(emptySession, { activate: false });
+        setActiveSession(emptySession, { restoreScroll: false });
+      }
+      renderWorkspaceSidebar();
+      if (workspaceSidebar && typeof workspaceSidebar.setScrollState === "function") {
+        workspaceSidebar.setScrollState(openedRecord.sidebarScroll);
+      }
+      scheduleWorkspaceSessionSave();
+    } catch (error) {
+      await refreshRecentWorkspaces();
+      showWorkspaceError("Could not open this recent workspace. Open the folder manually to continue.");
+    }
+  }
+
+  async function handleRecentWorkspaceRemove(recentId) {
+    var record = findRecentWorkspaceRecord(recentId);
+    var name = record ? record.workspaceName || "Workspace" : "this entry";
+
+    closeWorkspaceMenu();
+    if (!recentId || !record || !workspaceSession || !workspaceSession.removeRecentWorkspace) {
+      return;
+    }
+
+    if (!window.confirm("Remove " + name + " from Recent workspaces?")) {
+      return;
+    }
+
+    try {
+      await workspaceSession.removeRecentWorkspace(record.id);
+      await refreshRecentWorkspaces();
+    } catch (error) {
+      await refreshRecentWorkspaces();
+      showWorkspaceError("Could not remove this recent workspace.");
+    }
+  }
+
+  async function handleRecentWorkspaceChange() {
+    var value;
+    var parts;
+
+    if (!recentWorkspacesSelect) {
+      return;
+    }
+
+    value = recentWorkspacesSelect.value;
+    recentWorkspacesSelect.value = "";
+
+    if (!value) {
+      return;
+    }
+
+    parts = value.split(":");
+
+    if (parts[0] === "remove") {
+      await handleRecentWorkspaceRemove(parts[1]);
+      return;
+    }
+
+    await handleRecentWorkspaceOpen(parts[1]);
   }
 
   async function handleRefreshWorkspace() {
@@ -3521,6 +3915,9 @@
         handleRestoreWorkspaceSession("restore");
       });
     }
+    if (recentWorkspacesSelect) {
+      recentWorkspacesSelect.addEventListener("change", handleRecentWorkspaceChange);
+    }
     if (refreshWorkspaceButton) {
       refreshWorkspaceButton.addEventListener("click", handleRefreshWorkspace);
     }
@@ -4086,6 +4483,7 @@
     updateFileControls();
     renderWorkspaceSidebar();
     refreshRecentFiles();
+    refreshRecentWorkspaces();
     loadRestorableWorkspaceSession();
     focusActiveEditor();
   }
