@@ -135,6 +135,11 @@
       return getActiveSession();
     }
 
+    function clearSessions() {
+      sessions = [];
+      activeSessionId = null;
+    }
+
     function moveSession(sourceId, targetIndex) {
       var currentIndex;
       var session;
@@ -221,6 +226,7 @@
 
     return {
       addSession: addSession,
+      clearSessions: clearSessions,
       closeSession: closeSession,
       createUntitledSession: createUntitledSession,
       findSessionByFileHandle: findSessionByFileHandle,

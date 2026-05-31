@@ -7,10 +7,16 @@
 
   var MODE_STORAGE_KEY = "localdraftai.workspaceSidebar.mode";
   var WIDTH_STORAGE_KEY = "localdraftai.workspaceSidebar.width";
+  var PANEL_STORAGE_KEY = "localdraftai.workspaceSidebar.panel";
   var SIDEBAR_MODES = {
     EXPANDED: "expanded",
     HIDDEN: "hidden",
     MINIMIZED: "minimized"
+  };
+  var PANELS = {
+    FILES: "files",
+    RELATED: "related",
+    SEARCH: "search"
   };
   var DEFAULT_WIDTH = 280;
   var MIN_WIDTH = 220;
@@ -46,6 +52,14 @@
     return SIDEBAR_MODES.HIDDEN;
   }
 
+  function normalizePanel(panel) {
+    if (panel === PANELS.SEARCH || panel === PANELS.RELATED) {
+      return panel;
+    }
+
+    return PANELS.FILES;
+  }
+
   function normalizeWidth(width, viewportWidth) {
     var max = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.floor((viewportWidth || window.innerWidth || MAX_WIDTH) * 0.4)));
     var numericWidth = Number(width);
@@ -71,6 +85,12 @@
     return Boolean(nodes && nodes.length);
   }
 
+  function pathName(path) {
+    return ME.workspaceRelated && ME.workspaceRelated.basename
+      ? ME.workspaceRelated.basename(path)
+      : String(path || "").split("/").pop();
+  }
+
   function createSidebar(context) {
     var rootElement = context.rootElement;
     var resizerElement = context.resizerElement;
@@ -80,20 +100,37 @@
     var onOpenFolder = context.onOpenFolder || function () {};
     var onRefresh = context.onRefresh || function () {};
     var onClose = context.onClose || function () {};
+    var onContextAction = context.onContextAction || function () {};
+    var onSearchContent = context.onSearchContent || function () {};
+    var onRestoreAction = context.onRestoreAction || function () {};
     var state = {
+      directories: [],
       error: "",
       files: [],
       isScanning: false,
       isSupported: true,
+      restorePrompt: null,
       rootName: "",
+      search: {
+        error: "",
+        isSearching: false,
+        limited: false,
+        query: "",
+        results: []
+      },
+      related: null,
       tree: null
     };
     var selectedPath = "";
     var dirtyPaths = {};
-    var searchQuery = "";
+    var fileSearchQuery = "";
+    var contentSearchQuery = "";
+    var activePanel = normalizePanel(readStorage(storage, PANEL_STORAGE_KEY));
     var mode = normalizeMode(readStorage(storage, MODE_STORAGE_KEY));
     var width = normalizeWidth(readStorage(storage, WIDTH_STORAGE_KEY));
     var activePointerId = null;
+    var searchTimer = 0;
+    var contextMenu = null;
 
     function setGridWidth(nextWidth) {
       width = normalizeWidth(nextWidth);
@@ -120,6 +157,14 @@
       }
     }
 
+    function planBadge(node) {
+      if (!(node && (node.isPlan || (ME.workspaceRelated && ME.workspaceRelated.isPlanFile(node.path))))) {
+        return "";
+      }
+
+      return "<span class=\"workspace-plan-badge\">PLAN</span>";
+    }
+
     function renderTree(nodes, depth) {
       if (!nodes || !nodes.length) {
         return "";
@@ -139,7 +184,8 @@
         var button;
 
         if (isDirectory) {
-          button = "<div class=\"" + rowClass + "\"" + style + ">" +
+          button = "<div class=\"" + rowClass + "\"" + style + " data-workspace-folder-path=\"" +
+            escapeHtml(node.path || "") + "\" title=\"" + escapeHtml(node.path || "") + "\">" +
             "<span class=\"workspace-disclosure\" aria-hidden=\"true\">v</span>" +
             "<span class=\"workspace-tree-label\">" + label + "</span>" +
             "</div>";
@@ -150,6 +196,7 @@
           escapeHtml(node.path || "") + "\"" + style + " title=\"" + escapeHtml(node.path || "") + "\">" +
           "<span class=\"workspace-file-dot\" aria-hidden=\"true\"></span>" +
           "<span class=\"workspace-tree-label\">" + label + "</span>" +
+          planBadge(node) +
           dirty +
           "</button>";
       }).join("");
@@ -176,19 +223,172 @@
       return "<div class=\"workspace-empty\">No Markdown files found in this folder.</div>";
     }
 
-    function renderExpanded() {
+    function renderRestorePrompt() {
+      var prompt = state.restorePrompt;
+
+      if (!prompt || !prompt.workspaceName) {
+        return "";
+      }
+
+      return "<div class=\"workspace-restore-prompt\">" +
+        "<div class=\"workspace-restore-title\">Restore previous workspace \"" + escapeHtml(prompt.workspaceName) + "\"?</div>" +
+        "<div class=\"workspace-restore-actions\">" +
+        "<button type=\"button\" class=\"file-button\" data-workspace-restore=\"restore\">Restore Workspace</button>" +
+        "<button type=\"button\" class=\"file-button\" data-workspace-restore=\"different\">Open Different Folder</button>" +
+        "<button type=\"button\" class=\"file-button\" data-workspace-restore=\"skip\">Skip</button>" +
+        "</div>" +
+        "</div>";
+    }
+
+    function renderPanelTabs() {
+      return "<div class=\"workspace-panel-tabs\" role=\"tablist\" aria-label=\"Workspace views\">" +
+        ["files", "search", "related"].map(function (panel) {
+          var label = panel.charAt(0).toUpperCase() + panel.slice(1);
+          var active = panel === activePanel;
+
+          return "<button type=\"button\" class=\"workspace-panel-tab" + (active ? " is-active" : "") +
+            "\" data-workspace-panel=\"" + panel + "\" aria-selected=\"" + String(active) + "\">" + label + "</button>";
+        }).join("") +
+        "</div>";
+    }
+
+    function renderFilesPanel() {
       var filteredTree = ME.workspaceStore && ME.workspaceStore.filterTree
-        ? ME.workspaceStore.filterTree(state.tree || [], searchQuery)
+        ? ME.workspaceStore.filterTree(state.tree || [], fileSearchQuery)
         : state.tree || [];
       var body = treeHasNodes(filteredTree)
-        ? "<div class=\"workspace-tree\" role=\"tree\">" + renderTree(filteredTree, 0) + "</div>"
+        ? "<div class=\"workspace-tree\" role=\"tree\" data-workspace-root=\"true\">" + renderTree(filteredTree, 0) + "</div>"
         : emptyMessage();
+
+      return "<div class=\"workspace-search-wrap\">" +
+        "<input class=\"workspace-search workspace-file-search\" type=\"search\" placeholder=\"Search Markdown files...\" value=\"" +
+        escapeHtml(fileSearchQuery) + "\" aria-label=\"Search Markdown files\">" +
+        "</div>" +
+        "<div class=\"workspace-sidebar-body\" data-workspace-root=\"true\">" + body + "</div>";
+    }
+
+    function renderSearchResults() {
+      var search = state.search || {};
+
+      if (!state.rootName) {
+        return "<div class=\"workspace-empty\">Open a workspace to search Markdown content.</div>";
+      }
+      if (search.error) {
+        return "<div class=\"workspace-error\">" + escapeHtml(search.error) + "</div>";
+      }
+      if (search.isSearching) {
+        return "<div class=\"workspace-empty\">Searching Markdown content...</div>";
+      }
+      if (!contentSearchQuery.trim()) {
+        return "<div class=\"workspace-empty\">Search only scans .md and .markdown files in the current workspace.</div>";
+      }
+      if (!search.results || !search.results.length) {
+        return "<div class=\"workspace-empty\">No matches found.</div>";
+      }
+
+      return "<div class=\"workspace-content-results\">" +
+        search.results.map(function (result) {
+          return "<button type=\"button\" class=\"workspace-content-result\" data-workspace-search-path=\"" +
+            escapeHtml(result.path || "") + "\" data-workspace-search-line=\"" + String(result.line || 1) + "\">" +
+            "<span class=\"workspace-result-path\">" + escapeHtml(result.path || "") + "</span>" +
+            "<span class=\"workspace-result-preview\">line " + String(result.line || 1) + ": " +
+            escapeHtml(result.preview || "") + "</span>" +
+            "</button>";
+        }).join("") +
+        (search.limited ? "<div class=\"workspace-search-limit\">Showing first 100 matches.</div>" : "") +
+        "</div>";
+    }
+
+    function renderSearchPanel() {
+      return "<div class=\"workspace-search-wrap\">" +
+        "<input class=\"workspace-search workspace-content-search\" type=\"search\" placeholder=\"Search Markdown content...\" value=\"" +
+        escapeHtml(contentSearchQuery) + "\" aria-label=\"Search Markdown content\">" +
+        "</div>" +
+        "<div class=\"workspace-sidebar-body\">" + renderSearchResults() + "</div>";
+    }
+
+    function renderRelatedSection(title, items) {
+      if (!items || !items.length) {
+        return "<section class=\"workspace-related-section\"><h3>" + escapeHtml(title) + "</h3>" +
+          "<div class=\"workspace-related-empty\">None</div></section>";
+      }
+
+      return "<section class=\"workspace-related-section\"><h3>" + escapeHtml(title) + "</h3>" +
+        items.map(function (item) {
+          var disabled = item.exists === false;
+
+          return "<button type=\"button\" class=\"workspace-related-item" + (disabled ? " is-missing" : "") +
+            "\" data-workspace-related-path=\"" + escapeHtml(item.path || "") + "\"" +
+            (disabled ? " disabled" : "") + " title=\"" + escapeHtml(item.path || "") + "\">" +
+            "<span>" + escapeHtml(item.name || pathName(item.path)) + "</span>" +
+            (disabled ? "<span class=\"workspace-related-status\">not found</span>" : planBadge(item)) +
+            "</button>";
+        }).join("") +
+        "</section>";
+    }
+
+    function renderRelatedPanel() {
+      var related = state.related || {};
+
+      if (!state.rootName) {
+        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace to see related Markdown files.</div></div>";
+      }
+      if (!related.activePath) {
+        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace Markdown file to see related files.</div></div>";
+      }
+
+      return "<div class=\"workspace-sidebar-body\">" +
+        "<div class=\"workspace-related-current\"><span>Related to:</span><strong title=\"" +
+        escapeHtml(related.activePath || "") + "\">" + escapeHtml(related.activePath || "") + "</strong></div>" +
+        renderRelatedSection("Same folder", related.sameFolder) +
+        renderRelatedSection("Linked files", related.linked) +
+        renderRelatedSection("Recently opened", related.recent) +
+        renderRelatedSection("Plans", related.plans) +
+        "</div>";
+    }
+
+    function renderContextMenu() {
+      var actions;
+
+      if (!contextMenu) {
+        return "";
+      }
+
+      actions = contextMenu.kind === "file"
+        ? [
+          ["open", "Open"],
+          ["rename", "Rename"],
+          ["duplicate", "Duplicate"],
+          ["copy-path", "Copy Relative Path"],
+          ["reveal", "Reveal in Workspace"]
+        ]
+        : [
+          ["new-file", "New Markdown File"],
+          ["new-folder", "New Folder"],
+          ["refresh", "Refresh"]
+        ];
+
+      return "<div class=\"workspace-context-menu\" style=\"left:" + String(contextMenu.x) + "px;top:" +
+        String(contextMenu.y) + "px\" role=\"menu\">" +
+        actions.map(function (action) {
+          return "<button type=\"button\" role=\"menuitem\" data-workspace-context-action=\"" +
+            action[0] + "\">" + action[1] + "</button>";
+        }).join("") +
+        "</div>";
+    }
+
+    function renderExpanded() {
+      var panelHtml = activePanel === PANELS.SEARCH
+        ? renderSearchPanel()
+        : activePanel === PANELS.RELATED
+          ? renderRelatedPanel()
+          : renderFilesPanel();
 
       rootElement.innerHTML =
         "<div class=\"workspace-sidebar-header\">" +
         "<div class=\"workspace-sidebar-title-group\">" +
         "<div class=\"workspace-sidebar-title\">Workspace</div>" +
-        "<div class=\"workspace-sidebar-root\" title=\"" + escapeHtml(state.rootName || "") + "\">" +
+        "<div class=\"workspace-sidebar-root\" data-workspace-root=\"true\" title=\"" + escapeHtml(state.rootName || "") + "\">" +
         escapeHtml(state.rootName || "No folder") +
         "</div>" +
         "</div>" +
@@ -197,10 +397,10 @@
         "<button type=\"button\" class=\"workspace-sidebar-icon\" data-workspace-action=\"hide\" title=\"Hide sidebar\" aria-label=\"Hide sidebar\">x</button>" +
         "</div>" +
         "</div>" +
-        "<div class=\"workspace-search-wrap\">" +
-        "<input class=\"workspace-search\" type=\"search\" placeholder=\"Search Markdown files...\" value=\"" + escapeHtml(searchQuery) + "\" aria-label=\"Search Markdown files\">" +
-        "</div>" +
-        "<div class=\"workspace-sidebar-body\">" + body + "</div>";
+        renderRestorePrompt() +
+        renderPanelTabs() +
+        panelHtml +
+        renderContextMenu();
     }
 
     function renderMinimized() {
@@ -235,13 +435,24 @@
       render();
     }
 
+    function setPanel(nextPanel) {
+      activePanel = normalizePanel(nextPanel);
+      writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
+      contextMenu = null;
+      render();
+    }
+
     function setWorkspaceState(nextState) {
       state = {
+        directories: nextState && nextState.directories ? nextState.directories : [],
         error: nextState && nextState.error ? nextState.error : "",
         files: nextState && nextState.files ? nextState.files : [],
         isScanning: Boolean(nextState && nextState.isScanning),
         isSupported: nextState ? nextState.isSupported !== false : true,
+        restorePrompt: nextState && nextState.restorePrompt ? nextState.restorePrompt : null,
         rootName: nextState && nextState.rootName ? nextState.rootName : "",
+        search: nextState && nextState.search ? nextState.search : state.search,
+        related: nextState && nextState.related ? nextState.related : state.related,
         tree: nextState && nextState.tree ? nextState.tree : null
       };
       render();
@@ -261,11 +472,15 @@
       nextState = nextState || {};
       if (Object.prototype.hasOwnProperty.call(nextState, "workspaceState")) {
         state = {
+          directories: nextState.workspaceState && nextState.workspaceState.directories ? nextState.workspaceState.directories : [],
           error: nextState.workspaceState && nextState.workspaceState.error ? nextState.workspaceState.error : "",
           files: nextState.workspaceState && nextState.workspaceState.files ? nextState.workspaceState.files : [],
           isScanning: Boolean(nextState.workspaceState && nextState.workspaceState.isScanning),
           isSupported: nextState.workspaceState ? nextState.workspaceState.isSupported !== false : true,
+          restorePrompt: nextState.workspaceState && nextState.workspaceState.restorePrompt ? nextState.workspaceState.restorePrompt : null,
           rootName: nextState.workspaceState && nextState.workspaceState.rootName ? nextState.workspaceState.rootName : "",
+          search: nextState.workspaceState && nextState.workspaceState.search ? nextState.workspaceState.search : state.search,
+          related: nextState.workspaceState && nextState.workspaceState.related ? nextState.workspaceState.related : state.related,
           tree: nextState.workspaceState && nextState.workspaceState.tree ? nextState.workspaceState.tree : null
         };
       }
@@ -280,8 +495,38 @@
 
     function handleClick(event) {
       var actionElement = event.target.closest("[data-workspace-action]");
+      var restoreElement = event.target.closest("[data-workspace-restore]");
+      var panelElement = event.target.closest("[data-workspace-panel]");
+      var contextActionElement = event.target.closest("[data-workspace-context-action]");
+      var searchResultElement = event.target.closest("[data-workspace-search-path]");
+      var relatedElement = event.target.closest("[data-workspace-related-path]");
       var fileElement;
       var action;
+
+      if (contextActionElement && rootElement.contains(contextActionElement) && contextMenu) {
+        action = contextActionElement.getAttribute("data-workspace-context-action");
+        onContextAction(action, {
+          kind: contextMenu.kind,
+          name: contextMenu.name,
+          path: contextMenu.path
+        });
+        contextMenu = null;
+        render();
+        return;
+      }
+
+      contextMenu = null;
+
+      if (restoreElement && rootElement.contains(restoreElement)) {
+        onRestoreAction(restoreElement.getAttribute("data-workspace-restore"));
+        render();
+        return;
+      }
+
+      if (panelElement && rootElement.contains(panelElement)) {
+        setPanel(panelElement.getAttribute("data-workspace-panel"));
+        return;
+      }
 
       if (actionElement && rootElement.contains(actionElement)) {
         action = actionElement.getAttribute("data-workspace-action");
@@ -301,6 +546,18 @@
         return;
       }
 
+      if (searchResultElement && rootElement.contains(searchResultElement)) {
+        onOpenFile(searchResultElement.getAttribute("data-workspace-search-path"), {
+          line: Number(searchResultElement.getAttribute("data-workspace-search-line")) || 1
+        });
+        return;
+      }
+
+      if (relatedElement && rootElement.contains(relatedElement)) {
+        onOpenFile(relatedElement.getAttribute("data-workspace-related-path"));
+        return;
+      }
+
       fileElement = event.target.closest("[data-workspace-path]");
       if (fileElement && rootElement.contains(fileElement)) {
         onOpenFile(fileElement.getAttribute("data-workspace-path"));
@@ -311,19 +568,79 @@
       var nextInput;
       var selectionEnd;
 
-      if (!event.target.classList || !event.target.classList.contains("workspace-search")) {
+      if (!event.target.classList) {
         return;
       }
 
-      searchQuery = event.target.value || "";
-      selectionEnd = event.target.selectionEnd;
-      render();
-      nextInput = rootElement.querySelector(".workspace-search");
-      if (nextInput) {
-        nextInput.focus();
-        nextInput.selectionStart = typeof selectionEnd === "number" ? selectionEnd : searchQuery.length;
-        nextInput.selectionEnd = typeof selectionEnd === "number" ? selectionEnd : searchQuery.length;
+      if (event.target.classList.contains("workspace-file-search")) {
+        fileSearchQuery = event.target.value || "";
+        selectionEnd = event.target.selectionEnd;
+        render();
+        nextInput = rootElement.querySelector(".workspace-file-search");
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.selectionStart = typeof selectionEnd === "number" ? selectionEnd : fileSearchQuery.length;
+          nextInput.selectionEnd = typeof selectionEnd === "number" ? selectionEnd : fileSearchQuery.length;
+        }
+        return;
       }
+
+      if (event.target.classList.contains("workspace-content-search")) {
+        contentSearchQuery = event.target.value || "";
+        selectionEnd = event.target.selectionEnd;
+        state.search = {
+          error: "",
+          isSearching: Boolean(contentSearchQuery.trim()),
+          limited: false,
+          query: contentSearchQuery,
+          results: []
+        };
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(function () {
+          onSearchContent(contentSearchQuery);
+        }, 250);
+        render();
+        nextInput = rootElement.querySelector(".workspace-content-search");
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.selectionStart = typeof selectionEnd === "number" ? selectionEnd : contentSearchQuery.length;
+          nextInput.selectionEnd = typeof selectionEnd === "number" ? selectionEnd : contentSearchQuery.length;
+        }
+      }
+    }
+
+    function handleContextMenu(event) {
+      var fileElement = event.target.closest("[data-workspace-path]");
+      var folderElement = event.target.closest("[data-workspace-folder-path]");
+      var rootContext = event.target.closest("[data-workspace-root]");
+
+      if (!rootElement.contains(event.target) || !state.rootName) {
+        return;
+      }
+
+      if (!fileElement && !folderElement && !rootContext) {
+        return;
+      }
+
+      event.preventDefault();
+      if (fileElement) {
+        contextMenu = {
+          kind: "file",
+          name: pathName(fileElement.getAttribute("data-workspace-path")),
+          path: fileElement.getAttribute("data-workspace-path"),
+          x: event.clientX,
+          y: event.clientY
+        };
+      } else {
+        contextMenu = {
+          kind: "directory",
+          name: folderElement ? pathName(folderElement.getAttribute("data-workspace-folder-path")) : state.rootName,
+          path: folderElement ? folderElement.getAttribute("data-workspace-folder-path") : "",
+          x: event.clientX,
+          y: event.clientY
+        };
+      }
+      render();
     }
 
     function widthFromPointer(clientX) {
@@ -393,6 +710,13 @@
     function bindEvents() {
       rootElement.addEventListener("click", handleClick);
       rootElement.addEventListener("input", handleInput);
+      rootElement.addEventListener("contextmenu", handleContextMenu);
+      document.addEventListener("click", function (event) {
+        if (contextMenu && !rootElement.contains(event.target)) {
+          contextMenu = null;
+          render();
+        }
+      });
       bindResizeEvents();
       render();
     }
@@ -405,8 +729,16 @@
       getWidth: function () {
         return width;
       },
+      revealFile: function (path) {
+        selectedPath = path || selectedPath;
+        activePanel = PANELS.FILES;
+        fileSearchQuery = "";
+        writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
+        render();
+      },
       setDirtyPaths: setDirtyPaths,
       setMode: setMode,
+      setPanel: setPanel,
       setSelection: setSelection,
       setWorkspaceState: setWorkspaceState,
       update: update
@@ -418,9 +750,11 @@
     MINIMIZED_WIDTH: MINIMIZED_WIDTH,
     MIN_WIDTH: MIN_WIDTH,
     MODE_STORAGE_KEY: MODE_STORAGE_KEY,
+    PANEL_STORAGE_KEY: PANEL_STORAGE_KEY,
     WIDTH_STORAGE_KEY: WIDTH_STORAGE_KEY,
     create: createSidebar,
     normalizeMode: normalizeMode,
+    normalizePanel: normalizePanel,
     normalizeWidth: normalizeWidth
   };
 }());

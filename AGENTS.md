@@ -34,6 +34,10 @@ src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
 src/js/workspace-store.js    Local folder workspace scanning and Markdown file tree model
 src/js/workspace-sidebar.js  Left workspace sidebar rendering, persisted mode, and resizing
+src/js/workspace-session.js  IndexedDB workspace handle and opened-tab session restore
+src/js/workspace-operations.js Safe Markdown file/folder operations from the workspace sidebar
+src/js/workspace-search.js   Markdown workspace content search helpers
+src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Local image workspace/assets handling
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         AI action definitions and transforms
@@ -79,10 +83,14 @@ Use these routes:
   - `.agents/skills/file-access.md`
   - `src/js/file-store.js`
   - `src/js/recent-files.js`
-- Workspace sidebar, folder open, Markdown file tree, workspace sidebar sizing/state:
+- Workspace sidebar, folder open, Markdown file tree, session restore, Markdown operations, content search, related files, workspace sidebar sizing/state:
   - `.agents/skills/workspace-sidebar.md`
   - `src/js/workspace-store.js`
   - `src/js/workspace-sidebar.js`
+  - `src/js/workspace-session.js`
+  - `src/js/workspace-operations.js`
+  - `src/js/workspace-search.js`
+  - `src/js/workspace-related.js`
   - `src/js/app.js`
   - `src/styles.css`
 - Images and workspace assets:
@@ -108,8 +116,13 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 ## Behavior Notes
 
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
-- The left workspace sidebar is a Markdown-focused browser for local folders; Phase 1 only lists `.md` and `.markdown` files and opens them in tabs.
-- The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, and does not implement file create/rename/delete/move.
+- The left workspace sidebar is a Markdown-focused browser for local folders; it lists `.md` and `.markdown` files, keeps non-Markdown files hidden, and opens workspace Markdown files in tabs.
+- The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, and supports Files, Search, and Related views.
+- Workspace session restore uses IndexedDB for the previous workspace handle and lightweight opened-tab metadata. It must restore only after explicit user action and must not store full document contents for normal restore.
+- Workspace file operations must stay safe: New Markdown File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed; Delete is out of scope.
+- Workspace content search only scans `.md` and `.markdown` files and should cap matches to avoid runaway UI work.
+- Related files are simple rule-based context only: same folder, Markdown links, recently opened workspace files, and plan files. Do not add embeddings or AI context execution here.
+- Plan badges use simple filename/path rules and must not imply any agent execution feature.
 - WYSIWYG mode supports rich HTML paste.
 - The editor right-click menu should include Cut, Copy, and Paste; Markdown mode uses plain text, while WYSIWYG mode should preserve rich HTML clipboard data when the browser allows it.
 - Markdown mode should accept plain Markdown text.

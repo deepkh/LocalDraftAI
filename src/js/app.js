@@ -5,6 +5,10 @@
   var markdown = ME.markdown;
   var fileStore = ME.fileStore;
   var workspaceStore = ME.workspaceStore;
+  var workspaceSession = ME.workspaceSession;
+  var workspaceOperations = ME.workspaceOperations;
+  var workspaceSearch = ME.workspaceSearch;
+  var workspaceRelated = ME.workspaceRelated;
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
@@ -141,6 +145,7 @@
   var workspaceSidebar;
   var nextWorkspaceId = 1;
   var workspaceState = {
+    directories: [],
     id: "",
     rootHandle: null,
     rootName: "",
@@ -149,6 +154,16 @@
     isScanning: false,
     error: ""
   };
+  var workspaceContentSearchState = {
+    error: "",
+    isSearching: false,
+    limited: false,
+    query: "",
+    results: []
+  };
+  var restorableWorkspaceSession = null;
+  var recentlyOpenedWorkspacePaths = [];
+  var workspaceSessionSaveTimer = 0;
   var suppressNextTabClick = false;
   var tabDrag = {
     active: false,
@@ -864,6 +879,7 @@
     softWrapEnabled = !softWrapEnabled;
     editorMode.storeSoftWrap(softWrapEnabled);
     applySoftWrapState();
+    scheduleWorkspaceSessionSave();
   }
 
   function setActiveSession(session, options) {
@@ -905,6 +921,7 @@
     activeSession.history.updateControls();
     updateDocumentTitle();
     renderTabs();
+    scheduleWorkspaceSessionSave();
 
     window.requestAnimationFrame(function () {
       if (options.restoreScroll) {
@@ -967,6 +984,9 @@
       activeSession.dirty = false;
       updateDocumentTitle();
       renderTabs();
+    } else if (sessionBelongsToWorkspace(activeSession)) {
+      renderWorkspaceSidebar();
+      scheduleWorkspaceSessionSave();
     }
   }
 
@@ -1081,6 +1101,7 @@
     activeSession.activeMode = normalized;
     activeSession.activeEditorSource = normalized;
     editorMode.storeEditorMode(normalized);
+    scheduleWorkspaceSessionSave();
 
     if (normalized === EDITOR_MODES.MARKDOWN) {
       markdownEditor.value = activeSession.markdownText || "";
@@ -1284,6 +1305,21 @@
     return sessionBelongsToWorkspace(session) ? session.workspacePath : "";
   }
 
+  function relatedWorkspaceView() {
+    var session = getActiveSession();
+
+    if (!workspaceRelated || !sessionBelongsToWorkspace(session)) {
+      return null;
+    }
+
+    return workspaceRelated.getRelatedFiles({
+      activePath: session.workspacePath,
+      files: workspaceState.files,
+      markdownText: session.markdownText,
+      recentPaths: recentlyOpenedWorkspacePaths
+    });
+  }
+
   function renderWorkspaceSidebar() {
     if (!workspaceSidebar) {
       return;
@@ -1293,11 +1329,17 @@
       dirtyPaths: workspaceDirtyPaths(),
       selectedPath: selectedWorkspacePath(),
       workspaceState: {
+        directories: workspaceState.directories,
         error: workspaceState.error,
         files: workspaceState.files,
         isScanning: workspaceState.isScanning,
         isSupported: isWorkspaceSupported(),
+        related: relatedWorkspaceView(),
+        restorePrompt: restorableWorkspaceSession ? {
+          workspaceName: restorableWorkspaceSession.workspaceName
+        } : null,
         rootName: workspaceState.rootName,
+        search: workspaceContentSearchState,
         tree: workspaceState.tree
       }
     });
@@ -1319,6 +1361,57 @@
     if (closeWorkspaceButton) {
       closeWorkspaceButton.disabled = !hasWorkspace;
     }
+  }
+
+  function workspaceSessionTabs() {
+    var activeSession = getActiveSession();
+
+    if (!tabs || !workspaceState.rootHandle) {
+      return [];
+    }
+
+    if (activeSession) {
+      saveActiveEditorState(activeSession);
+    }
+
+    return tabs.listSessions().filter(function (session) {
+      return session.workspaceId === workspaceState.id && session.workspacePath;
+    }).map(function (session) {
+      var mode = editorMode.normalizeEditorMode(session.editorMode || session.activeMode);
+
+      return {
+        mode: mode,
+        path: session.workspacePath,
+        scrollTop: mode === EDITOR_MODES.MARKDOWN
+          ? session.markdownScrollTop || 0
+          : session.wysiwygScrollTop || 0,
+        softWrap: softWrapEnabled,
+        title: session.title || session.workspacePath
+      };
+    });
+  }
+
+  function saveCurrentWorkspaceSession() {
+    var activeSession;
+
+    if (!workspaceSession || !workspaceSession.isSupported || !workspaceSession.isSupported() || !workspaceState.rootHandle) {
+      return;
+    }
+
+    activeSession = getActiveSession();
+    workspaceSession.saveSession({
+      activePath: sessionBelongsToWorkspace(activeSession) ? activeSession.workspacePath : "",
+      openedTabs: workspaceSessionTabs(),
+      workspaceHandle: workspaceState.rootHandle,
+      workspaceName: workspaceState.rootName
+    }).catch(function () {
+      // Session restore is optional.
+    });
+  }
+
+  function scheduleWorkspaceSessionSave() {
+    window.clearTimeout(workspaceSessionSaveTimer);
+    workspaceSessionSaveTimer = window.setTimeout(saveCurrentWorkspaceSession, 180);
   }
 
   function closeWorkspaceMenu() {
@@ -1360,6 +1453,7 @@
 
   function resetWorkspaceState() {
     workspaceState = {
+      directories: [],
       id: "",
       rootHandle: null,
       rootName: "",
@@ -1368,12 +1462,21 @@
       isScanning: false,
       error: ""
     };
+    workspaceContentSearchState = {
+      error: "",
+      isSearching: false,
+      limited: false,
+      query: "",
+      results: []
+    };
+    recentlyOpenedWorkspacePaths = [];
     renderWorkspaceSidebar();
     updateWorkspaceMenuControls();
   }
 
   function applyWorkspaceScanResult(result) {
     workspaceState = {
+      directories: result.directories || [],
       id: result.workspaceId || workspaceState.id || "workspace-" + nextWorkspaceId++,
       rootHandle: result.rootHandle,
       rootName: result.rootName,
@@ -1384,6 +1487,7 @@
     };
     renderWorkspaceSidebar();
     updateWorkspaceMenuControls();
+    scheduleWorkspaceSessionSave();
   }
 
   function showWorkspaceError(message) {
@@ -1412,6 +1516,7 @@
     try {
       result = await workspaceStore.openWorkspace();
       result.workspaceId = "workspace-" + nextWorkspaceId++;
+      restorableWorkspaceSession = null;
       applyWorkspaceScanResult(result);
     } catch (error) {
       if (workspaceStore && workspaceStore.isAbortError(error)) {
@@ -1419,6 +1524,144 @@
       }
       showWorkspaceError("Could not read this workspace. Please open the folder again.");
     }
+  }
+
+  async function restoreWorkspaceTabs(sessionData) {
+    var openedTabs = sessionData.openedTabs || [];
+    var restoredSessions = [];
+    var activePath = sessionData.activePath || "";
+    var i;
+    var tabData;
+    var fileItem;
+    var file;
+    var markdownText;
+    var session;
+    var activeSession = null;
+
+    if (!openedTabs.length) {
+      return;
+    }
+
+    tabs.listSessions().forEach(function (existingSession) {
+      revokeAssetObjectUrls(existingSession);
+    });
+    if (typeof tabs.clearSessions === "function") {
+      tabs.clearSessions();
+    }
+
+    for (i = 0; i < openedTabs.length; i += 1) {
+      tabData = openedTabs[i];
+      fileItem = findWorkspaceFile(tabData.path);
+      if (!fileItem || !fileItem.handle) {
+        continue;
+      }
+
+      try {
+        file = await fileItem.handle.getFile();
+        markdownText = await file.text();
+        session = createSession({
+          activeMode: tabData.mode,
+          editorMode: tabData.mode,
+          fileHandle: fileItem.handle,
+          markdownScrollTop: tabData.mode === EDITOR_MODES.MARKDOWN ? tabData.scrollTop : 0,
+          markdownText: markdownText,
+          title: fileItem.name,
+          workspaceDirHandle: workspaceState.rootHandle,
+          workspaceFileHandle: fileItem.handle,
+          workspaceId: workspaceState.id,
+          workspacePath: fileItem.path,
+          workspaceRootName: workspaceState.rootName,
+          wysiwygScrollTop: tabData.mode === EDITOR_MODES.WYSIWYG ? tabData.scrollTop : 0
+        });
+        tabs.addSession(session, { activate: false });
+        restoredSessions.push(session);
+        rememberWorkspacePath(fileItem.path);
+        if (fileItem.path === activePath) {
+          activeSession = session;
+        }
+      } catch (error) {
+        // Skip missing or unreadable files during session restore.
+      }
+    }
+
+    if (!restoredSessions.length) {
+      session = createSession({
+        editorMode: editorMode.readStoredEditorMode(),
+        markdownText: "",
+        title: "Untitled.md"
+      });
+      tabs.addSession(session, { activate: false });
+      setActiveSession(session, { restoreScroll: false });
+      return;
+    }
+
+    setActiveSession(activeSession || restoredSessions[restoredSessions.length - 1], { restoreScroll: true });
+  }
+
+  async function handleRestoreWorkspaceSession(action) {
+    var permission;
+    var result;
+
+    if (action === "skip") {
+      restorableWorkspaceSession = null;
+      renderWorkspaceSidebar();
+      return;
+    }
+
+    if (action === "different") {
+      restorableWorkspaceSession = null;
+      renderWorkspaceSidebar();
+      await handleOpenWorkspaceFolder();
+      return;
+    }
+
+    if (!restorableWorkspaceSession || !workspaceSession) {
+      return;
+    }
+
+    if (workspaceSidebar) {
+      workspaceSidebar.setMode("expanded");
+    }
+
+    try {
+      permission = await workspaceSession.requestWorkspacePermission(restorableWorkspaceSession.workspaceHandle, "read");
+      if (permission !== "granted") {
+        showWorkspaceError("Permission was not granted. Open the workspace folder manually to continue.");
+        return;
+      }
+
+      workspaceState.isScanning = true;
+      workspaceState.error = "";
+      renderWorkspaceSidebar();
+      result = await workspaceStore.scanWorkspace(restorableWorkspaceSession.workspaceHandle);
+      result.workspaceId = "workspace-" + nextWorkspaceId++;
+      applyWorkspaceScanResult(result);
+      await restoreWorkspaceTabs(restorableWorkspaceSession);
+      restorableWorkspaceSession = null;
+      renderWorkspaceSidebar();
+      scheduleWorkspaceSessionSave();
+    } catch (error) {
+      showWorkspaceError("Could not restore this workspace. Open the folder manually to continue.");
+    }
+  }
+
+  async function loadRestorableWorkspaceSession() {
+    var sessionData;
+
+    if (!workspaceSession || !workspaceSession.isSupported || !workspaceSession.isSupported()) {
+      return;
+    }
+
+    sessionData = await workspaceSession.loadSession();
+    if (!sessionData || !sessionData.workspaceHandle) {
+      return;
+    }
+
+    restorableWorkspaceSession = sessionData;
+    if (workspaceSidebar) {
+      workspaceSidebar.setMode("expanded");
+    }
+    renderWorkspaceSidebar();
   }
 
   async function handleRefreshWorkspace() {
@@ -1442,9 +1685,250 @@
     }
   }
 
+  async function handleWorkspaceContentSearch(query) {
+    var searchQuery = String(query || "");
+    var result;
+
+    if (!workspaceSearch || !workspaceState.rootHandle || !searchQuery.trim()) {
+      workspaceContentSearchState = {
+        error: "",
+        isSearching: false,
+        limited: false,
+        query: searchQuery,
+        results: []
+      };
+      renderWorkspaceSidebar();
+      return;
+    }
+
+    workspaceContentSearchState = {
+      error: "",
+      isSearching: true,
+      limited: false,
+      query: searchQuery,
+      results: []
+    };
+    renderWorkspaceSidebar();
+
+    try {
+      result = await workspaceSearch.searchFiles(workspaceState.files, searchQuery, {
+        maxMatchesPerFile: 5,
+        maxResults: 100
+      });
+      if (workspaceContentSearchState.query !== searchQuery) {
+        return;
+      }
+      workspaceContentSearchState = {
+        error: "",
+        isSearching: false,
+        limited: result.limited,
+        query: result.query,
+        results: result.results
+      };
+      renderWorkspaceSidebar();
+    } catch (error) {
+      workspaceContentSearchState = {
+        error: "Search failed. Please refresh the workspace and try again.",
+        isSearching: false,
+        limited: false,
+        query: searchQuery,
+        results: []
+      };
+      renderWorkspaceSidebar();
+    }
+  }
+
+  function workspaceFileSession(path) {
+    return findSessionByWorkspacePath(path);
+  }
+
+  async function refreshWorkspaceAfterOperation(openPath) {
+    await handleRefreshWorkspace();
+    if (openPath) {
+      await openWorkspaceFile(openPath);
+    }
+    scheduleWorkspaceSessionSave();
+  }
+
+  async function handleWorkspaceNewMarkdownFile(target) {
+    var name = window.prompt("New Markdown file name", "Untitled.md");
+    var validation;
+    var allowNonMarkdown = false;
+    var result;
+
+    if (name == null || !workspaceOperations) {
+      return;
+    }
+
+    validation = workspaceOperations.validateFileName(name, { enforceMarkdownExtension: true });
+    if (!validation.ok && validation.reason === "nonMarkdownExtension") {
+      allowNonMarkdown = window.confirm("This file does not use a Markdown extension. Create it anyway? It will not appear in the Markdown workspace tree.");
+    } else if (!validation.ok) {
+      window.alert(validation.message);
+      return;
+    }
+
+    try {
+      result = await workspaceOperations.createMarkdownFile({
+        allowNonMarkdownExtension: allowNonMarkdown,
+        directoryPath: target && target.path || "",
+        initialText: "",
+        name: name,
+        rootHandle: workspaceState.rootHandle
+      });
+      await refreshWorkspaceAfterOperation(result.path);
+    } catch (error) {
+      showFileError("New Markdown file", error);
+    }
+  }
+
+  async function handleWorkspaceNewFolder(target) {
+    var name = window.prompt("New folder name", "notes");
+    var result;
+
+    if (name == null || !workspaceOperations) {
+      return;
+    }
+
+    try {
+      result = await workspaceOperations.createFolder({
+        directoryPath: target && target.path || "",
+        name: name,
+        rootHandle: workspaceState.rootHandle
+      });
+      await refreshWorkspaceAfterOperation();
+      if (workspaceSidebar && result.path) {
+        workspaceSidebar.revealFile(result.path);
+      }
+    } catch (error) {
+      showFileError("New folder", error);
+    }
+  }
+
+  async function handleWorkspaceDuplicateFile(target) {
+    var fileItem = findWorkspaceFile(target && target.path);
+    var suggested;
+    var name;
+    var result;
+
+    if (!fileItem || !workspaceOperations) {
+      return;
+    }
+
+    suggested = workspaceRelated && workspaceRelated.basename
+      ? workspaceRelated.basename(workspaceOperations.suggestedDuplicateName(fileItem.path))
+      : fileItem.name.replace(/(\.[^.]+)$/i, " copy$1");
+    name = window.prompt("Duplicate as", suggested);
+    if (name == null) {
+      return;
+    }
+
+    try {
+      result = await workspaceOperations.duplicateMarkdownFile({
+        fileHandle: fileItem.handle,
+        name: name,
+        path: fileItem.path,
+        rootHandle: workspaceState.rootHandle
+      });
+      await refreshWorkspaceAfterOperation(result.path);
+    } catch (error) {
+      showFileError("Duplicate Markdown file", error);
+    }
+  }
+
+  async function handleWorkspaceRenameFile(target) {
+    var fileItem = findWorkspaceFile(target && target.path);
+    var session = workspaceFileSession(target && target.path);
+    var name;
+    var result;
+
+    if (!fileItem || !workspaceOperations) {
+      return;
+    }
+    if (session && session.dirty) {
+      window.alert("Save or close unsaved changes before renaming this file.");
+      return;
+    }
+
+    name = window.prompt("Rename Markdown file", fileItem.name);
+    if (name == null) {
+      return;
+    }
+
+    try {
+      result = await workspaceOperations.renameMarkdownFile({
+        fileHandle: fileItem.handle,
+        name: name,
+        path: fileItem.path,
+        rootHandle: workspaceState.rootHandle
+      });
+      if (session && !result.unchanged) {
+        session.fileHandle = result.fileHandle;
+        session.workspaceFileHandle = result.fileHandle;
+        session.title = result.name;
+        session.workspacePath = result.path;
+      }
+      await refreshWorkspaceAfterOperation(result.path);
+      renderTabs();
+      updateDocumentTitle();
+    } catch (error) {
+      showFileError("Rename Markdown file", error);
+    }
+  }
+
+  async function handleWorkspaceCopyPath(target) {
+    if (!workspaceOperations || !(target && target.path)) {
+      return;
+    }
+
+    try {
+      await workspaceOperations.copyRelativePath(target.path);
+    } catch (error) {
+      showClipboardError("Copy relative path", error);
+    }
+  }
+
+  async function handleWorkspaceContextAction(action, target) {
+    if (action === "refresh") {
+      await handleRefreshWorkspace();
+      return;
+    }
+    if (action === "open" && target && target.path) {
+      await openWorkspaceFile(target.path);
+      return;
+    }
+    if (action === "reveal" && workspaceSidebar && target && target.path) {
+      workspaceSidebar.revealFile(target.path);
+      return;
+    }
+    if (action === "copy-path") {
+      await handleWorkspaceCopyPath(target);
+      return;
+    }
+    if (action === "new-file") {
+      await handleWorkspaceNewMarkdownFile(target);
+      return;
+    }
+    if (action === "new-folder") {
+      await handleWorkspaceNewFolder(target);
+      return;
+    }
+    if (action === "duplicate") {
+      await handleWorkspaceDuplicateFile(target);
+      return;
+    }
+    if (action === "rename") {
+      await handleWorkspaceRenameFile(target);
+    }
+  }
+
   function handleCloseWorkspace() {
     closeWorkspaceMenu();
     resetWorkspaceState();
+    restorableWorkspaceSession = null;
+    if (workspaceSession && workspaceSession.clearSession) {
+      workspaceSession.clearSession().catch(function () {});
+    }
   }
 
   async function attachCurrentWorkspacePath(session) {
@@ -1483,13 +1967,49 @@
     return true;
   }
 
-  async function openWorkspaceFile(path) {
+  function rememberWorkspacePath(path) {
+    if (!path) {
+      return;
+    }
+
+    recentlyOpenedWorkspacePaths = [path].concat(recentlyOpenedWorkspacePaths.filter(function (item) {
+      return item !== path;
+    })).slice(0, 12);
+  }
+
+  function jumpToWorkspaceLine(line) {
+    var targetLine = Math.max(1, Number(line) || 1);
+    var lines;
+    var offset;
+    var element;
+
+    window.requestAnimationFrame(function () {
+      if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+        lines = markdownEditor.value.split("\n");
+        offset = editorMode.getOffsetFromLineColumn(markdownEditor.value, Math.min(targetLine - 1, lines.length - 1), 0);
+        markdownEditor.focus();
+        markdownEditor.selectionStart = offset;
+        markdownEditor.selectionEnd = offset;
+        markdownEditor.scrollTop = Math.max(0, Math.floor((targetLine - 1) / Math.max(lines.length, 1) * markdownEditor.scrollHeight) - 80);
+        return;
+      }
+
+      element = wysiwygEditor.querySelector("[data-md-line=\"" + String(targetLine - 1) + "\"]");
+      if (element && typeof element.scrollIntoView === "function") {
+        element.scrollIntoView({ block: "center" });
+      }
+      wysiwygEditor.focus();
+    });
+  }
+
+  async function openWorkspaceFile(path, options) {
     var fileItem = findWorkspaceFile(path);
     var existingSession;
     var file;
     var markdownText;
     var session;
 
+    options = options || {};
     closeWorkspaceMenu();
     if (!fileItem || !fileItem.handle) {
       return;
@@ -1512,6 +2032,10 @@
     if (existingSession) {
       setActiveSession(existingSession, { restoreScroll: true });
       await addRecentFile(fileItem.handle, fileItem.name);
+      rememberWorkspacePath(fileItem.path);
+      if (options.line) {
+        jumpToWorkspaceLine(options.line);
+      }
       focusActiveEditor();
       return;
     }
@@ -1534,6 +2058,10 @@
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
       await addRecentFile(fileItem.handle, fileItem.name);
+      rememberWorkspacePath(fileItem.path);
+      if (options.line) {
+        jumpToWorkspaceLine(options.line);
+      }
       focusActiveEditor();
     } catch (error) {
       showFileError("Open workspace file", error);
@@ -2058,6 +2586,7 @@
 
     queueActiveTabScroll();
     renderWorkspaceSidebar();
+    scheduleWorkspaceSessionSave();
   }
 
   function switchToTab(sessionId, options) {
@@ -2909,8 +3438,14 @@
       }
     });
     window.addEventListener("beforeunload", handleBeforeUnload);
-    wysiwygEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
-    markdownEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
+    wysiwygEditor.addEventListener("scroll", function () {
+      viewport.scheduleTracking();
+      scheduleWorkspaceSessionSave();
+    }, { passive: true });
+    markdownEditor.addEventListener("scroll", function () {
+      viewport.scheduleTracking();
+      scheduleWorkspaceSessionSave();
+    }, { passive: true });
 
     wysiwygEditor.addEventListener("focus", function () {
       setActiveEditorSource("wysiwyg");
@@ -3160,10 +3695,13 @@
         rootElement: workspaceSidebarElement,
         resizerElement: workspaceSidebarResizer,
         workspaceElement: workspace,
+        onContextAction: handleWorkspaceContextAction,
         onOpenFile: openWorkspaceFile,
         onOpenFolder: handleOpenWorkspaceFolder,
         onRefresh: handleRefreshWorkspace,
-        onClose: handleCloseWorkspace
+        onClose: handleCloseWorkspace,
+        onRestoreAction: handleRestoreWorkspaceSession,
+        onSearchContent: handleWorkspaceContentSearch
       });
       workspaceSidebar.bindEvents();
     }
@@ -3279,6 +3817,7 @@
     updateFileControls();
     renderWorkspaceSidebar();
     refreshRecentFiles();
+    loadRestorableWorkspaceSession();
     focusActiveEditor();
   }
 

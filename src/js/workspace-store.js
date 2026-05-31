@@ -46,9 +46,36 @@
     return nodes;
   }
 
-  function buildTree(files) {
+  function buildTree(files, directories) {
     var root = [];
     var directoriesByPath = {};
+
+    (directories || []).forEach(function (directoryInfo) {
+      var parts = String(directoryInfo.path || "").split("/").filter(Boolean);
+      var children = root;
+      var currentPath = "";
+      var i;
+      var directory;
+
+      for (i = 0; i < parts.length; i += 1) {
+        currentPath = normalizePath([currentPath, parts[i]]);
+        directory = directoriesByPath[currentPath];
+        if (!directory) {
+          directory = {
+            name: parts[i],
+            path: currentPath,
+            handle: directoryInfo.path === currentPath ? directoryInfo.handle || null : null,
+            kind: "directory",
+            children: []
+          };
+          directoriesByPath[currentPath] = directory;
+          children.push(directory);
+        } else if (directoryInfo.path === currentPath && directoryInfo.handle) {
+          directory.handle = directoryInfo.handle;
+        }
+        children = directory.children;
+      }
+    });
 
     (files || []).forEach(function (file) {
       var parts = String(file.path || file.name || "").split("/").filter(Boolean);
@@ -65,6 +92,7 @@
           directory = {
             name: parts[i],
             path: currentPath,
+            handle: null,
             kind: "directory",
             children: []
           };
@@ -79,7 +107,10 @@
         path: file.path || parts.join("/"),
         handle: file.handle || null,
         kind: "file",
-        extension: file.extension || extensionForName(file.name || parts[parts.length - 1])
+        extension: file.extension || extensionForName(file.name || parts[parts.length - 1]),
+        isPlan: ME.workspaceRelated && ME.workspaceRelated.isPlanFile
+          ? ME.workspaceRelated.isPlanFile(file.path || parts.join("/"))
+          : false
       };
       children.push(fileNode);
     });
@@ -105,6 +136,7 @@
           filtered.push({
             name: node.name,
             path: node.path,
+            handle: node.handle || null,
             kind: "directory",
             children: selfMatches ? node.children || [] : childMatches
           });
@@ -119,13 +151,23 @@
     }, []);
   }
 
-  async function scanDirectory(directoryHandle, baseParts, files) {
+  async function scanDirectory(directoryHandle, baseParts, files, directories) {
     var entries = [];
     var iterator;
     var next;
+    var directoryPath = normalizePath(baseParts);
 
     if (!directoryHandle || typeof directoryHandle.entries !== "function") {
       return files;
+    }
+
+    if (directoryPath) {
+      directories.push({
+        handle: directoryHandle,
+        kind: "directory",
+        name: baseParts[baseParts.length - 1],
+        path: directoryPath
+      });
     }
 
     iterator = directoryHandle.entries();
@@ -153,7 +195,7 @@
         var pathParts = baseParts.concat(name);
 
         if (handle.kind === "directory") {
-          await scanDirectory(handle, pathParts, files);
+          await scanDirectory(handle, pathParts, files, directories);
           return;
         }
 
@@ -163,7 +205,10 @@
             path: normalizePath(pathParts),
             handle: handle,
             kind: "file",
-            extension: extensionForName(name)
+            extension: extensionForName(name),
+            isPlan: ME.workspaceRelated && ME.workspaceRelated.isPlanFile
+              ? ME.workspaceRelated.isPlanFile(normalizePath(pathParts))
+              : false
           });
         }
       });
@@ -173,13 +218,15 @@
   }
 
   async function scanWorkspace(rootHandle) {
-    var files = await scanDirectory(rootHandle, [], []);
+    var directories = [];
+    var files = await scanDirectory(rootHandle, [], [], directories);
 
     return {
+      directories: directories,
       rootHandle: rootHandle,
       rootName: rootHandle && rootHandle.name ? rootHandle.name : "Workspace",
       files: files,
-      tree: buildTree(files)
+      tree: buildTree(files, directories)
     };
   }
 
