@@ -32,6 +32,8 @@ src/js/editor-mode.js        Editor mode, Soft Wrap, and caret/offset helpers
 src/js/editor-actions.js     Editor formatting commands
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
+src/js/workspace-store.js    Local folder workspace scanning and Markdown file tree model
+src/js/workspace-sidebar.js  Left workspace sidebar rendering, persisted mode, and resizing
 src/js/asset-store.js        Local image workspace/assets handling
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         AI action definitions and transforms
@@ -77,6 +79,12 @@ Use these routes:
   - `.agents/skills/file-access.md`
   - `src/js/file-store.js`
   - `src/js/recent-files.js`
+- Workspace sidebar, folder open, Markdown file tree, workspace sidebar sizing/state:
+  - `.agents/skills/workspace-sidebar.md`
+  - `src/js/workspace-store.js`
+  - `src/js/workspace-sidebar.js`
+  - `src/js/app.js`
+  - `src/styles.css`
 - Images and workspace assets:
   - `.agents/skills/asset-store.md`
   - `src/js/asset-store.js`
@@ -100,6 +108,8 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 ## Behavior Notes
 
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
+- The left workspace sidebar is a Markdown-focused browser for local folders; Phase 1 only lists `.md` and `.markdown` files and opens them in tabs.
+- The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, and does not implement file create/rename/delete/move.
 - WYSIWYG mode supports rich HTML paste.
 - The editor right-click menu should include Cut, Copy, and Paste; Markdown mode uses plain text, while WYSIWYG mode should preserve rich HTML clipboard data when the browser allows it.
 - Markdown mode should accept plain Markdown text.
@@ -155,6 +165,7 @@ node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/resizer.test.js
 node tests/unit/tab-manager.test.js
+node tests/unit/workspace-store.test.js
 ```
 
 Run all tests:

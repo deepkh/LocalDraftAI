@@ -27,6 +27,19 @@
             <option value="">Recent</option>
           </select>
         </div>
+        <div class="group workspace-toolbar-group" aria-label="Workspace">
+          <button type="button" id="workspaceButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            title="Workspace">Workspace</button>
+          <div id="workspaceMenu" class="ai-menu workspace-menu" role="menu" hidden>
+            <button type="button" id="openWorkspaceFolder" role="menuitem">Open Folder</button>
+            <button type="button" id="refreshWorkspace" role="menuitem">Refresh Workspace</button>
+            <button type="button" id="closeWorkspace" role="menuitem">Close Workspace</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" id="showWorkspaceSidebar" role="menuitem">Show Sidebar</button>
+            <button type="button" id="hideWorkspaceSidebar" role="menuitem">Hide Sidebar</button>
+            <button type="button" id="minimizeWorkspaceSidebar" role="menuitem">Minimize Sidebar</button>
+          </div>
+        </div>
         <div class="group ai-toolbar-group" aria-label="AI Assistant">
           <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
             title="AI Assistant">AI Assistant</button>
@@ -103,6 +116,10 @@
     </header>
 
     <main id="workspace" class="workspace">
+      <aside id="workspaceSidebar" class="workspace-sidebar" aria-label="Workspace sidebar"></aside>
+      <div id="workspaceSidebarResizer" class="workspace-sidebar-resizer" role="separator" aria-orientation="vertical"
+        aria-label="Resize workspace sidebar" aria-valuemin="220" aria-valuemax="480" aria-valuenow="280" tabindex="0"
+        title="Resize workspace sidebar" hidden></div>
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="pane-status">
           <div class="status-controls" role="toolbar" aria-label="Editor view controls">
@@ -380,6 +397,8 @@ SOFTWARE.</pre>
   <script src="js/document-session.js"></script>
   <script src="js/tab-manager.js"></script>
   <script src="js/file-store.js"></script>
+  <script src="js/workspace-store.js"></script>
+  <script src="js/workspace-sidebar.js"></script>
   <script src="js/asset-store.js"></script>
   <script src="js/recent-files.js"></script>
   <script src="js/viewport.js"></script>

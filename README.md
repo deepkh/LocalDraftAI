@@ -31,6 +31,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
+- **Workspace sidebar**: open a local folder in Chrome or Edge, recursively list only `.md` and `.markdown` files, search the Markdown tree, and open workspace files into tabs.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -62,6 +63,7 @@ Typical workflow:
 ```text
 Open LocalDraftAI
   -> create or open a Markdown file
+  -> optionally open a folder from Workspace to browse local Markdown files
   -> write in WYSIWYG or Markdown mode
   -> select text
   -> run an AI Assistant action
@@ -72,6 +74,12 @@ Open LocalDraftAI
   -> restore the original from the AI panel if needed
   -> save back to local disk
 ```
+
+### Workspace Sidebar
+
+Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans the folder recursively and shows only Markdown files (`.md` and `.markdown`) in the left sidebar. Non-Markdown project files, images, binaries, and app source files are hidden.
+
+The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
 ---
 
@@ -417,7 +425,9 @@ Restart Ollama after changing the environment variable.
 │       ├── resizer.js
 │       ├── tab-manager.js
 │       ├── utils.js
-│       └── viewport.js
+│       ├── viewport.js
+│       ├── workspace-sidebar.js
+│       └── workspace-store.js
 ├── tests/
 │   ├── e2e/
 │   │   └── soft-wrap-mode-switch.headless.mjs
@@ -440,7 +450,8 @@ Restart Ollama after changing the environment variable.
 │       ├── editor-actions.test.js
 │       ├── markdown-ai-guards.test.js
 │       ├── markdown.test.js
-│       └── tab-manager.test.js
+│       ├── tab-manager.test.js
+│       └── workspace-store.test.js
 ├── AGENTS.md
 ├── LICENSE
 └── README.md
@@ -462,6 +473,8 @@ Restart Ollama after changing the environment variable.
 | `src/js/editor-actions.js` | Editor formatting commands |
 | `src/js/file-store.js` | Local file open/save helpers |
 | `src/js/recent-files.js` | Recent file list storage |
+| `src/js/workspace-store.js` | Local folder workspace scanning and Markdown file tree model |
+| `src/js/workspace-sidebar.js` | Workspace sidebar rendering, search, persisted state, and resizing |
 | `src/js/asset-store.js` | Local image workspace handling |
 | `src/js/ai-assistant.js` | AI action workflow, review panel/modal fallback, revisions, and restore |
 | `src/js/ai-diff.js` | Visual text diff helpers for AI review UI |
@@ -506,6 +519,7 @@ node tests/unit/editor-mode.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/tab-manager.test.js
+node tests/unit/workspace-store.test.js
 ```
 
 Or run all unit tests from a shell:

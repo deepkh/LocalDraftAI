@@ -1,0 +1,203 @@
+(function () {
+  "use strict";
+
+  var ME = window.MarkdownEditor = window.MarkdownEditor || {};
+  var MARKDOWN_EXTENSION_PATTERN = /\.(md|markdown)$/i;
+
+  function isSupported() {
+    return typeof window.showDirectoryPicker === "function";
+  }
+
+  function isAbortError(error) {
+    return error && error.name === "AbortError";
+  }
+
+  function normalizePath(parts) {
+    return parts.filter(Boolean).join("/");
+  }
+
+  function extensionForName(name) {
+    var match = String(name || "").match(/(\.[^.]+)$/);
+
+    return match ? match[1].toLowerCase() : "";
+  }
+
+  function isMarkdownFile(name) {
+    return MARKDOWN_EXTENSION_PATTERN.test(String(name || ""));
+  }
+
+  function compareNodes(left, right) {
+    if (left.kind !== right.kind) {
+      return left.kind === "directory" ? -1 : 1;
+    }
+
+    return String(left.name || "").localeCompare(String(right.name || ""), undefined, {
+      sensitivity: "base"
+    });
+  }
+
+  function sortTree(nodes) {
+    nodes.sort(compareNodes);
+    nodes.forEach(function (node) {
+      if (node.kind === "directory" && node.children) {
+        sortTree(node.children);
+      }
+    });
+    return nodes;
+  }
+
+  function buildTree(files) {
+    var root = [];
+    var directoriesByPath = {};
+
+    (files || []).forEach(function (file) {
+      var parts = String(file.path || file.name || "").split("/").filter(Boolean);
+      var children = root;
+      var currentPath = "";
+      var i;
+      var directory;
+      var fileNode;
+
+      for (i = 0; i < parts.length - 1; i += 1) {
+        currentPath = normalizePath([currentPath, parts[i]]);
+        directory = directoriesByPath[currentPath];
+        if (!directory) {
+          directory = {
+            name: parts[i],
+            path: currentPath,
+            kind: "directory",
+            children: []
+          };
+          directoriesByPath[currentPath] = directory;
+          children.push(directory);
+        }
+        children = directory.children;
+      }
+
+      fileNode = {
+        name: file.name || parts[parts.length - 1] || "",
+        path: file.path || parts.join("/"),
+        handle: file.handle || null,
+        kind: "file",
+        extension: file.extension || extensionForName(file.name || parts[parts.length - 1])
+      };
+      children.push(fileNode);
+    });
+
+    return sortTree(root);
+  }
+
+  function filterTree(nodes, query) {
+    var normalizedQuery = String(query || "").trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return nodes || [];
+    }
+
+    return (nodes || []).reduce(function (filtered, node) {
+      var childMatches;
+      var selfMatches = String(node.name || "").toLowerCase().indexOf(normalizedQuery) !== -1 ||
+        String(node.path || "").toLowerCase().indexOf(normalizedQuery) !== -1;
+
+      if (node.kind === "directory") {
+        childMatches = filterTree(node.children || [], normalizedQuery);
+        if (selfMatches || childMatches.length) {
+          filtered.push({
+            name: node.name,
+            path: node.path,
+            kind: "directory",
+            children: selfMatches ? node.children || [] : childMatches
+          });
+        }
+        return filtered;
+      }
+
+      if (selfMatches) {
+        filtered.push(node);
+      }
+      return filtered;
+    }, []);
+  }
+
+  async function scanDirectory(directoryHandle, baseParts, files) {
+    var entries = [];
+    var iterator;
+    var next;
+
+    if (!directoryHandle || typeof directoryHandle.entries !== "function") {
+      return files;
+    }
+
+    iterator = directoryHandle.entries();
+    while ((next = await iterator.next()) && !next.done) {
+      entries.push(next.value);
+    }
+
+    entries.sort(function (left, right) {
+      var leftHandle = left[1];
+      var rightHandle = right[1];
+
+      return compareNodes({
+        kind: leftHandle.kind,
+        name: left[0]
+      }, {
+        kind: rightHandle.kind,
+        name: right[0]
+      });
+    });
+
+    await entries.reduce(function (chain, entry) {
+      return chain.then(async function () {
+        var name = entry[0];
+        var handle = entry[1];
+        var pathParts = baseParts.concat(name);
+
+        if (handle.kind === "directory") {
+          await scanDirectory(handle, pathParts, files);
+          return;
+        }
+
+        if (handle.kind === "file" && isMarkdownFile(name)) {
+          files.push({
+            name: name,
+            path: normalizePath(pathParts),
+            handle: handle,
+            kind: "file",
+            extension: extensionForName(name)
+          });
+        }
+      });
+    }, Promise.resolve());
+
+    return files;
+  }
+
+  async function scanWorkspace(rootHandle) {
+    var files = await scanDirectory(rootHandle, [], []);
+
+    return {
+      rootHandle: rootHandle,
+      rootName: rootHandle && rootHandle.name ? rootHandle.name : "Workspace",
+      files: files,
+      tree: buildTree(files)
+    };
+  }
+
+  async function openWorkspace() {
+    var rootHandle = await window.showDirectoryPicker({
+      mode: "read"
+    });
+
+    return scanWorkspace(rootHandle);
+  }
+
+  ME.workspaceStore = {
+    buildTree: buildTree,
+    filterTree: filterTree,
+    isAbortError: isAbortError,
+    isMarkdownFile: isMarkdownFile,
+    isSupported: isSupported,
+    openWorkspace: openWorkspace,
+    scanWorkspace: scanWorkspace
+  };
+}());

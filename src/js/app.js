@@ -4,6 +4,7 @@
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
   var markdown = ME.markdown;
   var fileStore = ME.fileStore;
+  var workspaceStore = ME.workspaceStore;
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
@@ -21,6 +22,8 @@
   var wysiwygEditor = document.getElementById("wysiwygEditor");
   var markdownEditor = document.getElementById("markdownEditor");
   var workspace = document.getElementById("workspace");
+  var workspaceSidebarElement = document.getElementById("workspaceSidebar");
+  var workspaceSidebarResizer = document.getElementById("workspaceSidebarResizer");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
   var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
@@ -112,6 +115,14 @@
   var saveFileButton = document.getElementById("saveFile");
   var saveAsFileButton = document.getElementById("saveAsFile");
   var recentFilesSelect = document.getElementById("recentFiles");
+  var workspaceButton = document.getElementById("workspaceButton");
+  var workspaceMenu = document.getElementById("workspaceMenu");
+  var openWorkspaceFolderButton = document.getElementById("openWorkspaceFolder");
+  var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
+  var closeWorkspaceButton = document.getElementById("closeWorkspace");
+  var showWorkspaceSidebarButton = document.getElementById("showWorkspaceSidebar");
+  var hideWorkspaceSidebarButton = document.getElementById("hideWorkspaceSidebar");
+  var minimizeWorkspaceSidebarButton = document.getElementById("minimizeWorkspaceSidebar");
   var tabViewport = document.getElementById("tabViewport");
   var tabList = document.getElementById("tabList");
   var tabScrollLeft = document.getElementById("tabScrollLeft");
@@ -127,6 +138,17 @@
   var aiPanelResizer;
   var actions;
   var aiAssistant;
+  var workspaceSidebar;
+  var nextWorkspaceId = 1;
+  var workspaceState = {
+    id: "",
+    rootHandle: null,
+    rootName: "",
+    files: [],
+    tree: null,
+    isScanning: false,
+    error: ""
+  };
   var suppressNextTabClick = false;
   var tabDrag = {
     active: false,
@@ -182,6 +204,10 @@
 
   function isFileAccessSupported() {
     return fileStore && fileStore.isSupported();
+  }
+
+  function isWorkspaceSupported() {
+    return workspaceStore && workspaceStore.isSupported();
   }
 
   function isImagePickerSupported() {
@@ -1196,6 +1222,324 @@
     }
   }
 
+  function currentWorkspaceRootName() {
+    return workspaceState.rootName || "";
+  }
+
+  function sessionBelongsToWorkspace(session) {
+    return Boolean(
+      session &&
+      workspaceState.rootHandle &&
+      session.workspacePath &&
+      session.workspaceId === workspaceState.id &&
+      session.workspaceRootName === currentWorkspaceRootName()
+    );
+  }
+
+  function findWorkspaceFile(path) {
+    var files = workspaceState.files || [];
+    var i;
+
+    for (i = 0; i < files.length; i += 1) {
+      if (files[i].path === path) {
+        return files[i];
+      }
+    }
+
+    return null;
+  }
+
+  function findSessionByWorkspacePath(path) {
+    var sessions = tabs ? tabs.listSessions() : [];
+    var i;
+
+    for (i = 0; i < sessions.length; i += 1) {
+      if (sessions[i].workspaceId === workspaceState.id && sessions[i].workspacePath === path) {
+        return sessions[i];
+      }
+    }
+
+    return null;
+  }
+
+  function workspaceDirtyPaths() {
+    var dirtyPaths = [];
+
+    if (!tabs || !workspaceState.id) {
+      return dirtyPaths;
+    }
+
+    tabs.listSessions().forEach(function (session) {
+      if (session.workspaceId === workspaceState.id && session.workspacePath && session.dirty) {
+        dirtyPaths.push(session.workspacePath);
+      }
+    });
+
+    return dirtyPaths;
+  }
+
+  function selectedWorkspacePath() {
+    var session = getActiveSession();
+
+    return sessionBelongsToWorkspace(session) ? session.workspacePath : "";
+  }
+
+  function renderWorkspaceSidebar() {
+    if (!workspaceSidebar) {
+      return;
+    }
+
+    workspaceSidebar.update({
+      dirtyPaths: workspaceDirtyPaths(),
+      selectedPath: selectedWorkspacePath(),
+      workspaceState: {
+        error: workspaceState.error,
+        files: workspaceState.files,
+        isScanning: workspaceState.isScanning,
+        isSupported: isWorkspaceSupported(),
+        rootName: workspaceState.rootName,
+        tree: workspaceState.tree
+      }
+    });
+  }
+
+  function updateWorkspaceMenuControls() {
+    var hasWorkspace = Boolean(workspaceState.rootHandle);
+    var supported = isWorkspaceSupported();
+
+    if (openWorkspaceFolderButton) {
+      openWorkspaceFolderButton.disabled = !supported;
+      openWorkspaceFolderButton.title = supported
+        ? "Open a local folder as a Markdown workspace"
+        : "Folder workspace is supported in Chrome / Edge. You can still open individual Markdown files.";
+    }
+    if (refreshWorkspaceButton) {
+      refreshWorkspaceButton.disabled = !hasWorkspace || workspaceState.isScanning;
+    }
+    if (closeWorkspaceButton) {
+      closeWorkspaceButton.disabled = !hasWorkspace;
+    }
+  }
+
+  function closeWorkspaceMenu() {
+    if (!workspaceMenu || workspaceMenu.hidden) {
+      return;
+    }
+
+    workspaceMenu.hidden = true;
+    workspaceButton.setAttribute("aria-expanded", "false");
+  }
+
+  function positionWorkspaceMenu() {
+    var rect;
+
+    if (!workspaceButton || !workspaceMenu) {
+      return;
+    }
+
+    rect = workspaceButton.getBoundingClientRect();
+    workspaceMenu.style.top = Math.min(rect.bottom + 6, window.innerHeight - 8) + "px";
+    workspaceMenu.style.left = Math.min(rect.left, window.innerWidth - workspaceMenu.offsetWidth - 8) + "px";
+  }
+
+  function toggleWorkspaceMenu() {
+    if (!workspaceMenu || !workspaceButton) {
+      return;
+    }
+
+    if (!workspaceMenu.hidden) {
+      closeWorkspaceMenu();
+      return;
+    }
+
+    updateWorkspaceMenuControls();
+    workspaceMenu.hidden = false;
+    workspaceButton.setAttribute("aria-expanded", "true");
+    positionWorkspaceMenu();
+  }
+
+  function resetWorkspaceState() {
+    workspaceState = {
+      id: "",
+      rootHandle: null,
+      rootName: "",
+      files: [],
+      tree: null,
+      isScanning: false,
+      error: ""
+    };
+    renderWorkspaceSidebar();
+    updateWorkspaceMenuControls();
+  }
+
+  function applyWorkspaceScanResult(result) {
+    workspaceState = {
+      id: result.workspaceId || workspaceState.id || "workspace-" + nextWorkspaceId++,
+      rootHandle: result.rootHandle,
+      rootName: result.rootName,
+      files: result.files || [],
+      tree: result.tree || [],
+      isScanning: false,
+      error: ""
+    };
+    renderWorkspaceSidebar();
+    updateWorkspaceMenuControls();
+  }
+
+  function showWorkspaceError(message) {
+    workspaceState.error = message;
+    workspaceState.isScanning = false;
+    renderWorkspaceSidebar();
+    updateWorkspaceMenuControls();
+  }
+
+  async function handleOpenWorkspaceFolder() {
+    var result;
+
+    closeWorkspaceMenu();
+    if (!isWorkspaceSupported()) {
+      if (workspaceSidebar) {
+        workspaceSidebar.setMode("expanded");
+      }
+      showWorkspaceError("Folder workspace is not supported in this browser. Use Chrome or Edge, or open individual Markdown files.");
+      return;
+    }
+
+    if (workspaceSidebar) {
+      workspaceSidebar.setMode("expanded");
+    }
+
+    try {
+      result = await workspaceStore.openWorkspace();
+      result.workspaceId = "workspace-" + nextWorkspaceId++;
+      applyWorkspaceScanResult(result);
+    } catch (error) {
+      if (workspaceStore && workspaceStore.isAbortError(error)) {
+        return;
+      }
+      showWorkspaceError("Could not read this workspace. Please open the folder again.");
+    }
+  }
+
+  async function handleRefreshWorkspace() {
+    var result;
+
+    closeWorkspaceMenu();
+    if (!workspaceState.rootHandle || !workspaceStore) {
+      return;
+    }
+
+    workspaceState.isScanning = true;
+    workspaceState.error = "";
+    renderWorkspaceSidebar();
+    updateWorkspaceMenuControls();
+
+    try {
+      result = await workspaceStore.scanWorkspace(workspaceState.rootHandle);
+      applyWorkspaceScanResult(result);
+    } catch (error) {
+      showWorkspaceError("Could not read this workspace. Please open the folder again.");
+    }
+  }
+
+  function handleCloseWorkspace() {
+    closeWorkspaceMenu();
+    resetWorkspaceState();
+  }
+
+  async function attachCurrentWorkspacePath(session) {
+    var pathParts;
+    var path;
+
+    if (
+      !session ||
+      !workspaceState.rootHandle ||
+      !session.fileHandle ||
+      typeof workspaceState.rootHandle.resolve !== "function"
+    ) {
+      return false;
+    }
+
+    try {
+      pathParts = await workspaceState.rootHandle.resolve(session.fileHandle);
+    } catch (error) {
+      pathParts = null;
+    }
+
+    if (!pathParts || !pathParts.length) {
+      return false;
+    }
+
+    path = pathParts.join("/");
+    if (!workspaceStore.isMarkdownFile(path)) {
+      return false;
+    }
+
+    session.workspaceDirHandle = workspaceState.rootHandle;
+    session.workspaceId = workspaceState.id;
+    session.workspaceRootName = workspaceState.rootName;
+    session.workspacePath = path;
+    session.workspaceFileHandle = session.fileHandle;
+    return true;
+  }
+
+  async function openWorkspaceFile(path) {
+    var fileItem = findWorkspaceFile(path);
+    var existingSession;
+    var file;
+    var markdownText;
+    var session;
+
+    closeWorkspaceMenu();
+    if (!fileItem || !fileItem.handle) {
+      return;
+    }
+
+    flushActiveEditor();
+
+    existingSession = findSessionByWorkspacePath(fileItem.path);
+    if (!existingSession) {
+      existingSession = await tabs.findSessionByFileHandle(fileItem.handle);
+      if (existingSession) {
+        existingSession.workspaceDirHandle = workspaceState.rootHandle;
+        existingSession.workspaceId = workspaceState.id;
+        existingSession.workspaceRootName = workspaceState.rootName;
+        existingSession.workspacePath = fileItem.path;
+        existingSession.workspaceFileHandle = fileItem.handle;
+      }
+    }
+
+    if (existingSession) {
+      setActiveSession(existingSession, { restoreScroll: true });
+      await addRecentFile(fileItem.handle, fileItem.name);
+      focusActiveEditor();
+      return;
+    }
+
+    try {
+      file = await fileItem.handle.getFile();
+      markdownText = await file.text();
+      session = createSession({
+        activeMode: getActiveMode(),
+        editorMode: getEditorMode(),
+        fileHandle: fileItem.handle,
+        markdownText: markdownText,
+        title: fileItem.name,
+        workspaceDirHandle: workspaceState.rootHandle,
+        workspaceFileHandle: fileItem.handle,
+        workspaceId: workspaceState.id,
+        workspacePath: fileItem.path,
+        workspaceRootName: workspaceState.rootName
+      });
+      tabs.addSession(session, { activate: false });
+      setActiveSession(session, { restoreScroll: false });
+      await addRecentFile(fileItem.handle, fileItem.name);
+      focusActiveEditor();
+    } catch (error) {
+      showFileError("Open workspace file", error);
+    }
+  }
+
   function findRecentRecord(id) {
     var numericId = Number(id);
     var i;
@@ -1227,10 +1571,12 @@
     if (!supported) {
       recentFilesSelect.disabled = true;
       recentFilesSelect.title = "File access is not supported in this browser";
+      updateWorkspaceMenuControls();
       return;
     }
 
     recentFilesSelect.title = "Open or remove recent files";
+    updateWorkspaceMenuControls();
   }
 
   function handleBeforeUnload(event) {
@@ -1711,6 +2057,7 @@
     });
 
     queueActiveTabScroll();
+    renderWorkspaceSidebar();
   }
 
   function switchToTab(sessionId, options) {
@@ -1881,6 +2228,7 @@
       fileData = await fileStore.openMarkdownFile();
       existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
       if (existingSession) {
+        await attachCurrentWorkspacePath(existingSession);
         setActiveSession(existingSession, { restoreScroll: true });
         await addRecentFile(fileData.fileHandle, fileData.title);
         focusActiveEditor();
@@ -1894,6 +2242,7 @@
         markdownText: fileData.markdownText,
         title: fileData.title
       });
+      await attachCurrentWorkspacePath(session);
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
       await addRecentFile(fileData.fileHandle, fileData.title);
@@ -1916,6 +2265,7 @@
       await fileStore.saveSession(activeSession);
       markSessionClean();
       await addRecentFile(activeSession.fileHandle, activeSession.title);
+      renderWorkspaceSidebar();
     } catch (error) {
       showFileError("Save", error);
     }
@@ -1932,8 +2282,12 @@
 
     try {
       await fileStore.saveSessionAs(activeSession);
+      if (await attachCurrentWorkspacePath(activeSession)) {
+        await handleRefreshWorkspace();
+      }
       markSessionClean();
       await addRecentFile(activeSession.fileHandle, activeSession.title);
+      renderWorkspaceSidebar();
     } catch (error) {
       showFileError("Save As", error);
     }
@@ -1955,6 +2309,7 @@
       fileData = await recentStore.openRecord(record);
       existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
       if (existingSession) {
+        await attachCurrentWorkspacePath(existingSession);
         setActiveSession(existingSession, { restoreScroll: true });
         await refreshRecentFiles();
         focusActiveEditor();
@@ -1968,6 +2323,7 @@
         markdownText: fileData.markdownText,
         title: fileData.title
       });
+      await attachCurrentWorkspacePath(session);
       tabs.addSession(session, { activate: false });
       setActiveSession(session, { restoreScroll: false });
       await refreshRecentFiles();
@@ -2431,6 +2787,42 @@
     saveFileButton.addEventListener("click", handleSaveFile);
     saveAsFileButton.addEventListener("click", handleSaveAsFile);
     recentFilesSelect.addEventListener("change", handleRecentFileChange);
+    if (workspaceButton) {
+      workspaceButton.addEventListener("click", toggleWorkspaceMenu);
+    }
+    if (openWorkspaceFolderButton) {
+      openWorkspaceFolderButton.addEventListener("click", handleOpenWorkspaceFolder);
+    }
+    if (refreshWorkspaceButton) {
+      refreshWorkspaceButton.addEventListener("click", handleRefreshWorkspace);
+    }
+    if (closeWorkspaceButton) {
+      closeWorkspaceButton.addEventListener("click", handleCloseWorkspace);
+    }
+    if (showWorkspaceSidebarButton) {
+      showWorkspaceSidebarButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        if (workspaceSidebar) {
+          workspaceSidebar.setMode("expanded");
+        }
+      });
+    }
+    if (hideWorkspaceSidebarButton) {
+      hideWorkspaceSidebarButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        if (workspaceSidebar) {
+          workspaceSidebar.setMode("hidden");
+        }
+      });
+    }
+    if (minimizeWorkspaceSidebarButton) {
+      minimizeWorkspaceSidebarButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        if (workspaceSidebar) {
+          workspaceSidebar.setMode("minimized");
+        }
+      });
+    }
 
     toggleEditorMode.addEventListener("pointerdown", function (event) {
       event.preventDefault();
@@ -2453,7 +2845,11 @@
     });
 
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
+      if (event.key === "Escape" && workspaceMenu && !workspaceMenu.hidden) {
+        event.preventDefault();
+        closeWorkspaceMenu();
+        workspaceButton.focus();
+      } else if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
         event.preventDefault();
       } else if (event.key === "Escape" && !aboutOverlay.hidden) {
         event.preventDefault();
@@ -2461,6 +2857,18 @@
       } else if (event.key === "Escape" && focusModeEnabled) {
         event.preventDefault();
         setFocusMode(false);
+      }
+    });
+
+    document.addEventListener("click", function (event) {
+      if (
+        workspaceMenu &&
+        !workspaceMenu.hidden &&
+        !workspaceMenu.contains(event.target) &&
+        workspaceButton &&
+        !workspaceButton.contains(event.target)
+      ) {
+        closeWorkspaceMenu();
       }
     });
     formatBlock.addEventListener("change", function () {
@@ -2494,7 +2902,12 @@
     });
 
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
-    window.addEventListener("resize", updateTabScrollButtons);
+    window.addEventListener("resize", function () {
+      updateTabScrollButtons();
+      if (workspaceMenu && !workspaceMenu.hidden) {
+        positionWorkspaceMenu();
+      }
+    });
     window.addEventListener("beforeunload", handleBeforeUnload);
     wysiwygEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
     markdownEditor.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
@@ -2742,6 +3155,19 @@
       aiPanelResizer.bindEvents();
     }
 
+    if (ME.workspaceSidebar && workspaceSidebarElement) {
+      workspaceSidebar = ME.workspaceSidebar.create({
+        rootElement: workspaceSidebarElement,
+        resizerElement: workspaceSidebarResizer,
+        workspaceElement: workspace,
+        onOpenFile: openWorkspaceFile,
+        onOpenFolder: handleOpenWorkspaceFolder,
+        onRefresh: handleRefreshWorkspace,
+        onClose: handleCloseWorkspace
+      });
+      workspaceSidebar.bindEvents();
+    }
+
     aiAssistant = ME.aiAssistant.create({
       applyButton: aiReviewApply,
       applyModeInputs: aiApplyModeInputs,
@@ -2851,6 +3277,7 @@
     aiAssistant.bindEvents();
     installTestApi();
     updateFileControls();
+    renderWorkspaceSidebar();
     refreshRecentFiles();
     focusActiveEditor();
   }
