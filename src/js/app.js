@@ -20,6 +20,7 @@
 
   var wysiwygEditor = document.getElementById("wysiwygEditor");
   var markdownEditor = document.getElementById("markdownEditor");
+  var workspace = document.getElementById("workspace");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
   var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
@@ -66,6 +67,16 @@
   var aiReviewApply = document.getElementById("aiReviewApply");
   var aiReviewCancel = document.getElementById("aiReviewCancel");
   var aiReviewClose = document.getElementById("aiReviewClose");
+  var aiAssistantPanel = document.getElementById("aiAssistantPanel");
+  var aiAssistantPanelBody = document.getElementById("aiAssistantPanelBody");
+  var aiPanelResizeHandle = document.getElementById("aiPanelResizeHandle");
+  var aiRevisionSection = document.getElementById("aiRevisionSection");
+  var aiRevisionList = document.getElementById("aiRevisionList");
+  var aiRevisionStatus = document.getElementById("aiRevisionStatus");
+  var aiApplyModeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="aiApplyMode"]'));
+  var aiApplyStatus = document.getElementById("aiApplyStatus");
+  var aiApplyStatusText = document.getElementById("aiApplyStatusText");
+  var aiRestoreOriginal = document.getElementById("aiRestoreOriginal");
   var aiSettingsOverlay = document.getElementById("aiSettingsOverlay");
   var aiSettingsDialog = document.getElementById("aiSettingsDialog");
   var aiSettingsForm = document.getElementById("aiSettingsForm");
@@ -113,6 +124,7 @@
   var redoButton = document.querySelector('[data-action="redo"]');
 
   var viewport;
+  var aiPanelResizer;
   var actions;
   var aiAssistant;
   var suppressNextTabClick = false;
@@ -2722,8 +2734,19 @@
       wysiwygEditor: wysiwygEditor
     });
 
+    if (ME.resizer && ME.resizer.createAiPanel) {
+      aiPanelResizer = ME.resizer.createAiPanel({
+        handle: aiPanelResizeHandle,
+        workspace: workspace
+      });
+      aiPanelResizer.bindEvents();
+    }
+
     aiAssistant = ME.aiAssistant.create({
       applyButton: aiReviewApply,
+      applyModeInputs: aiApplyModeInputs,
+      applyStatus: aiApplyStatus,
+      applyStatusText: aiApplyStatusText,
       cancelButton: aiReviewCancel,
       captureActiveEditorState: captureActiveEditorState,
       closeButton: aiReviewClose,
@@ -2734,13 +2757,18 @@
         var session = getActiveSession();
         return session ? session.id : null;
       },
+      getMarkdownText: getMarkdownText,
       insertHtmlAtSelection: actions.insertHtmlAtSelection,
       markdownEditor: markdownEditor,
       originalText: aiOriginalText,
       resultTitle: aiResultTitle,
       renderMarkdownToHtml: renderMarkdownForSession,
       restoreActiveEditorState: restoreActiveEditorState,
+      restoreOriginalButton: aiRestoreOriginal,
       resultText: aiResultText,
+      revisionList: aiRevisionList,
+      revisionSection: aiRevisionSection,
+      revisionStatus: aiRevisionStatus,
       diffHideUnchanged: aiDiffHideUnchanged,
       diffInteractiveButton: aiDiffInteractiveButton,
       diffSideBySideButton: aiDiffSideBySideButton,
@@ -2803,7 +2831,10 @@
       },
       statusBadge: aiStatusBadge,
       toolbarButton: aiAssistantButton,
-      toolbarMenu: aiToolbarMenu
+      toolbarMenu: aiToolbarMenu,
+      workspace: workspace,
+      aiAssistantPanel: aiAssistantPanel,
+      aiAssistantPanelBody: aiAssistantPanelBody
     });
 
     tabs = ME.tabManager.create({

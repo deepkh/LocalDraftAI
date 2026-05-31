@@ -372,7 +372,7 @@
 
     prefix.textContent = "";
     oldHeading.textContent = "Original";
-    newHeading.textContent = "AI Result";
+    newHeading.textContent = "AI Result - AI can make mistakes";
     header.appendChild(prefix);
     header.appendChild(oldHeading);
     header.appendChild(newHeading);

@@ -43,7 +43,20 @@
     var patchAcceptAllButton = context.patchAcceptAllButton;
     var patchRejectAllButton = context.patchRejectAllButton;
     var patchResetButton = context.patchResetButton;
+    var aiAssistantPanel = context.aiAssistantPanel;
+    var aiAssistantPanelBody = context.aiAssistantPanelBody;
+    var applyModeInputs = context.applyModeInputs || [];
+    var applyStatus = context.applyStatus;
+    var applyStatusText = context.applyStatusText;
+    var restoreOriginalButton = context.restoreOriginalButton;
+    var revisionList = context.revisionList;
+    var revisionSection = context.revisionSection;
+    var revisionStatus = context.revisionStatus;
+    var workspace = context.workspace;
+    var AI_REVIEW_LAYOUT = "panel";
+    var ORIGINAL_REVISION_ID = "original";
     var diffMode = "side-by-side";
+    var revisionSessionSequence = 0;
     var reviewState = null;
     var reviewLogResizeObserver = null;
     var contextMenu;
@@ -129,6 +142,178 @@
       return labels[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Off");
     }
 
+    function isPanelReviewLayout() {
+      return AI_REVIEW_LAYOUT === "panel" && aiAssistantPanel && aiAssistantPanelBody;
+    }
+
+    function setReviewDialogMode(mode) {
+      if (!reviewDialog) {
+        return;
+      }
+
+      if (mode === "panel") {
+        reviewDialog.setAttribute("role", "region");
+        reviewDialog.removeAttribute("aria-modal");
+      } else {
+        reviewDialog.setAttribute("role", "dialog");
+        reviewDialog.setAttribute("aria-modal", "true");
+      }
+    }
+
+    function openReviewSurface() {
+      if (isPanelReviewLayout()) {
+        aiAssistantPanelBody.appendChild(reviewDialog);
+        aiAssistantPanel.hidden = false;
+        if (workspace && workspace.classList) {
+          workspace.classList.add("ai-panel-open");
+        }
+        reviewOverlay.hidden = true;
+        setReviewDialogMode("panel");
+        return;
+      }
+
+      reviewOverlay.appendChild(reviewDialog);
+      reviewOverlay.hidden = false;
+      setReviewDialogMode("modal");
+    }
+
+    function hideReviewSurface() {
+      reviewOverlay.hidden = true;
+
+      if (aiAssistantPanel) {
+        aiAssistantPanel.hidden = true;
+      }
+
+      if (workspace && workspace.classList) {
+        workspace.classList.remove("ai-panel-open");
+      }
+    }
+
+    function currentApplyMode() {
+      var selected = applyModeInputs.filter(function (input) {
+        return input && input.checked;
+      })[0];
+
+      return selected && selected.value ? selected.value : "replace";
+    }
+
+    function resetApplyMode() {
+      applyModeInputs.forEach(function (input) {
+        if (input) {
+          input.checked = input.value === "replace";
+        }
+      });
+    }
+
+    function activeRevisionId() {
+      return reviewState && reviewState.revisionSession
+        ? reviewState.revisionSession.activeRevisionId
+        : "";
+    }
+
+    function isOriginalRevisionActive() {
+      return activeRevisionId() === ORIGINAL_REVISION_ID;
+    }
+
+    function activeRevision() {
+      var session = reviewState && reviewState.revisionSession;
+
+      if (!session || session.activeRevisionId === ORIGINAL_REVISION_ID) {
+        return null;
+      }
+
+      return session.revisions.filter(function (revision) {
+        return revision.id === session.activeRevisionId;
+      })[0] || null;
+    }
+
+    function createRevisionSession(action, selection) {
+      revisionSessionSequence += 1;
+
+      return {
+        id: "ai-revision-session-" + revisionSessionSequence,
+        actionId: action.id,
+        actionLabel: action.label,
+        originalText: selection.text,
+        revisions: [],
+        activeRevisionId: ORIGINAL_REVISION_ID,
+        appliedRevisionId: null
+      };
+    }
+
+    function revisionSettingsDetails(settings) {
+      var summary = summarizeSettings(settings || {});
+
+      return {
+        model: summary.model || "",
+        providerLabel: summary.providerLabel || "",
+        reasoning: summary.reasoningMode || "off"
+      };
+    }
+
+    function createRevision(result, settingsSnapshot) {
+      var session = reviewState && reviewState.revisionSession;
+      var index = session ? session.revisions.length + 1 : 1;
+      var settingsDetails = revisionSettingsDetails(settingsSnapshot);
+
+      return {
+        id: (session ? session.id : "ai-revision-session") + "-result-" + index,
+        label: "Result " + index,
+        resultText: String(result || ""),
+        providerLabel: settingsDetails.providerLabel,
+        model: settingsDetails.model,
+        reasoning: settingsDetails.reasoning,
+        createdAt: new Date().toISOString(),
+        usedSettings: cloneSettings(settingsSnapshot),
+        diffChunks: null,
+        patchChunks: null,
+        acceptedResult: ""
+      };
+    }
+
+    function revisionLabel(revisionId) {
+      var session = reviewState && reviewState.revisionSession;
+      var revision;
+
+      if (!session || revisionId === ORIGINAL_REVISION_ID) {
+        return "Original";
+      }
+
+      revision = session.revisions.filter(function (item) {
+        return item.id === revisionId;
+      })[0];
+
+      return revision ? revision.label : "Result";
+    }
+
+    function clearApplyStatus() {
+      if (applyStatus) {
+        applyStatus.hidden = true;
+        applyStatus.dataset.status = "";
+      }
+      if (applyStatusText) {
+        applyStatusText.textContent = "";
+      }
+      if (restoreOriginalButton) {
+        restoreOriginalButton.disabled = true;
+        restoreOriginalButton.hidden = false;
+      }
+    }
+
+    function showApplyStatus(message, type, restoreAvailable) {
+      if (!applyStatus || !applyStatusText) {
+        return;
+      }
+
+      applyStatus.hidden = false;
+      applyStatus.dataset.status = type || "";
+      applyStatusText.textContent = message || "";
+      if (restoreOriginalButton) {
+        restoreOriginalButton.hidden = !restoreAvailable;
+        restoreOriginalButton.disabled = !restoreAvailable;
+      }
+    }
+
     function renderAiEngineSummary(settingsSnapshot) {
       var summary;
       var model;
@@ -180,6 +365,155 @@
       option = document.createElement("option");
       option.value = value;
       element.appendChild(option);
+    }
+
+    function renderRevisionList() {
+      var session = reviewState && reviewState.revisionSession;
+      var originalButton;
+
+      if (!revisionSection || !revisionList) {
+        return;
+      }
+
+      revisionSection.hidden = !session;
+      revisionList.innerHTML = "";
+
+      if (!session) {
+        if (revisionStatus) {
+          revisionStatus.textContent = "";
+        }
+        return;
+      }
+
+      originalButton = document.createElement("button");
+      originalButton.type = "button";
+      originalButton.textContent = "Original";
+      originalButton.dataset.revisionId = ORIGINAL_REVISION_ID;
+      originalButton.setAttribute("role", "tab");
+      originalButton.setAttribute("aria-selected", session.activeRevisionId === ORIGINAL_REVISION_ID ? "true" : "false");
+      if (session.activeRevisionId === ORIGINAL_REVISION_ID) {
+        originalButton.classList.add("is-active");
+      }
+      originalButton.addEventListener("click", function () {
+        selectRevision(ORIGINAL_REVISION_ID);
+      });
+      revisionList.appendChild(originalButton);
+
+      session.revisions.forEach(function (revision) {
+        var button = document.createElement("button");
+
+        button.type = "button";
+        button.textContent = revision.label;
+        button.dataset.revisionId = revision.id;
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", session.activeRevisionId === revision.id ? "true" : "false");
+        if (session.activeRevisionId === revision.id) {
+          button.classList.add("is-active");
+        }
+        button.addEventListener("click", function () {
+          selectRevision(revision.id);
+        });
+        revisionList.appendChild(button);
+      });
+
+      if (revisionStatus) {
+        revisionStatus.textContent = session.revisions.length
+          ? "Active: " + revisionLabel(session.activeRevisionId)
+          : "Waiting for result";
+      }
+    }
+
+    function syncActiveRevisionFromState() {
+      var revision = activeRevision();
+
+      if (!revision || !reviewState) {
+        return;
+      }
+
+      revision.resultText = reviewState.result;
+      revision.usedSettings = cloneSettings(reviewState.usedSettings);
+      revision.diffChunks = reviewState.diffChunks;
+      revision.patchChunks = reviewState.patchChunks;
+      revision.acceptedResult = reviewState.acceptedResult;
+    }
+
+    function syncActiveRevisionFromField() {
+      if (!reviewState || isOriginalRevisionActive() || !resultText) {
+        return;
+      }
+
+      if (diffMode !== "interactive") {
+        reviewState.result = resultText.value;
+        rebuildPatchStateFromResult(reviewState.result);
+      }
+
+      syncActiveRevisionFromState();
+    }
+
+    function loadActiveRevision() {
+      var revision;
+
+      if (!reviewState) {
+        return;
+      }
+
+      if (isOriginalRevisionActive()) {
+        reviewState.result = reviewState.original;
+        rebuildPatchStateFromResult(reviewState.original);
+        renderAiEngineSummary(reviewState.usedSettings);
+        renderRevisionList();
+        renderReviewDiff();
+        return;
+      }
+
+      revision = activeRevision();
+      if (!revision) {
+        return;
+      }
+
+      reviewState.result = revision.resultText;
+      reviewState.usedSettings = cloneSettings(revision.usedSettings || reviewState.usedSettings);
+      reviewState.diffChunks = revision.diffChunks;
+      reviewState.patchChunks = revision.patchChunks;
+      reviewState.acceptedResult = revision.acceptedResult || "";
+      if (!reviewState.diffChunks || !reviewState.patchChunks) {
+        rebuildPatchStateFromResult(reviewState.result);
+      }
+      renderAiEngineSummary(reviewState.usedSettings);
+      renderRevisionList();
+      renderReviewDiff();
+    }
+
+    function selectRevision(revisionId) {
+      var session = reviewState && reviewState.revisionSession;
+
+      if (!session || session.activeRevisionId === revisionId) {
+        return;
+      }
+
+      syncActiveRevisionFromField();
+      session.activeRevisionId = revisionId;
+      loadActiveRevision();
+    }
+
+    function addRevision(result, settingsSnapshot) {
+      var session = reviewState && reviewState.revisionSession;
+      var revision;
+
+      if (!session) {
+        return null;
+      }
+
+      syncActiveRevisionFromField();
+      revision = createRevision(result, settingsSnapshot);
+      session.revisions.push(revision);
+      session.activeRevisionId = revision.id;
+      reviewState.result = revision.resultText;
+      reviewState.usedSettings = cloneSettings(revision.usedSettings);
+      rebuildPatchStateFromResult(reviewState.result);
+      syncActiveRevisionFromState();
+      renderRevisionList();
+      return revision;
     }
 
     function setAdvancedControlsDisabled(disabled) {
@@ -432,12 +766,64 @@
       }
 
       reviewState.acceptedResult = ME.aiPatch.buildAcceptedResult(reviewState.patchChunks);
+      syncActiveRevisionFromState();
+    }
+
+    function hasAppliedRevision() {
+      return Boolean(reviewState && reviewState.revisionSession && reviewState.revisionSession.appliedRevisionId);
+    }
+
+    function updateApplyButtonLabel() {
+      var mode = currentApplyMode();
+
+      if (!applyButton) {
+        return;
+      }
+
+      if (mode === "copy") {
+        applyButton.textContent = diffMode === "interactive" ? "Copy Accepted Result" : "Copy Result";
+        return;
+      }
+
+      applyButton.textContent = diffMode === "interactive" ? "Apply Accepted Changes" : "Apply";
+    }
+
+    function updateApplyButtonState() {
+      var disabled;
+
+      if (!applyButton) {
+        return;
+      }
+
+      disabled = !reviewState ||
+        reviewState.busy ||
+        reviewState.hasError ||
+        isOriginalRevisionActive() ||
+        hasAppliedRevision() ||
+        Boolean(resultText && resultText.disabled);
+      applyButton.disabled = disabled;
+      updateApplyButtonLabel();
+      updatePatchActionControls();
     }
 
     function syncResultFieldForMode() {
       var nextValue;
 
       if (!resultText) {
+        return;
+      }
+
+      if (isOriginalRevisionActive()) {
+        if (resultTitle) {
+          resultTitle.textContent = "Original Preview";
+        }
+        resultText.readOnly = true;
+        nextValue = reviewState ? reviewState.original : "";
+        if (resultText.value !== nextValue) {
+          resultText.value = nextValue;
+        }
+        updateApplyButtonLabel();
+        updateApplyButtonState();
         return;
       }
 
@@ -450,19 +836,21 @@
         if (resultText.value !== nextValue) {
           resultText.value = nextValue;
         }
-        applyButton.textContent = "Apply Accepted Changes";
+        updateApplyButtonLabel();
+        updateApplyButtonState();
         return;
       }
 
       if (resultTitle) {
-        resultTitle.textContent = "AI Result";
+        resultTitle.textContent = "AI Result - AI can make mistakes";
       }
       resultText.readOnly = false;
       nextValue = reviewState ? reviewState.result : "";
       if (resultText.value !== nextValue) {
         resultText.value = nextValue;
       }
-      applyButton.textContent = "Apply";
+      updateApplyButtonLabel();
+      updateApplyButtonState();
     }
 
     function renderBasicDiff(original, result, chunks) {
@@ -553,17 +941,20 @@
         rebuildPatchStateFromResult(resultText.value);
       }
 
+      syncActiveRevisionFromState();
       renderReviewDiff();
     }
 
     function setDiffMode(mode) {
       if (reviewState && diffMode !== "interactive") {
         rebuildPatchStateFromResult(resultText.value);
+        syncActiveRevisionFromState();
       }
 
       diffMode = mode;
       if (reviewState && diffMode === "interactive" && !reviewState.patchChunks) {
         rebuildPatchStateFromResult(reviewState.result);
+        syncActiveRevisionFromState();
       }
 
       renderReviewDiff();
@@ -581,6 +972,7 @@
       }
 
       updateAcceptedResultFromPatch();
+      syncActiveRevisionFromState();
       renderReviewDiff();
     }
 
@@ -874,7 +1266,10 @@
       diffMode = "side-by-side";
       reviewState = {
         actionId: action.id,
+        actionLabel: action.label,
+        busy: true,
         end: markdownSelection ? selection.end : null,
+        hasError: false,
         mode: mode,
         acceptedResult: "",
         diffChunks: null,
@@ -890,6 +1285,7 @@
         selection: selection,
         selectionMode: selectionMode,
         start: markdownSelection ? selection.start : null,
+        revisionSession: createRevisionSession(action, selection),
         usedSettings: settings
       };
 
@@ -926,11 +1322,13 @@
       resultText.readOnly = false;
       syncResultFieldForMode();
       clearDiffView();
+      clearApplyStatus();
+      renderRevisionList();
       renderAiEngineSummary(settings);
       syncAdvancedPanel(settings);
-      applyButton.disabled = true;
+      updateApplyButtonState();
       cancelButton.disabled = true;
-      reviewOverlay.hidden = false;
+      openReviewSurface();
       window.requestAnimationFrame(function () {
         reviewDialog.focus();
       });
@@ -941,7 +1339,9 @@
         return;
       }
 
-      rebuildPatchStateFromResult(result);
+      reviewState.busy = false;
+      reviewState.hasError = false;
+      addRevision(result, reviewState.usedSettings);
       reviewStatus.classList.remove("is-error");
       reviewStatus.textContent = reviewState.mode === "mock"
         ? "Result generated by local mock mode, not an AI server."
@@ -951,9 +1351,9 @@
         appendReviewLog("Reasoning summary: " + details.reasoningSummary, "info");
       }
       resultText.disabled = false;
-      applyButton.disabled = false;
       cancelButton.disabled = false;
       setAdvancedControlsDisabled(false);
+      updateApplyButtonState();
       renderReviewDiff();
       resultText.focus();
     }
@@ -971,12 +1371,15 @@
       }
       appendReviewLog("Error after " + elapsedMs() + " ms: " + detail, "error");
       appendReviewLog(errorSuggestion(error), "warning");
+      if (reviewState) {
+        reviewState.busy = false;
+        reviewState.hasError = true;
+      }
       resultText.disabled = true;
       resultText.readOnly = false;
-      applyButton.disabled = true;
-      applyButton.textContent = "Apply";
       cancelButton.disabled = false;
       setAdvancedControlsDisabled(true);
+      updateApplyButtonState();
       updateDiffModeControls();
       reviewDialog.focus();
     }
@@ -986,7 +1389,7 @@
       var shouldFocusEditor = !options || options.focusEditor !== false;
       var shouldRestoreEditorState = Boolean(options && options.restoreEditorState);
 
-      reviewOverlay.hidden = true;
+      hideReviewSurface();
       reviewState = null;
       diffMode = "side-by-side";
       resultText.value = "";
@@ -994,7 +1397,7 @@
       resultText.disabled = false;
       originalText.textContent = "";
       if (resultTitle) {
-        resultTitle.textContent = "AI Result";
+        resultTitle.textContent = "AI Result - AI can make mistakes";
       }
       clearReviewLog();
       clearDiffView();
@@ -1005,6 +1408,9 @@
         aiEngineAdvancedToggle.setAttribute("aria-expanded", "false");
       }
       setAdvancedStatus("", "");
+      clearApplyStatus();
+      resetApplyMode();
+      renderRevisionList();
       applyButton.disabled = true;
       applyButton.textContent = "Apply";
       cancelButton.disabled = false;
@@ -1072,17 +1478,20 @@
         return;
       }
 
+      syncActiveRevisionFromField();
       effectiveSettings = buildEffectiveSettings(reviewState.usedSettings, readAdvancedOverrideSettings());
       reviewState.overrideSettings = readAdvancedOverrideSettings();
       reviewState.startedAt = Date.now();
       reviewState.timeoutMs = currentActionTimeoutMs();
+      reviewState.busy = true;
+      reviewState.hasError = false;
       generationId = (reviewState.generationId || 0) + 1;
       reviewState.generationId = generationId;
 
       resultText.disabled = true;
-      applyButton.disabled = true;
       cancelButton.disabled = true;
       setAdvancedControlsDisabled(true);
+      updateApplyButtonState();
       setAdvancedStatus("Regenerating result.", "info");
       appendReviewLog("Regenerating with model: " + (effectiveSettings.model || "local-model") + ".");
       appendReviewLog("Reasoning: " + formatReasoningLabel(summarizeSettings(effectiveSettings).reasoningMode) + ".");
@@ -1097,16 +1506,16 @@
         }
         result = providerResult.text;
         reviewState.usedSettings = effectiveSettings;
+        reviewState.busy = false;
+        reviewState.hasError = false;
         reviewState.overrideDirty = false;
-        reviewState.result = String(result || "");
-        rebuildPatchStateFromResult(reviewState.result);
-        resultText.value = reviewState.result;
+        addRevision(result, effectiveSettings);
         resultText.disabled = false;
         cancelButton.disabled = false;
-        applyButton.disabled = false;
         setAdvancedControlsDisabled(false);
         renderAiEngineSummary(effectiveSettings);
         renderReviewDiff();
+        updateApplyButtonState();
         setAdvancedStatus("Result regenerated.", "success");
         appendReviewLog("Regenerate completed in " + elapsedMs() + " ms.", "success");
         if (providerResult.reasoningSummary) {
@@ -1119,14 +1528,210 @@
         if (!reviewState || reviewState.generationId !== generationId) {
           return;
         }
+        reviewState.busy = false;
+        reviewState.hasError = true;
         setAdvancedStatus("Regenerate failed: " + (error && error.message ? error.message : "AI Assistant failed."), "error");
         setReviewError(error, aiStatus ? aiStatus.setActionError(error) : null);
       }
     }
 
+    function resultForApply() {
+      if (diffMode === "interactive" && ME.aiPatch && reviewState && reviewState.patchChunks) {
+        updateAcceptedResultFromPatch();
+        return reviewState.acceptedResult;
+      }
+
+      return resultText ? resultText.value : "";
+    }
+
+    function insertedBelowText(original, result) {
+      var separator = /\n$/.test(original) ? "\n" : "\n\n";
+
+      return String(original || "") + separator + String(result || "");
+    }
+
+    function replacementForApply(result) {
+      if (currentApplyMode() === "insert-below") {
+        return insertedBelowText(reviewState ? reviewState.original : "", result);
+      }
+
+      return result;
+    }
+
+    function currentMarkdownValue() {
+      if (context.getMarkdownText) {
+        return context.getMarkdownText();
+      }
+
+      return markdownEditor.value;
+    }
+
+    function copyTextToClipboard(text) {
+      var textarea;
+      var selection;
+      var selectedRange = null;
+      var clipboard = window.navigator && window.navigator.clipboard;
+
+      if (context.copyTextToClipboard) {
+        try {
+          return Promise.resolve(context.copyTextToClipboard(text));
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      }
+
+      if (clipboard && typeof clipboard.writeText === "function") {
+        return clipboard.writeText(String(text || ""));
+      }
+
+      if (!document.body || typeof document.execCommand !== "function") {
+        return Promise.reject(new Error("Clipboard copy is unavailable in this browser."));
+      }
+
+      selection = window.getSelection ? window.getSelection() : null;
+      if (selection && selection.rangeCount) {
+        selectedRange = selection.getRangeAt(0).cloneRange();
+      }
+
+      textarea = document.createElement("textarea");
+      textarea.value = String(text || "");
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        if (!document.execCommand("copy")) {
+          return Promise.reject(new Error("Clipboard copy failed."));
+        }
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
+      } finally {
+        document.body.removeChild(textarea);
+        if (selectedRange && selection) {
+          selection.removeAllRanges();
+          selection.addRange(selectedRange);
+        }
+      }
+    }
+
+    function rememberAppliedRevision(appliedText, replacementStart, actionMode) {
+      var session = reviewState && reviewState.revisionSession;
+
+      if (!reviewState || !session) {
+        return;
+      }
+
+      session.appliedRevisionId = session.activeRevisionId;
+      reviewState.restoreState = {
+        actionLabel: session.actionLabel,
+        activeRevisionId: session.activeRevisionId,
+        activeRevisionLabel: revisionLabel(session.activeRevisionId),
+        appliedText: String(appliedText || ""),
+        mode: reviewState.selectionMode,
+        originalText: reviewState.original,
+        replacementStart: typeof replacementStart === "number" ? replacementStart : null,
+        sessionId: reviewState.sessionId,
+        actionMode: actionMode
+      };
+    }
+
+    function finishPanelApply(appliedText, replacementStart, actionMode) {
+      var label;
+
+      rememberAppliedRevision(appliedText, replacementStart, actionMode);
+      if (!isPanelReviewLayout()) {
+        return;
+      }
+
+      label = reviewState.restoreState.activeRevisionLabel;
+      showApplyStatus("Applied: " + reviewState.actionLabel + " · " + label, "", true);
+      updateApplyButtonState();
+      context.focusActiveEditor();
+    }
+
+    function finishCopyOnly() {
+      var label = revisionLabel(activeRevisionId());
+
+      showApplyStatus("Copied: " + (reviewState ? reviewState.actionLabel : "AI result") + " · " + label, "", false);
+      appendReviewLog("Result copied to clipboard.", "success");
+      context.focusActiveEditor();
+    }
+
+    function restoreByRange(source, restoreState) {
+      var start = restoreState.replacementStart;
+      var end;
+
+      if (typeof start !== "number") {
+        return null;
+      }
+
+      end = start + restoreState.appliedText.length;
+      if (source.slice(start, end) !== restoreState.appliedText) {
+        return null;
+      }
+
+      return source.slice(0, start) + restoreState.originalText + source.slice(end);
+    }
+
+    function restoreByTextMatch(source, restoreState) {
+      var first = source.indexOf(restoreState.appliedText);
+      var last = source.lastIndexOf(restoreState.appliedText);
+
+      if (!restoreState.appliedText || first === -1 || first !== last) {
+        return null;
+      }
+
+      return source.slice(0, first) + restoreState.originalText + source.slice(first + restoreState.appliedText.length);
+    }
+
+    function restoreOriginal() {
+      var restoreState = reviewState && reviewState.restoreState;
+      var source;
+      var restored;
+
+      if (!restoreState) {
+        return;
+      }
+
+      if (context.getActiveSessionId() !== restoreState.sessionId) {
+        showApplyStatus("Cannot restore original: the active document changed.", "error", false);
+        return;
+      }
+
+      source = currentMarkdownValue();
+      restored = restoreByRange(source, restoreState) || restoreByTextMatch(source, restoreState);
+      if (restored === null) {
+        showApplyStatus("Cannot restore original safely because the applied text changed.", "warning", false);
+        appendReviewLog("Restore skipped because the applied text could not be matched safely.", "warning");
+        return;
+      }
+
+      if (restoreState.mode === "markdown") {
+        markdownEditor.value = restored;
+      }
+      context.setMarkdown(restored, "restore");
+      if (restoreState.mode === "markdown" && typeof restoreState.replacementStart === "number") {
+        markdownEditor.selectionStart = restoreState.replacementStart;
+        markdownEditor.selectionEnd = restoreState.replacementStart + restoreState.originalText.length;
+      }
+      showApplyStatus("Original restored.", "", false);
+      appendReviewLog("Original selection restored.", "success");
+      reviewState.revisionSession.appliedRevisionId = null;
+      reviewState.restoreState = null;
+      updateApplyButtonState();
+      context.focusActiveEditor();
+    }
+
     function applyReview() {
       var replacement;
       var renderedHtml;
+      var result;
+      var applyMode;
 
       if (!reviewState) {
         return;
@@ -1138,12 +1743,28 @@
         return;
       }
 
-      if (diffMode === "interactive" && ME.aiPatch && reviewState.patchChunks) {
-        updateAcceptedResultFromPatch();
-        replacement = reviewState.acceptedResult;
-      } else {
-        replacement = resultText.value;
+      if (isOriginalRevisionActive()) {
+        return;
       }
+
+      syncActiveRevisionFromField();
+      result = resultForApply();
+      applyMode = currentApplyMode();
+
+      if (applyMode === "copy") {
+        applyButton.disabled = true;
+        copyTextToClipboard(result).then(function () {
+          finishCopyOnly();
+          updateApplyButtonState();
+        }).catch(function (error) {
+          showApplyStatus(error && error.message ? error.message : "Could not copy result.", "error", false);
+          appendReviewLog("Copy failed: " + (error && error.message ? error.message : "clipboard unavailable"), "error");
+          updateApplyButtonState();
+        });
+        return;
+      }
+
+      replacement = replacementForApply(result);
 
       if (reviewState.selectionMode === "wysiwyg") {
         if (!context.insertHtmlAtSelection) {
@@ -1158,7 +1779,11 @@
             ? ME.markdown.renderMarkdown(replacement, 0, {})
             : replacement);
         context.insertHtmlAtSelection(renderedHtml, reviewState.selection);
-        closeReview({ focusEditor: false });
+        if (isPanelReviewLayout()) {
+          finishPanelApply(replacement, null, applyMode);
+        } else {
+          closeReview({ focusEditor: false });
+        }
         return;
       }
 
@@ -1172,7 +1797,11 @@
       markdownEditor.selectionStart = reviewState.start;
       markdownEditor.selectionEnd = reviewState.start + replacement.length;
       context.setMarkdown(markdownEditor.value, "textarea");
-      closeReview();
+      if (isPanelReviewLayout()) {
+        finishPanelApply(replacement, reviewState.start, applyMode);
+      } else {
+        closeReview();
+      }
     }
 
     function closeTransientUi() {
@@ -1214,12 +1843,22 @@
 
       applyButton.addEventListener("click", applyReview);
       cancelButton.addEventListener("click", function () {
-        closeReview({ restoreEditorState: true });
+        closeReview({ restoreEditorState: !hasAppliedRevision() });
       });
       closeButton.addEventListener("click", function () {
-        closeReview({ restoreEditorState: true });
+        closeReview({ restoreEditorState: !hasAppliedRevision() });
       });
       resultText.addEventListener("input", refreshDiffFromReview);
+
+      applyModeInputs.forEach(function (input) {
+        if (input) {
+          input.addEventListener("change", updateApplyButtonLabel);
+        }
+      });
+
+      if (restoreOriginalButton) {
+        restoreOriginalButton.addEventListener("click", restoreOriginal);
+      }
 
       if (aiEngineChangeSettingsButton) {
         aiEngineChangeSettingsButton.addEventListener("click", openSettingsDialog);

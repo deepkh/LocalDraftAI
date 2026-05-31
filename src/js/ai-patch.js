@@ -239,7 +239,7 @@
 
     status.textContent = "State";
     oldHeading.textContent = "Original";
-    newHeading.textContent = "AI Result";
+    newHeading.textContent = "AI Result - AI can make mistakes";
     header.appendChild(controls);
     header.appendChild(status);
     header.appendChild(oldHeading);

@@ -33,7 +33,7 @@ src/js/editor-actions.js     Editor formatting commands
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
 src/js/asset-store.js        Local image workspace/assets handling
-src/js/ai-assistant.js       AI workflow and review/apply dialog
+src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         AI action definitions and transforms
 src/js/ai-diff.js            Visual diff helpers for AI review results
 src/js/ai-patch.js           Interactive AI diff accept/reject state
@@ -52,6 +52,7 @@ src/js/ai-status.js          AI connection/status display
 src/js/ai-context-menu.js    Right-click editor clipboard and AI action menu
 src/js/markdown-ai-guards.js AI output safety checks for Markdown
 src/js/markdown-repair.js    Markdown cleanup helpers
+src/js/resizer.js            AI Assistant panel resize behavior
 tests/unit/                  Dependency-free unit tests
 tests/e2e/                   Dependency-free browser smoke tests
 .agents/skills/              More detailed subsystem guidance
@@ -109,13 +110,17 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
 - Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
-- The right-hand workspace should remain available for future AI Assistant panels.
-- AI actions should operate on selected text and show a review dialog before applying changes.
+- The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
+- The AI Assistant review panel is manually resizable on desktop, stores its width in localStorage, and should clamp so the editor remains usable.
+- AI actions should operate on selected text and show review UI before applying changes; keep the modal path available as a fallback while the panel experiment stabilizes.
 - AI capture should send selected content as Markdown fragments in both WYSIWYG and Markdown modes; WYSIWYG list selections should preserve Markdown list markers.
-- AI review should keep AI Result editable and refresh the visual diff when it changes.
+- AI review should keep AI Result - AI can make mistakes editable and refresh the visual diff when it changes.
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
-- AI review Advanced overrides should be temporary to the current action dialog and should only affect output after Regenerate Result succeeds.
+- AI review Advanced overrides should be temporary to the current action and should only add a new revision after Regenerate Result succeeds.
+- AI review should keep generated results as in-memory revisions for the current action; do not persist revision history unless explicitly requested.
 - AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
+- AI apply mode should support replacing the selection, inserting below the selection, or copying the result without changing the document.
+- AI Restore Original should use exact range or safe text-match restoration and show a clear message instead of guessing when restore is unsafe.
 - AI provider mode should support local mock mode, native Ollama, OpenAI, Gemini, Groq, OpenRouter, Mistral, Claude, Grok, and OpenAI-compatible custom server mode.
 - AI reasoning mode should support Auto, Off, Low, Medium, High, and Extra High, map them to provider-supported reasoning controls, and only show provider-returned summaries when requested.
 - AI errors should be visible and recoverable, not silent.
@@ -148,6 +153,7 @@ node tests/unit/editor-actions.test.js
 node tests/unit/editor-mode.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
+node tests/unit/resizer.test.js
 node tests/unit/tab-manager.test.js
 ```
 

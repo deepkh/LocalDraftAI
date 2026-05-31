@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,6 +9,7 @@
   <link rel="shortcut icon" href="../assets/LocalDraftAI.ico">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="app">
     <header class="topbar">
@@ -18,13 +20,16 @@
           <button type="button" id="newFile" class="file-button" title="New document (Ctrl/Cmd+N)">New</button>
           <button type="button" id="openFile" class="file-button" title="Open Markdown file (Ctrl/Cmd+O)">Open</button>
           <button type="button" id="saveFile" class="file-button" title="Save document (Ctrl/Cmd+S)">Save</button>
-          <button type="button" id="saveAsFile" class="file-button" title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
-          <select id="recentFiles" class="recent-select" title="Open or remove recent files" aria-label="Open or remove recent files">
+          <button type="button" id="saveAsFile" class="file-button" title="Save document as (Ctrl/Cmd+Shift+S)">Save
+            As</button>
+          <select id="recentFiles" class="recent-select" title="Open or remove recent files"
+            aria-label="Open or remove recent files">
             <option value="">Recent</option>
           </select>
         </div>
         <div class="group ai-toolbar-group" aria-label="AI Assistant">
-          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false" title="AI Assistant">AI Assistant</button>
+          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            title="AI Assistant">AI Assistant</button>
           <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
           <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
         </div>
@@ -39,43 +44,61 @@
             <option value="H4">Heading 4</option>
           </select>
           <button type="button" class="icon-text" data-action="bold" title="Bold" aria-label="Bold">B</button>
-          <button type="button" class="icon-text" data-action="italic" title="Italic" aria-label="Italic"><em>I</em></button>
-          <button type="button" class="icon-text" data-action="code" title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
+          <button type="button" class="icon-text" data-action="italic" title="Italic"
+            aria-label="Italic"><em>I</em></button>
+          <button type="button" class="icon-text" data-action="code" title="Inline code"
+            aria-label="Inline code">&lt;/&gt;</button>
         </div>
         <div class="group" aria-label="Blocks">
-          <button type="button" class="icon-text" data-action="unorderedList" title="Bulleted list" aria-label="Bulleted list">-</button>
-          <button type="button" class="icon-text" data-action="orderedList" title="Numbered list" aria-label="Numbered list">1.</button>
-          <button type="button" class="icon-text" data-action="outdentList" title="Outdent list item (Shift+Tab)" aria-label="Outdent list item">&lt;&lt;</button>
-          <button type="button" class="icon-text" data-action="indentList" title="Indent list item (Tab)" aria-label="Indent list item">&gt;&gt;</button>
-          <button type="button" class="icon-text" data-action="blockquote" title="Blockquote" aria-label="Blockquote">&gt;</button>
-          <button type="button" class="icon-text" data-action="codeBlock" title="Code block" aria-label="Code block">{}</button>
-          <button type="button" class="icon-text" data-action="horizontalRule" title="Horizontal rule" aria-label="Insert horizontal rule">---</button>
+          <button type="button" class="icon-text" data-action="unorderedList" title="Bulleted list"
+            aria-label="Bulleted list">-</button>
+          <button type="button" class="icon-text" data-action="orderedList" title="Numbered list"
+            aria-label="Numbered list">1.</button>
+          <button type="button" class="icon-text" data-action="outdentList" title="Outdent list item (Shift+Tab)"
+            aria-label="Outdent list item">&lt;&lt;</button>
+          <button type="button" class="icon-text" data-action="indentList" title="Indent list item (Tab)"
+            aria-label="Indent list item">&gt;&gt;</button>
+          <button type="button" class="icon-text" data-action="blockquote" title="Blockquote"
+            aria-label="Blockquote">&gt;</button>
+          <button type="button" class="icon-text" data-action="codeBlock" title="Code block"
+            aria-label="Code block">{}</button>
+          <button type="button" class="icon-text" data-action="horizontalRule" title="Horizontal rule"
+            aria-label="Insert horizontal rule">---</button>
         </div>
         <div class="group" aria-label="Insert">
           <button type="button" class="icon-text" data-action="link" title="Link" aria-label="Link">[]</button>
-          <button type="button" class="icon-text" data-action="image" title="Insert image" aria-label="Insert image">Img</button>
+          <button type="button" class="icon-text" data-action="image" title="Insert image"
+            aria-label="Insert image">Img</button>
         </div>
         <div class="group" aria-label="History">
-          <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo">&lt;-</button>
-          <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)" aria-label="Redo">-&gt;</button>
+          <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)"
+            aria-label="Undo">&lt;-</button>
+          <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)"
+            aria-label="Redo">-&gt;</button>
         </div>
         <div class="group" aria-label="Soft wrap">
-          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true" title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
+          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true"
+            title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
         </div>
         <div class="group focus-mode-group" aria-label="Focus mode">
-          <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false" title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
+          <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false"
+            title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
         </div>
         <div class="group" aria-label="About">
-          <button type="button" id="aboutButton" class="wide-button" title="About LocalDraftAI" aria-label="About LocalDraftAI">About</button>
+          <button type="button" id="aboutButton" class="wide-button" title="About LocalDraftAI"
+            aria-label="About LocalDraftAI">About</button>
         </div>
       </nav>
       <div class="tab-strip" aria-label="Open documents">
-        <button type="button" id="tabScrollLeft" class="tab-scroll-button" title="Scroll tabs left" aria-label="Scroll tabs left">&lt;</button>
+        <button type="button" id="tabScrollLeft" class="tab-scroll-button" title="Scroll tabs left"
+          aria-label="Scroll tabs left">&lt;</button>
         <div id="tabViewport" class="tab-viewport">
           <div id="tabList" class="tab-list" role="tablist" aria-label="Open documents"></div>
         </div>
-        <button type="button" id="tabScrollRight" class="tab-scroll-button" title="Scroll tabs right" aria-label="Scroll tabs right">&gt;</button>
-        <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)" aria-label="New tab">+</button>
+        <button type="button" id="tabScrollRight" class="tab-scroll-button" title="Scroll tabs right"
+          aria-label="Scroll tabs right">&gt;</button>
+        <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)"
+          aria-label="New tab">+</button>
       </div>
     </header>
 
@@ -83,24 +106,36 @@
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="pane-status">
           <div class="status-controls" role="toolbar" aria-label="Editor view controls">
-            <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false" title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+            <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false"
+              title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
           </div>
           <span id="modeLabel" class="visually-hidden">WYSIWYG</span>
-          <span class="feedback-hint">Found a bug or have an idea? <a href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send feedback on GitHub.</a></span>
+          <span class="feedback-hint">Found a bug or have an idea? <a
+              href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send
+              feedback on GitHub.</a></span>
           <span class="status-meta">
             <span id="wordCount">0 words</span>
             <span id="charCount">0 chars</span>
           </span>
         </div>
         <div class="editor-wrap">
-          <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true" data-placeholder="Start writing"></div>
-          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" placeholder="Start writing Markdown" hidden></textarea>
+          <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true"
+            data-placeholder="Start writing"></div>
+          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" placeholder="Start writing Markdown"
+            hidden></textarea>
         </div>
       </section>
+      <div id="aiPanelResizeHandle" class="ai-panel-resize-handle" role="separator" aria-orientation="vertical"
+        aria-label="Resize AI Assistant panel" aria-valuemin="320" aria-valuemax="420" aria-valuenow="420" tabindex="0"
+        title="Resize AI Assistant panel"></div>
+      <aside id="aiAssistantPanel" class="ai-assistant-panel" aria-label="AI Assistant panel" hidden>
+        <div id="aiAssistantPanelBody" class="ai-assistant-panel-body"></div>
+      </aside>
     </main>
 
     <div id="aboutOverlay" class="about-overlay" hidden>
-      <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" aria-describedby="aboutBody" tabindex="-1">
+      <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"
+        aria-describedby="aboutBody" tabindex="-1">
         <div class="about-header">
           <h2 id="aboutTitle">About LocalDraftAI</h2>
           <button type="button" id="aboutClose" class="icon-text about-close" aria-label="Close about dialog">×</button>
@@ -108,7 +143,8 @@
         <div id="aboutBody" class="about-body">
           <p>LocalDraftAI is a local, browser-based Markdown editor.</p>
           <p>Author: deepkh</p>
-          <p>GitHub repository: <a href="https://github.com/deepkh/LocalDraftAI" target="_blank" rel="noreferrer noopener">https://github.com/deepkh/LocalDraftAI</a></p>
+          <p>GitHub repository: <a href="https://github.com/deepkh/LocalDraftAI" target="_blank"
+              rel="noreferrer noopener">https://github.com/deepkh/LocalDraftAI</a></p>
           <details class="license-details">
             <summary>MIT License</summary>
             <pre>MIT License
@@ -138,21 +174,30 @@ SOFTWARE.</pre>
     </div>
 
     <div id="aiReviewOverlay" class="ai-review-overlay" hidden>
-      <div id="aiReviewDialog" class="ai-review-dialog" role="dialog" aria-modal="true" aria-labelledby="aiReviewTitle" tabindex="-1">
+      <div id="aiReviewDialog" class="ai-review-dialog" role="dialog" aria-modal="true" aria-labelledby="aiReviewTitle"
+        tabindex="-1">
         <div class="ai-review-header">
-          <h2 id="aiReviewTitle">Review AI Result</h2>
-          <button type="button" id="aiReviewClose" class="icon-text ai-review-close" aria-label="Close AI review">×</button>
+          <h2 id="aiReviewTitle">Review AI Result - AI can make mistakes</h2>
+          <button type="button" id="aiReviewClose" class="icon-text ai-review-close"
+            aria-label="Close AI review">×</button>
         </div>
         <div class="ai-review-body">
           <div id="aiReviewStatus" class="ai-review-status" aria-live="polite"></div>
           <div id="aiReviewLog" class="ai-review-log" aria-live="polite"></div>
+          <section id="aiRevisionSection" class="ai-revisions" aria-label="AI revisions" hidden>
+            <div class="ai-revisions-header">
+              <span class="ai-revisions-title">Revisions</span>
+              <span id="aiRevisionStatus" class="ai-revisions-status" aria-live="polite"></span>
+            </div>
+            <div id="aiRevisionList" class="ai-revision-list" role="tablist" aria-label="AI result revisions"></div>
+          </section>
           <div class="ai-review-grid">
             <section class="ai-review-panel" aria-label="Original selection">
               <h3>Original Selection</h3>
               <pre id="aiOriginalText"></pre>
             </section>
             <section class="ai-review-panel" aria-label="AI result">
-              <h3 id="aiResultTitle">AI Result</h3>
+              <h3 id="aiResultTitle">AI Result - AI can make mistakes</h3>
               <textarea id="aiResultText" spellcheck="false"></textarea>
             </section>
           </div>
@@ -160,7 +205,8 @@ SOFTWARE.</pre>
             <div class="ai-review-diff-header">
               <h3>Diff View</h3>
               <div class="ai-review-diff-toolbar" role="group" aria-label="Compare mode">
-                <button type="button" id="aiDiffSideBySideButton" class="is-active" aria-pressed="true">Side-by-side</button>
+                <button type="button" id="aiDiffSideBySideButton" class="is-active"
+                  aria-pressed="true">Side-by-side</button>
                 <button type="button" id="aiDiffUnifiedButton" aria-pressed="false">Unified diff</button>
                 <button type="button" id="aiDiffInteractiveButton" aria-pressed="false">Interactive</button>
                 <label class="ai-diff-option">
@@ -169,27 +215,49 @@ SOFTWARE.</pre>
                 </label>
                 <button type="button" id="aiPatchAcceptAll" hidden>Accept All</button>
                 <button type="button" id="aiPatchRejectAll" hidden>Reject All</button>
-                <button type="button" id="aiPatchReset" hidden>Reset to AI Result</button>
+                <button type="button" id="aiPatchReset" hidden>Reset to AI Result - AI can make mistakes</button>
               </div>
             </div>
             <div id="aiDiffSummary" class="ai-diff-summary" aria-live="polite"></div>
             <div id="aiDiffView" class="ai-diff-view" aria-live="polite"></div>
           </section>
+          <section id="aiApplyModeSection" class="ai-apply-mode" aria-label="Apply mode">
+            <span class="ai-apply-mode-title">Apply mode</span>
+            <label>
+              <input type="radio" name="aiApplyMode" value="replace" checked>
+              Replace selection
+            </label>
+            <label>
+              <input type="radio" name="aiApplyMode" value="insert-below">
+              Insert below selection
+            </label>
+            <label>
+              <input type="radio" name="aiApplyMode" value="copy">
+              Copy result only
+            </label>
+          </section>
+          <div id="aiApplyStatus" class="ai-apply-status" aria-live="polite" hidden>
+            <span id="aiApplyStatusText"></span>
+            <button type="button" id="aiRestoreOriginal" class="file-button">Restore Original</button>
+          </div>
           <section class="ai-engine-summary" id="aiEngineSummary" aria-label="AI engine used for this result">
             <div class="ai-engine-summary-header">
               <span class="ai-engine-summary-title">AI Engine</span>
               <span class="ai-engine-summary-pill" id="aiEngineSummaryPill">Local mock · No reasoning</span>
             </div>
-            <div class="ai-engine-summary-detail" id="aiEngineSummaryDetail">Current result was generated locally in mock mode.</div>
+            <div class="ai-engine-summary-detail" id="aiEngineSummaryDetail">Current result was generated locally in
+              mock mode.</div>
             <div class="ai-engine-summary-actions">
               <button type="button" id="aiEngineChangeSettingsButton">Change Settings</button>
-              <button type="button" id="aiEngineAdvancedToggle" aria-expanded="false" aria-controls="aiEngineAdvancedPanel">Advanced</button>
+              <button type="button" id="aiEngineAdvancedToggle" aria-expanded="false"
+                aria-controls="aiEngineAdvancedPanel">Advanced</button>
             </div>
             <div class="ai-engine-advanced-panel" id="aiEngineAdvancedPanel" hidden>
               <div class="ai-engine-advanced-grid">
                 <label class="ai-engine-field">
                   Model
-                  <input id="aiEngineOverrideModel" type="text" list="aiEngineOverrideModelOptions" autocomplete="off" spellcheck="false">
+                  <input id="aiEngineOverrideModel" type="text" list="aiEngineOverrideModelOptions" autocomplete="off"
+                    spellcheck="false">
                   <datalist id="aiEngineOverrideModelOptions"></datalist>
                 </label>
                 <label class="ai-engine-field">
@@ -222,10 +290,12 @@ SOFTWARE.</pre>
     </div>
 
     <div id="aiSettingsOverlay" class="ai-settings-overlay" hidden>
-      <div id="aiSettingsDialog" class="ai-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="aiSettingsTitle" tabindex="-1">
+      <div id="aiSettingsDialog" class="ai-settings-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="aiSettingsTitle" tabindex="-1">
         <div class="ai-settings-header">
           <h2 id="aiSettingsTitle">AI Assistant Settings</h2>
-          <button type="button" id="aiSettingsClose" class="icon-text ai-settings-close" aria-label="Close AI settings">×</button>
+          <button type="button" id="aiSettingsClose" class="icon-text ai-settings-close"
+            aria-label="Close AI settings">×</button>
         </div>
         <form id="aiSettingsForm" class="ai-settings-body">
           <label class="ai-settings-field">
@@ -237,12 +307,14 @@ SOFTWARE.</pre>
             <legend>Connection</legend>
             <label class="ai-settings-field">
               Base URL
-              <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434">
+              <input type="url" id="aiEndpointInput" autocomplete="off" spellcheck="false"
+                placeholder="http://127.0.0.1:11434">
             </label>
             <div class="ai-settings-field">
               Model
               <div class="ai-settings-model-row">
-                <input type="text" id="aiModelInput" list="aiModelOptions" autocomplete="off" spellcheck="false" placeholder="Choose or type a model">
+                <input type="text" id="aiModelInput" list="aiModelOptions" autocomplete="off" spellcheck="false"
+                  placeholder="Choose or type a model">
                 <button type="button" id="aiModelListButton" class="file-button">List Models</button>
               </div>
               <select id="aiModelSelect" class="ai-model-select" aria-label="Choose loaded AI model" disabled>
@@ -283,7 +355,8 @@ SOFTWARE.</pre>
           </fieldset>
           <fieldset id="aiPrivacySection" class="ai-settings-mode ai-settings-privacy" hidden>
             <legend>Privacy</legend>
-            <p class="ai-settings-note">LocalDraft AI remains local-first. Your files stay in your browser or local disk.</p>
+            <p class="ai-settings-note">LocalDraft AI remains local-first. Your files stay in your browser or local
+              disk.</p>
             <label>
               <input type="checkbox" id="aiCloudConsent">
               <span>I understand selected text and the action prompt may be sent to the selected cloud provider.</span>
@@ -339,4 +412,5 @@ SOFTWARE.</pre>
 
 
 </body>
+
 </html>

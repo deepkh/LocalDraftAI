@@ -35,11 +35,12 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
 - **Reasoning mode**: choose Auto, Off, Low, Medium, High, or Extra High reasoning for providers that support it; Auto uses per-action defaults.
-- **Review before apply**: AI output is shown with the original selection, an editable result, visual diffs, the AI engine used for the result, and an interactive accept/reject mode before it replaces selected text.
+- **Review before apply**: AI output opens in a right-hand review panel with the original selection, editable result, visual diffs, the AI engine used for the result, and interactive accept/reject mode before it changes the document.
+- **AI revisions and restore**: regenerate AI output as selectable revisions, choose how to apply the result, and restore the original selection after an AI replacement when it can be matched safely.
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
-- **Reserved side workspace**: the right-hand workspace is intentionally reserved for future AI Assistant features.
+- **AI side workspace**: the right-hand workspace is used as an AI Assistant review panel while keeping the editor visible, and its width can be resized on desktop.
 - **No build step required**: static HTML, CSS, and JavaScript.
 
 ---
@@ -65,8 +66,10 @@ Open LocalDraftAI
   -> select text
   -> run an AI Assistant action
   -> review the result and diff
+  -> regenerate and compare revisions if needed
   -> optionally accept or reject individual diff chunks
-  -> apply the accepted text
+  -> replace the selection, insert below it, or copy the result
+  -> restore the original from the AI panel if needed
   -> save back to local disk
 ```
 
@@ -247,7 +250,11 @@ Example actions:
 - Beautify Markdown
 - Fix Markdown syntax
 
-The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review dialog supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
+The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review panel supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
+
+On desktop, drag the thin handle between the editor and the AI Assistant panel to resize the review workspace. The width is saved in the browser and restored on reload; double-click the handle to reset it.
+
+Regenerate adds a new selectable revision instead of replacing the previous result. The apply mode can replace the selection, insert the result below the selection, or copy the result without changing the document. After a replacement or insert, the panel shows **Restore Original** when the original can be restored safely.
 
 To use a real model, choose an AI provider in settings. LocalDraftAI only sends the selected text and action prompt to the provider you configure.
 
@@ -263,7 +270,7 @@ To use a real model, choose an AI provider in settings. LocalDraftAI only sends 
 8. Adjust **Reasoning** options if the provider supports them. **Auto** uses a conservative default for each AI action.
 9. Click **Test Connection**.
 10. Click **Save**.
-11. Select text in the editor, choose an AI action, review the result and AI Engine summary, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
+11. Select text in the editor, choose an AI action, review the result and AI Engine summary in the side panel, then click **Apply** or use **Interactive** mode and click **Apply Accepted Changes**.
 
 ### Supported AI Providers
 
@@ -315,7 +322,7 @@ Reasoning controls use the same compact values across providers:
   - Fix Markdown Syntax: Medium
 - **Low / Medium / High / Extra High**: use the selected reasoning level for every action when the provider supports reasoning. Providers that do not support Extra High receive the closest supported high-effort setting.
 
-Each AI review dialog shows the provider, model, and reasoning setting that generated the current result. The **Advanced** section can temporarily override the model or reasoning for that one result; click **Regenerate Result** to run the same action with the override. **Apply** always applies the visible result only and never silently regenerates.
+Each AI review shows the provider, model, and reasoning setting that generated the current visible revision. The **Advanced** section can temporarily override the model or reasoning for that one result; click **Regenerate Result** to add a new revision with the override. **Apply** always applies the visible result only and never silently regenerates.
 
 Reasoning summaries are only shown when the provider returns a summary and the setting is enabled. Provider adapters map the compact reasoning levels to each provider's supported request fields.
 
@@ -456,8 +463,8 @@ Restart Ollama after changing the environment variable.
 | `src/js/file-store.js` | Local file open/save helpers |
 | `src/js/recent-files.js` | Recent file list storage |
 | `src/js/asset-store.js` | Local image workspace handling |
-| `src/js/ai-assistant.js` | AI action workflow and review dialog |
-| `src/js/ai-diff.js` | Visual text diff helpers for the AI review dialog |
+| `src/js/ai-assistant.js` | AI action workflow, review panel/modal fallback, revisions, and restore |
+| `src/js/ai-diff.js` | Visual text diff helpers for AI review UI |
 | `src/js/ai-patch.js` | Interactive AI diff accept/reject state and renderer |
 | `src/js/ai-provider.js` | Compatibility wrapper for AI provider calls |
 | `src/js/ai-provider-manager.js` | Provider registry, settings migration, and normalized AI results |

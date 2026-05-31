@@ -286,6 +286,20 @@ function createSettingsContext() {
   };
 }
 
+function createApplyModeInputs(selectedMode) {
+  return ["replace", "insert-below", "copy"].map((mode) => {
+    const input = element("input");
+
+    input.value = mode;
+    input.checked = mode === (selectedMode || "replace");
+    return input;
+  });
+}
+
+function findButtonByText(root, text) {
+  return collectNodes(root, (node) => node.tagName === "button" && node.textContent === text)[0] || null;
+}
+
 (async function () {
   await runTest("does not close an open AI review dialog as transient UI", async function () {
     let resolveProvider;
@@ -817,7 +831,7 @@ function createSettingsContext() {
     assert.equal(context.resultText.value, "");
     assert.equal(context.diffSummary.textContent, "");
     assert.equal(context.diffView.children.length, 0);
-    assert.equal(context.resultTitle.textContent, "AI Result");
+    assert.equal(context.resultTitle.textContent, "AI Result - AI can make mistakes");
     assert.equal(context.patchAcceptAllButton.hidden, true);
   });
 
@@ -1145,5 +1159,229 @@ function createSettingsContext() {
     } finally {
       window.alert = previousAlert;
     }
+  });
+
+  await runTest("opens AI review in the right-hand panel when panel context exists", async function () {
+    const context = createContext({
+      aiAssistantPanel: element("aside"),
+      aiAssistantPanelBody: element("div"),
+      workspace: element("main")
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    assert.equal(context.reviewOverlay.hidden, true);
+    assert.equal(context.aiAssistantPanel.hidden, false);
+    assert.equal(context.aiAssistantPanelBody.children.includes(context.reviewDialog), true);
+    assert.equal(context.workspace.classList.contains("ai-panel-open"), true);
+    assert.equal(context.reviewDialog.attributes.role, "region");
+    assert.equal(context.reviewDialog.attributes["aria-modal"], undefined);
+  });
+
+  await runTest("Regenerate adds selectable revisions instead of replacing the first result", async function () {
+    const calls = [];
+    const context = createContext({
+      aiAssistantPanel: element("aside"),
+      aiAssistantPanelBody: element("div"),
+      revisionList: element("div"),
+      revisionSection: element("section"),
+      revisionStatus: element("span"),
+      workspace: element("main"),
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          calls.push(true);
+          return Promise.resolve(calls.length === 1 ? "first result" : "second result");
+        }
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    assert.equal(context.revisionSection.hidden, false);
+    assert.equal(context.revisionList.children.length, 2);
+    assert.equal(context.resultText.value, "first result");
+
+    context.aiEngineRegenerateButton.dispatchEvent("click");
+    await tick();
+
+    assert.equal(context.revisionList.children.length, 3);
+    assert.equal(context.resultText.value, "second result");
+    assert.equal(context.revisionStatus.textContent, "Active: Result 2");
+
+    findButtonByText(context.revisionList, "Result 1").dispatchEvent("click");
+    assert.equal(context.resultText.value, "first result");
+
+    findButtonByText(context.revisionList, "Result 2").dispatchEvent("click");
+    assert.equal(context.resultText.value, "second result");
+  });
+
+  await runTest("panel apply keeps review open and restores the original Markdown selection", async function () {
+    const context = createContext({
+      aiAssistantPanel: element("aside"),
+      aiAssistantPanelBody: element("div"),
+      applyModeInputs: createApplyModeInputs("replace"),
+      applyStatus: element("div"),
+      applyStatusText: element("span"),
+      restoreOriginalButton: element("button"),
+      revisionList: element("div"),
+      revisionSection: element("section"),
+      revisionStatus: element("span"),
+      workspace: element("main"),
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("fixed");
+        }
+      }
+    });
+    context.markdownEditor.value = "text tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.applyButton.dispatchEvent("click");
+
+    assert.equal(context.aiAssistantPanel.hidden, false);
+    assert.equal(context.markdownEditor.value, "fixed tail");
+    assert.match(context.applyStatusText.textContent, /Applied: Grammar Correction · Result 1/);
+    assert.equal(context.restoreOriginalButton.disabled, false);
+
+    context.restoreOriginalButton.dispatchEvent("click");
+
+    assert.equal(context.markdownEditor.value, "text tail");
+    assert.equal(context.lastMarkdown, "text tail");
+    assert.equal(context.applyStatusText.textContent, "Original restored.");
+  });
+
+  await runTest("Insert below mode can be restored safely", async function () {
+    const context = createContext({
+      aiAssistantPanel: element("aside"),
+      aiAssistantPanelBody: element("div"),
+      applyModeInputs: createApplyModeInputs("insert-below"),
+      applyStatus: element("div"),
+      applyStatusText: element("span"),
+      restoreOriginalButton: element("button"),
+      workspace: element("main"),
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("new result");
+        }
+      }
+    });
+    context.markdownEditor.value = "text tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("improveWording", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.applyButton.dispatchEvent("click");
+    assert.equal(context.markdownEditor.value, "text\n\nnew result tail");
+
+    context.restoreOriginalButton.dispatchEvent("click");
+    assert.equal(context.markdownEditor.value, "text tail");
+  });
+
+  await runTest("Copy result only mode does not mutate the document", async function () {
+    let copiedText = "";
+    const context = createContext({
+      aiAssistantPanel: element("aside"),
+      aiAssistantPanelBody: element("div"),
+      applyModeInputs: createApplyModeInputs("copy"),
+      applyStatus: element("div"),
+      applyStatusText: element("span"),
+      copyTextToClipboard(text) {
+        copiedText = text;
+      },
+      restoreOriginalButton: element("button"),
+      workspace: element("main"),
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("copied result");
+        }
+      }
+    });
+    context.markdownEditor.value = "text tail";
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("makeShorter", {
+      selection: {
+        end: 4,
+        mode: "markdown",
+        start: 0,
+        text: "text"
+      }
+    });
+
+    context.applyButton.dispatchEvent("click");
+    await tick();
+
+    assert.equal(copiedText, "copied result");
+    assert.equal(context.markdownEditor.value, "text tail");
+    assert.match(context.applyStatusText.textContent, /Copied: Make Shorter · Result 1/);
+    assert.equal(context.restoreOriginalButton.hidden, true);
   });
 }());
