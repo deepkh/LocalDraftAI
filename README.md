@@ -31,7 +31,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
-- **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
+- **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files with collapsible folders, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -80,13 +80,13 @@ Open LocalDraftAI
 
 Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans the folder recursively and shows Markdown files (`.md` and `.markdown`) in the left sidebar. Non-Markdown project files, images, binaries, and app source files are hidden.
 
-The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
+The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Folders in the Files tree can also be collapsed or expanded; collapsed folder paths are saved per workspace using workspace-relative paths, and the active file's parent folders are revealed automatically. File-name filtering temporarily expands folders with matches without overwriting saved collapse state. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
 When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen workspace Markdown tabs, restore the active tab, and recover basic mode and scroll state. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
 
 The sidebar has three views:
 
-- `Files`: browse the Markdown tree, filter by file name, and use right-click actions.
+- `Files`: browse the Markdown tree, collapse or expand folders, filter by file name, and use right-click actions.
 - `Search`: search Markdown file contents case-insensitively and open results by file and line.
 - `Related`: see same-folder Markdown files, Markdown links from the active file, recently opened workspace files, and planning files.
 
@@ -94,6 +94,8 @@ Right-click safe operations are available in the Files view:
 
 - Folder: `New Markdown File`, `New Folder`, and `Refresh`.
 - File: `Open`, `Rename`, `Duplicate`, `Copy Relative Path`, and `Reveal in Workspace`.
+
+The `Workspace` menu includes `Expand All Folders` and `Collapse All Folders`. Collapse All keeps parent folders for the active workspace file expanded so the current file does not disappear.
 
 Delete is intentionally not included. Rename is conservative: LocalDraftAI writes the new file first and only removes the old entry when the browser exposes a safe remove operation. If that path is unavailable, use Duplicate and remove the old file manually.
 

@@ -8,6 +8,7 @@
   var MODE_STORAGE_KEY = "localdraftai.workspaceSidebar.mode";
   var WIDTH_STORAGE_KEY = "localdraftai.workspaceSidebar.width";
   var PANEL_STORAGE_KEY = "localdraftai.workspaceSidebar.panel";
+  var COLLAPSED_FOLDERS_STORAGE_KEY = "localdraftai.workspaceSidebar.collapsedFolders";
   var SIDEBAR_MODES = {
     EXPANDED: "expanded",
     HIDDEN: "hidden",
@@ -39,6 +40,82 @@
     } catch (error) {
       // Sidebar persistence is optional.
     }
+  }
+
+  function readJsonStorage(storage, key) {
+    var raw = readStorage(storage, key);
+    var parsed;
+
+    if (!raw) {
+      return {};
+    }
+
+    try {
+      parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeJsonStorage(storage, key, value) {
+    writeStorage(storage, key, JSON.stringify(value || {}));
+  }
+
+  function normalizeFolderPath(path) {
+    return String(path || "").split("/").filter(Boolean).join("/");
+  }
+
+  function workspaceStorageKey(rootName) {
+    return String(rootName || "").trim();
+  }
+
+  function lookupFromPaths(paths) {
+    var lookup = {};
+
+    (paths || []).forEach(function (path) {
+      path = normalizeFolderPath(path);
+      if (path) {
+        lookup[path] = true;
+      }
+    });
+
+    return lookup;
+  }
+
+  function pathsFromLookup(lookup) {
+    return Object.keys(lookup || {}).filter(Boolean).sort();
+  }
+
+  function parentFolderPaths(filePath) {
+    var parts = String(filePath || "").split("/").filter(Boolean);
+    var paths = [];
+    var current = "";
+    var i;
+
+    parts.pop();
+    for (i = 0; i < parts.length; i += 1) {
+      current = normalizeFolderPath([current, parts[i]].join("/"));
+      if (current) {
+        paths.push(current);
+      }
+    }
+
+    return paths;
+  }
+
+  function collectCollapsibleFolders(nodes, paths) {
+    paths = paths || [];
+    (nodes || []).forEach(function (node) {
+      if (node.kind !== "directory") {
+        return;
+      }
+      if (node.children && node.children.length) {
+        paths.push(normalizeFolderPath(node.path));
+      }
+      collectCollapsibleFolders(node.children || [], paths);
+    });
+    return paths.filter(Boolean);
   }
 
   function normalizeMode(mode) {
@@ -131,6 +208,9 @@
     var activePointerId = null;
     var searchTimer = 0;
     var contextMenu = null;
+    var collapsedFolderPaths = lookupFromPaths(
+      readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY)[workspaceStorageKey(state.rootName)]
+    );
 
     function setGridWidth(nextWidth) {
       width = normalizeWidth(nextWidth);
@@ -165,18 +245,93 @@
       return "<span class=\"workspace-plan-badge\">PLAN</span>";
     }
 
-    function renderTree(nodes, depth) {
+    function persistCollapsedFolders() {
+      var key = workspaceStorageKey(state.rootName);
+      var collapsedByWorkspace;
+
+      if (!key) {
+        return;
+      }
+
+      collapsedByWorkspace = readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY);
+      collapsedByWorkspace[key] = pathsFromLookup(collapsedFolderPaths);
+      writeJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY, collapsedByWorkspace);
+    }
+
+    function loadCollapsedFolders(rootName) {
+      var key = workspaceStorageKey(rootName);
+      var collapsedByWorkspace = readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY);
+
+      collapsedFolderPaths = lookupFromPaths(key ? collapsedByWorkspace[key] : []);
+    }
+
+    function expandParentFolders(path, shouldPersist) {
+      var changed = false;
+
+      parentFolderPaths(path).forEach(function (folderPath) {
+        if (collapsedFolderPaths[folderPath]) {
+          delete collapsedFolderPaths[folderPath];
+          changed = true;
+        }
+      });
+
+      if (changed && shouldPersist) {
+        persistCollapsedFolders();
+      }
+
+      return changed;
+    }
+
+    function toggleFolder(path) {
+      path = normalizeFolderPath(path);
+      if (!path) {
+        return;
+      }
+
+      if (collapsedFolderPaths[path]) {
+        delete collapsedFolderPaths[path];
+      } else {
+        collapsedFolderPaths[path] = true;
+      }
+      persistCollapsedFolders();
+      render();
+    }
+
+    function expandAllFolders() {
+      collapsedFolderPaths = {};
+      persistCollapsedFolders();
+      render();
+    }
+
+    function collapseAllFolders() {
+      var activeParents = lookupFromPaths(parentFolderPaths(selectedPath));
+
+      collapsedFolderPaths = lookupFromPaths(collectCollapsibleFolders(state.tree || []));
+      Object.keys(activeParents).forEach(function (path) {
+        delete collapsedFolderPaths[path];
+      });
+      persistCollapsedFolders();
+      render();
+    }
+
+    function renderTree(nodes, depth, options) {
       if (!nodes || !nodes.length) {
         return "";
       }
+
+      options = options || {};
 
       return nodes.map(function (node) {
         var isDirectory = node.kind === "directory";
         var isActive = !isDirectory && node.path === selectedPath;
         var isDirty = !isDirectory && dirtyPaths[node.path];
         var label = escapeHtml(node.name || "");
+        var folderPath = normalizeFolderPath(node.path);
+        var isCollapsed = isDirectory && !options.forceExpanded && Boolean(collapsedFolderPaths[folderPath]);
         var rowClass = "workspace-tree-item" +
           (isDirectory ? " is-directory" : " is-file") +
+          (isDirectory && isCollapsed ? " is-collapsed" : "") +
+          (isDirectory && !isCollapsed ? " is-expanded" : "") +
           (isActive ? " is-active" : "") +
           (isDirty ? " is-dirty" : "");
         var style = " style=\"--workspace-tree-depth:" + String(depth || 0) + "\"";
@@ -184,12 +339,14 @@
         var button;
 
         if (isDirectory) {
-          button = "<div class=\"" + rowClass + "\"" + style + " data-workspace-folder-path=\"" +
-            escapeHtml(node.path || "") + "\" title=\"" + escapeHtml(node.path || "") + "\">" +
-            "<span class=\"workspace-disclosure\" aria-hidden=\"true\">v</span>" +
-            "<span class=\"workspace-tree-label\">" + label + "</span>" +
-            "</div>";
-          return button + renderTree(node.children || [], (depth || 0) + 1);
+          button = "<button type=\"button\" class=\"" + rowClass + "\"" + style +
+            " data-workspace-folder-path=\"" + escapeHtml(folderPath) + "\" title=\"" +
+            escapeHtml(folderPath) + "\" aria-expanded=\"" + String(!isCollapsed) + "\">" +
+            "<span class=\"workspace-disclosure\" aria-hidden=\"true\">" +
+            (isCollapsed ? "&#9656;" : "&#9662;") + "</span>" +
+            "<span class=\"workspace-tree-label\">" + label + "/</span>" +
+            "</button>";
+          return button + (isCollapsed ? "" : renderTree(node.children || [], (depth || 0) + 1, options));
         }
 
         return "<button type=\"button\" class=\"" + rowClass + "\" data-workspace-path=\"" +
@@ -253,11 +410,13 @@
     }
 
     function renderFilesPanel() {
+      var isFiltering = Boolean(fileSearchQuery.trim());
       var filteredTree = ME.workspaceStore && ME.workspaceStore.filterTree
         ? ME.workspaceStore.filterTree(state.tree || [], fileSearchQuery)
         : state.tree || [];
       var body = treeHasNodes(filteredTree)
-        ? "<div class=\"workspace-tree\" role=\"tree\" data-workspace-root=\"true\">" + renderTree(filteredTree, 0) + "</div>"
+        ? "<div class=\"workspace-tree\" role=\"tree\" data-workspace-root=\"true\">" +
+          renderTree(filteredTree, 0, { forceExpanded: isFiltering }) + "</div>"
         : emptyMessage();
 
       return "<div class=\"workspace-search-wrap\">" +
@@ -454,6 +613,10 @@
     }
 
     function setWorkspaceState(nextState) {
+      var previousRootName = state.rootName;
+      var previousSearch = state.search;
+      var previousRelated = state.related;
+
       state = {
         directories: nextState && nextState.directories ? nextState.directories : [],
         error: nextState && nextState.error ? nextState.error : "",
@@ -462,15 +625,20 @@
         isSupported: nextState ? nextState.isSupported !== false : true,
         restorePrompt: nextState && nextState.restorePrompt ? nextState.restorePrompt : null,
         rootName: nextState && nextState.rootName ? nextState.rootName : "",
-        search: nextState && nextState.search ? nextState.search : state.search,
-        related: nextState && nextState.related ? nextState.related : state.related,
+        search: nextState && nextState.search ? nextState.search : previousSearch,
+        related: nextState && nextState.related ? nextState.related : previousRelated,
         tree: nextState && nextState.tree ? nextState.tree : null
       };
+      if (state.rootName !== previousRootName) {
+        loadCollapsedFolders(state.rootName);
+      }
+      expandParentFolders(selectedPath, true);
       render();
     }
 
     function setSelection(path) {
       selectedPath = path || "";
+      expandParentFolders(selectedPath, true);
       render();
     }
 
@@ -482,6 +650,10 @@
     function update(nextState) {
       nextState = nextState || {};
       if (Object.prototype.hasOwnProperty.call(nextState, "workspaceState")) {
+        var previousRootName = state.rootName;
+        var previousSearch = state.search;
+        var previousRelated = state.related;
+
         state = {
           directories: nextState.workspaceState && nextState.workspaceState.directories ? nextState.workspaceState.directories : [],
           error: nextState.workspaceState && nextState.workspaceState.error ? nextState.workspaceState.error : "",
@@ -490,14 +662,18 @@
           isSupported: nextState.workspaceState ? nextState.workspaceState.isSupported !== false : true,
           restorePrompt: nextState.workspaceState && nextState.workspaceState.restorePrompt ? nextState.workspaceState.restorePrompt : null,
           rootName: nextState.workspaceState && nextState.workspaceState.rootName ? nextState.workspaceState.rootName : "",
-          search: nextState.workspaceState && nextState.workspaceState.search ? nextState.workspaceState.search : state.search,
-          related: nextState.workspaceState && nextState.workspaceState.related ? nextState.workspaceState.related : state.related,
+          search: nextState.workspaceState && nextState.workspaceState.search ? nextState.workspaceState.search : previousSearch,
+          related: nextState.workspaceState && nextState.workspaceState.related ? nextState.workspaceState.related : previousRelated,
           tree: nextState.workspaceState && nextState.workspaceState.tree ? nextState.workspaceState.tree : null
         };
+        if (state.rootName !== previousRootName) {
+          loadCollapsedFolders(state.rootName);
+        }
       }
       if (Object.prototype.hasOwnProperty.call(nextState, "selectedPath")) {
         selectedPath = nextState.selectedPath || "";
       }
+      expandParentFolders(selectedPath, true);
       if (Object.prototype.hasOwnProperty.call(nextState, "dirtyPaths")) {
         dirtyPaths = createDirtyLookup(nextState.dirtyPaths);
       }
@@ -511,6 +687,7 @@
       var contextActionElement = event.target.closest("[data-workspace-context-action]");
       var searchResultElement = event.target.closest("[data-workspace-search-path]");
       var relatedElement = event.target.closest("[data-workspace-related-path]");
+      var folderElement;
       var fileElement;
       var action;
 
@@ -566,6 +743,12 @@
 
       if (relatedElement && rootElement.contains(relatedElement)) {
         onOpenFile(relatedElement.getAttribute("data-workspace-related-path"));
+        return;
+      }
+
+      folderElement = event.target.closest("[data-workspace-folder-path]");
+      if (folderElement && rootElement.contains(folderElement)) {
+        toggleFolder(folderElement.getAttribute("data-workspace-folder-path"));
         return;
       }
 
@@ -740,11 +923,17 @@
       getWidth: function () {
         return width;
       },
+      collapseAllFolders: collapseAllFolders,
+      expandAllFolders: expandAllFolders,
+      getCollapsedFolders: function () {
+        return pathsFromLookup(collapsedFolderPaths);
+      },
       revealFile: function (path) {
         selectedPath = path || selectedPath;
         activePanel = PANELS.FILES;
         fileSearchQuery = "";
         writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
+        expandParentFolders(selectedPath, true);
         render();
       },
       setDirtyPaths: setDirtyPaths,
@@ -758,6 +947,7 @@
 
   ME.workspaceSidebar = {
     DEFAULT_WIDTH: DEFAULT_WIDTH,
+    COLLAPSED_FOLDERS_STORAGE_KEY: COLLAPSED_FOLDERS_STORAGE_KEY,
     MINIMIZED_WIDTH: MINIMIZED_WIDTH,
     MIN_WIDTH: MIN_WIDTH,
     MODE_STORAGE_KEY: MODE_STORAGE_KEY,

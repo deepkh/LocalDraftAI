@@ -128,6 +128,8 @@
   var restoreWorkspaceButton = document.getElementById("restoreWorkspace");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
+  var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
+  var collapseWorkspaceFoldersButton = document.getElementById("collapseWorkspaceFolders");
   var showWorkspaceSidebarButton = document.getElementById("showWorkspaceSidebar");
   var hideWorkspaceSidebarButton = document.getElementById("hideWorkspaceSidebar");
   var minimizeWorkspaceSidebarButton = document.getElementById("minimizeWorkspaceSidebar");
@@ -1400,6 +1402,12 @@
     }
     if (closeWorkspaceButton) {
       closeWorkspaceButton.disabled = !hasWorkspace;
+    }
+    if (expandWorkspaceFoldersButton) {
+      expandWorkspaceFoldersButton.disabled = !hasWorkspace;
+    }
+    if (collapseWorkspaceFoldersButton) {
+      collapseWorkspaceFoldersButton.disabled = !hasWorkspace;
     }
   }
 
@@ -3504,6 +3512,22 @@
     }
     if (closeWorkspaceButton) {
       closeWorkspaceButton.addEventListener("click", handleCloseWorkspace);
+    }
+    if (expandWorkspaceFoldersButton) {
+      expandWorkspaceFoldersButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        if (workspaceSidebar) {
+          workspaceSidebar.expandAllFolders();
+        }
+      });
+    }
+    if (collapseWorkspaceFoldersButton) {
+      collapseWorkspaceFoldersButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        if (workspaceSidebar) {
+          workspaceSidebar.collapseAllFolders();
+        }
+      });
     }
     if (showWorkspaceSidebarButton) {
       showWorkspaceSidebarButton.addEventListener("click", function () {

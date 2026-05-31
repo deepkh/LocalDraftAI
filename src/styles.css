@@ -811,9 +811,11 @@
     .workspace-tree-item.is-directory {
       color: #3f4743;
       font-weight: 760;
-      cursor: default;
+      cursor: pointer;
     }
 
+    .workspace-tree-item.is-directory:hover,
+    .workspace-tree-item.is-directory:focus-visible,
     .workspace-tree-item.is-file:hover,
     .workspace-tree-item.is-file:focus-visible {
       background: var(--panel-alt);
@@ -833,6 +835,11 @@
     .workspace-dirty {
       flex: 0 0 auto;
       color: var(--muted);
+    }
+
+    .workspace-disclosure {
+      width: 12px;
+      text-align: center;
     }
 
     .workspace-file-dot {
