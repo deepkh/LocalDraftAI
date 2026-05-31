@@ -98,6 +98,14 @@
     return parts.join("/");
   }
 
+  function normalizeSidebarScroll(scroll) {
+    return {
+      panel: String(scroll && scroll.panel || "files"),
+      scrollLeft: Math.max(0, Number(scroll && scroll.scrollLeft) || 0),
+      scrollTop: Math.max(0, Number(scroll && scroll.scrollTop) || 0)
+    };
+  }
+
   function normalizeSessionMetadata(session) {
     var openedTabs = (session && session.openedTabs || []).map(normalizeTabMetadata).filter(function (tab) {
       return Boolean(tab.path);
@@ -109,6 +117,7 @@
       collapsedFolders: collapsedFolders,
       openedTabs: openedTabs,
       savedAt: session && session.savedAt || Date.now(),
+      sidebarScroll: normalizeSidebarScroll(session && session.sidebarScroll),
       workspaceHandle: session && session.workspaceHandle || null,
       workspaceName: String(session && session.workspaceName || "Workspace")
     };

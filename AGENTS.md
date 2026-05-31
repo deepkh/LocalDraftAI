@@ -118,7 +118,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
 - The left workspace sidebar is a Markdown-focused browser for local folders; it lists `.md` and `.markdown` files, keeps non-Markdown files hidden, and opens workspace Markdown files in tabs.
 - The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, supports Files, Search, and Related views, and lets folders in the Files tree collapse or expand with workspace-relative persisted state.
-- Workspace session restore uses IndexedDB for the previous workspace handle, lightweight opened-tab metadata, and workspace-relative collapsed folder paths. It must restore only after explicit user action and must not store full document contents for normal restore.
+- Workspace session restore uses IndexedDB for the previous workspace handle, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. It must restore only after explicit user action and must not store full document contents for normal restore.
 - Workspace file operations must stay safe: New Markdown File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed; Delete is out of scope.
 - Workspace content search only scans `.md` and `.markdown` files and should cap matches to avoid runaway UI work.
 - Related files are simple rule-based context only: same folder, Markdown links, recently opened workspace files, and plan files. Do not add embeddings or AI context execution here.

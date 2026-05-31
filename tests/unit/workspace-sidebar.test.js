@@ -39,13 +39,24 @@ function createClassList() {
 
 function createElement() {
   const listeners = {};
+  let html = "";
+  const element = {
+    get innerHTML() {
+      return html;
+    },
+    set innerHTML(value) {
+      html = String(value || "");
+      if (element.sidebarBody) {
+        element.sidebarBody.scrollLeft = 0;
+        element.sidebarBody.scrollTop = 0;
+      }
+    },
 
-  return {
     classList: createClassList(),
     hidden: false,
-    innerHTML: "",
     listeners,
     parentElement: null,
+    sidebarBody: null,
     style: {
       values: {},
       setProperty(name, value) {
@@ -64,11 +75,16 @@ function createElement() {
         callback(event || {});
       });
     },
-    querySelector() {
+    querySelector(selector) {
+      if (selector === ".workspace-sidebar-body") {
+        return this.sidebarBody;
+      }
       return null;
     },
     setAttribute() {}
   };
+
+  return element;
 }
 
 function createFolderClickTarget(path) {
@@ -130,6 +146,7 @@ function createSidebar(storage) {
   const root = createElement();
   const workspace = createElement();
   const folderChanges = [];
+  const scrollChanges = [];
 
   storage.values[workspaceSidebar.MODE_STORAGE_KEY] = "expanded";
   const sidebar = workspaceSidebar.create({
@@ -138,6 +155,9 @@ function createSidebar(storage) {
     workspaceElement: workspace,
     onFolderStateChange(paths) {
       folderChanges.push(paths);
+    },
+    onScrollStateChange(scrollState) {
+      scrollChanges.push(scrollState);
     }
   });
 
@@ -154,7 +174,7 @@ function createSidebar(storage) {
     }
   });
 
-  return { folderChanges, root, sidebar };
+  return { folderChanges, root, scrollChanges, sidebar };
 }
 
 runTest("collapses folders and persists relative paths per workspace", function () {
@@ -183,6 +203,81 @@ runTest("restores collapsed folders when the same workspace opens again", functi
 
   assert.deepEqual(view.sidebar.getCollapsedFolders(), ["docs"]);
   assert.doesNotMatch(view.root.innerHTML, /ai-agent\.md/);
+});
+
+runTest("folder click preserves the sidebar scroll position", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.root.sidebarBody = {
+    scrollLeft: 0,
+    scrollTop: 180
+  };
+  view.root.dispatch("click", {
+    target: createFolderClickTarget("docs")
+  });
+
+  assert.equal(view.root.sidebarBody.scrollTop, 180);
+});
+
+runTest("file selection updates preserve the sidebar scroll position", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.root.sidebarBody = {
+    scrollLeft: 0,
+    scrollTop: 220
+  };
+  view.sidebar.update({
+    selectedPath: "docs/ai-agent.md"
+  });
+
+  assert.equal(view.root.sidebarBody.scrollTop, 220);
+});
+
+runTest("reports and restores sidebar scroll state for workspace restore", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.root.sidebarBody = {
+    scrollLeft: 3,
+    scrollTop: 260
+  };
+  assert.deepEqual(view.sidebar.getScrollState(), {
+    panel: "files",
+    scrollLeft: 3,
+    scrollTop: 260
+  });
+
+  view.root.sidebarBody.scrollTop = 0;
+  view.root.sidebarBody.scrollLeft = 0;
+  view.sidebar.setScrollState({
+    panel: "files",
+    scrollLeft: 3,
+    scrollTop: 260
+  });
+
+  assert.equal(view.root.sidebarBody.scrollTop, 260);
+  assert.equal(view.root.sidebarBody.scrollLeft, 3);
+});
+
+runTest("sidebar scroll changes can trigger workspace session saves", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  view.root.sidebarBody = {
+    scrollLeft: 0,
+    scrollTop: 140
+  };
+  view.root.dispatch("scroll", {
+    target: view.root.sidebarBody
+  });
+
+  assert.deepEqual(view.scrollChanges[0], {
+    panel: "files",
+    scrollLeft: 0,
+    scrollTop: 140
+  });
 });
 
 runTest("applies collapsed folders from restored workspace session metadata", function () {

@@ -1453,6 +1453,9 @@
         ? workspaceSidebar.getCollapsedFolders()
         : [],
       openedTabs: workspaceSessionTabs(),
+      sidebarScroll: workspaceSidebar && typeof workspaceSidebar.getScrollState === "function"
+        ? workspaceSidebar.getScrollState()
+        : null,
       workspaceHandle: workspaceState.rootHandle,
       workspaceName: workspaceState.rootName
     }).catch(function () {
@@ -1730,6 +1733,7 @@
   async function handleRestoreWorkspaceSession(action) {
     var permission;
     var result;
+    var restoredSession;
 
     if (action === "skip") {
       restorableWorkspaceSession = null;
@@ -1753,7 +1757,8 @@
     }
 
     try {
-      permission = await workspaceSession.requestWorkspacePermission(restorableWorkspaceSession.workspaceHandle, "read");
+      restoredSession = restorableWorkspaceSession;
+      permission = await workspaceSession.requestWorkspacePermission(restoredSession.workspaceHandle, "read");
       if (permission !== "granted") {
         showWorkspaceError("Permission was not granted. Open the workspace folder manually to continue.");
         return;
@@ -1762,15 +1767,18 @@
       workspaceState.isScanning = true;
       workspaceState.error = "";
       renderWorkspaceSidebar();
-      result = await workspaceStore.scanWorkspace(restorableWorkspaceSession.workspaceHandle);
+      result = await workspaceStore.scanWorkspace(restoredSession.workspaceHandle);
       result.workspaceId = "workspace-" + nextWorkspaceId++;
       applyWorkspaceScanResult(result);
       if (workspaceSidebar && typeof workspaceSidebar.setCollapsedFolders === "function") {
-        workspaceSidebar.setCollapsedFolders(restorableWorkspaceSession.collapsedFolders || []);
+        workspaceSidebar.setCollapsedFolders(restoredSession.collapsedFolders || []);
       }
-      await restoreWorkspaceTabs(restorableWorkspaceSession);
+      await restoreWorkspaceTabs(restoredSession);
       restorableWorkspaceSession = null;
       renderWorkspaceSidebar();
+      if (workspaceSidebar && typeof workspaceSidebar.setScrollState === "function") {
+        workspaceSidebar.setScrollState(restoredSession.sidebarScroll);
+      }
       scheduleWorkspaceSessionSave();
     } catch (error) {
       showWorkspaceError("Could not restore this workspace. Open the folder manually to continue.");
@@ -3961,6 +3969,7 @@
         onClose: handleCloseWorkspace,
         onRestoreAction: handleRestoreWorkspaceSession,
         onFolderStateChange: scheduleWorkspaceSessionSave,
+        onScrollStateChange: scheduleWorkspaceSessionSave,
         onSearchContent: handleWorkspaceContentSearch
       });
       workspaceSidebar.bindEvents();

@@ -179,6 +179,7 @@
     var onClose = context.onClose || function () {};
     var onContextAction = context.onContextAction || function () {};
     var onFolderStateChange = context.onFolderStateChange || function () {};
+    var onScrollStateChange = context.onScrollStateChange || function () {};
     var onSearchContent = context.onSearchContent || function () {};
     var onRestoreAction = context.onRestoreAction || function () {};
     var state = {
@@ -209,6 +210,7 @@
     var activePointerId = null;
     var searchTimer = 0;
     var contextMenu = null;
+    var renderedPanel = activePanel;
     var collapsedFolderPaths = lookupFromPaths(
       readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY)[workspaceStorageKey(state.rootName)]
     );
@@ -244,6 +246,60 @@
       }
 
       return "<span class=\"workspace-plan-badge\">PLAN</span>";
+    }
+
+    function sidebarBodyElement() {
+      return rootElement.querySelector ? rootElement.querySelector(".workspace-sidebar-body") : null;
+    }
+
+    function captureSidebarScroll() {
+      var body = sidebarBodyElement();
+
+      if (!body) {
+        return {
+          panel: activePanel,
+          scrollLeft: 0,
+          scrollTop: 0
+        };
+      }
+
+      return {
+        panel: renderedPanel,
+        scrollLeft: body.scrollLeft || 0,
+        scrollTop: body.scrollTop || 0
+      };
+    }
+
+    function restoreSidebarScroll(scrollState) {
+      var body;
+
+      if (!scrollState || scrollState.panel !== activePanel) {
+        return;
+      }
+
+      body = sidebarBodyElement();
+      if (!body) {
+        return;
+      }
+
+      body.scrollTop = scrollState.scrollTop;
+      body.scrollLeft = scrollState.scrollLeft;
+    }
+
+    function getScrollState() {
+      return captureSidebarScroll();
+    }
+
+    function setScrollState(scrollState) {
+      if (!scrollState) {
+        return;
+      }
+
+      restoreSidebarScroll({
+        panel: scrollState.panel || activePanel,
+        scrollLeft: Math.max(0, Number(scrollState.scrollLeft) || 0),
+        scrollTop: Math.max(0, Number(scrollState.scrollTop) || 0)
+      });
     }
 
     function persistCollapsedFolders() {
@@ -597,20 +653,26 @@
     }
 
     function render() {
+      var scrollState = captureSidebarScroll();
+
       applyModeClasses();
       setGridWidth(width);
 
       if (mode === SIDEBAR_MODES.HIDDEN) {
         rootElement.innerHTML = "";
+        renderedPanel = "";
         return;
       }
 
       if (mode === SIDEBAR_MODES.MINIMIZED) {
         renderMinimized();
+        renderedPanel = "";
         return;
       }
 
       renderExpanded();
+      restoreSidebarScroll(scrollState);
+      renderedPanel = activePanel;
     }
 
     function setMode(nextMode) {
@@ -772,6 +834,14 @@
       }
     }
 
+    function handleScroll(event) {
+      if (event.target !== sidebarBodyElement()) {
+        return;
+      }
+
+      onScrollStateChange(getScrollState());
+    }
+
     function handleInput(event) {
       var nextInput;
       var selectionEnd;
@@ -918,6 +988,7 @@
     function bindEvents() {
       rootElement.addEventListener("click", handleClick);
       rootElement.addEventListener("input", handleInput);
+      rootElement.addEventListener("scroll", handleScroll, true);
       rootElement.addEventListener("contextmenu", handleContextMenu);
       document.addEventListener("click", function (event) {
         if (contextMenu && !rootElement.contains(event.target)) {
@@ -942,6 +1013,7 @@
       getCollapsedFolders: function () {
         return pathsFromLookup(collapsedFolderPaths);
       },
+      getScrollState: getScrollState,
       revealFile: function (path) {
         selectedPath = path || selectedPath;
         activePanel = PANELS.FILES;
@@ -955,6 +1027,7 @@
       setMode: setMode,
       setPanel: setPanel,
       setSelection: setSelection,
+      setScrollState: setScrollState,
       setWorkspaceState: setWorkspaceState,
       update: update
     };
