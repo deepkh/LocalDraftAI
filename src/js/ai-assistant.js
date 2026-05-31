@@ -867,6 +867,9 @@
       var selectionMode = selection && selection.mode ? selection.mode : context.getActiveMode();
       var markdownSelection = selectionMode === "markdown";
       var providerLabel = summary.providerLabel || (mode === "server" ? "AI provider" : "Local mock");
+      var editorStateBeforeReview = selectionMode === "wysiwyg" && context.captureActiveEditorState
+        ? context.captureActiveEditorState()
+        : null;
 
       diffMode = "side-by-side";
       reviewState = {
@@ -876,6 +879,7 @@
         acceptedResult: "",
         diffChunks: null,
         original: selection.text,
+        editorStateBeforeReview: editorStateBeforeReview,
         overrideDirty: false,
         overrideSettings: null,
         patchChunks: null,
@@ -977,7 +981,11 @@
       reviewDialog.focus();
     }
 
-    function closeReview() {
+    function closeReview(options) {
+      var stateToRestore = reviewState && reviewState.editorStateBeforeReview;
+      var shouldFocusEditor = !options || options.focusEditor !== false;
+      var shouldRestoreEditorState = Boolean(options && options.restoreEditorState);
+
       reviewOverlay.hidden = true;
       reviewState = null;
       diffMode = "side-by-side";
@@ -1000,7 +1008,11 @@
       applyButton.disabled = true;
       applyButton.textContent = "Apply";
       cancelButton.disabled = false;
-      context.focusActiveEditor();
+      if (shouldRestoreEditorState && stateToRestore && context.restoreActiveEditorState) {
+        context.restoreActiveEditorState(stateToRestore);
+      } else if (shouldFocusEditor) {
+        context.focusActiveEditor();
+      }
     }
 
     function unavailableMessage() {
@@ -1146,7 +1158,7 @@
             ? ME.markdown.renderMarkdown(replacement, 0, {})
             : replacement);
         context.insertHtmlAtSelection(renderedHtml, reviewState.selection);
-        closeReview();
+        closeReview({ focusEditor: false });
         return;
       }
 
@@ -1201,8 +1213,12 @@
       bindReviewLogResize();
 
       applyButton.addEventListener("click", applyReview);
-      cancelButton.addEventListener("click", closeReview);
-      closeButton.addEventListener("click", closeReview);
+      cancelButton.addEventListener("click", function () {
+        closeReview({ restoreEditorState: true });
+      });
+      closeButton.addEventListener("click", function () {
+        closeReview({ restoreEditorState: true });
+      });
       resultText.addEventListener("input", refreshDiffFromReview);
 
       if (aiEngineChangeSettingsButton) {

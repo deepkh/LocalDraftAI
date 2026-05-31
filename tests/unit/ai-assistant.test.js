@@ -821,6 +821,97 @@ function createSettingsContext() {
     assert.equal(context.patchAcceptAllButton.hidden, true);
   });
 
+  await runTest("restores WYSIWYG editor state on cancel", async function () {
+    const capturedState = { mode: "wysiwyg", scrollTop: 420 };
+    const context = createContext({
+      captureActiveEditorState() {
+        context.captureActiveEditorStateCalled = true;
+        return capturedState;
+      },
+      getActiveMode() {
+        return "wysiwyg";
+      },
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("Hello LocalDraftAI world");
+        }
+      },
+      restoreActiveEditorState(state) {
+        context.restoredEditorState = state;
+      }
+    });
+    const assistant = bindAssistant(context);
+
+    await assistant.requestAction("correctGrammar", {
+      selection: {
+        mode: "wysiwyg",
+        range: {},
+        text: "Hello world"
+      }
+    });
+
+    context.cancelButton.dispatchEvent("click");
+
+    assert.equal(context.captureActiveEditorStateCalled, true);
+    assert.equal(context.restoredEditorState, capturedState);
+    assert.equal(context.focusedActiveEditor, undefined);
+  });
+
+  await runTest("does not refocus WYSIWYG editor through close path after apply", async function () {
+    const context = createContext({
+      getActiveMode() {
+        return "wysiwyg";
+      },
+      insertHtmlAtSelection(html, selection) {
+        context.insertedHtml = html;
+        context.insertedSelection = selection;
+      },
+      provider: {
+        actionTimeoutMs() {
+          return 1000;
+        },
+        readSettings() {
+          return {
+            endpoint: "",
+            model: "local-model"
+          };
+        },
+        run() {
+          return Promise.resolve("the");
+        }
+      },
+      renderMarkdownToHtml(value) {
+        return "<p>" + value + "</p>";
+      }
+    });
+    const assistant = bindAssistant(context);
+    const selection = {
+      mode: "wysiwyg",
+      range: {},
+      text: "teh"
+    };
+
+    await assistant.requestAction("correctGrammar", {
+      selection
+    });
+
+    context.applyButton.dispatchEvent("click");
+
+    assert.equal(context.insertedHtml, "<p>the</p>");
+    assert.equal(context.insertedSelection, selection);
+    assert.equal(context.reviewOverlay.hidden, true);
+    assert.equal(context.focusedActiveEditor, undefined);
+  });
+
   await runTest("interactive mode renders accept and reject controls", async function () {
     const context = createContext({
       provider: {

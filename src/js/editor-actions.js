@@ -790,6 +790,7 @@
     }
 
     function insertHtmlAtSelection(html, savedSelection) {
+      var previousScrollTop = wysiwygEditor.scrollTop;
       var selection;
       var range;
 
@@ -801,11 +802,28 @@
       if (shouldInsertHeadingHtmlAsText(range, html)) {
         document.execCommand("insertText", false, textFromHtml(html));
         context.scheduleSyncFromWysiwyg();
+        restoreWysiwygScrollTop(previousScrollTop);
         return;
       }
 
       document.execCommand("insertHTML", false, html);
       context.scheduleSyncFromWysiwyg();
+      restoreWysiwygScrollTop(previousScrollTop);
+    }
+
+    function restoreWysiwygScrollTop(scrollTop) {
+      if (typeof scrollTop !== "number") {
+        return;
+      }
+
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(function () {
+          wysiwygEditor.scrollTop = scrollTop;
+        });
+        return;
+      }
+
+      wysiwygEditor.scrollTop = scrollTop;
     }
 
     function wysiwygBlockForRange(range) {

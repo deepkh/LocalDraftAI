@@ -442,6 +442,30 @@
       : captureWysiwygAnchor();
   }
 
+  function captureActiveEditorState() {
+    var mode = getActiveMode();
+    var state = {
+      anchor: captureEditorAnchor(mode),
+      mode: mode
+    };
+    var selection;
+    var range;
+
+    if (mode === EDITOR_MODES.MARKDOWN) {
+      state.selectionStart = markdownEditor.selectionStart || 0;
+      state.selectionEnd = markdownEditor.selectionEnd || state.selectionStart;
+      return state;
+    }
+
+    selection = window.getSelection();
+    range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    if (range && wysiwygEditor.contains(range.commonAncestorContainer)) {
+      state.range = range.cloneRange();
+    }
+
+    return state;
+  }
+
   function findMarkdownOffsetFromTextHint(markdownText, textHint) {
     var text = String(markdownText || "");
     var lines = text.split("\n");
@@ -532,6 +556,42 @@
 
     restoreWysiwygCaretByTextOffset(wysiwygEditor, visibleTextOffset);
     restoreScrollRatio(wysiwygEditor, anchor);
+  }
+
+  function restoreActiveEditorState(state) {
+    var selection;
+
+    if (!state || state.mode !== getActiveMode()) {
+      focusActiveEditor();
+      return;
+    }
+
+    if (state.mode === EDITOR_MODES.MARKDOWN) {
+      markdownEditor.focus();
+      restoreMarkdownAnchor(state.anchor);
+      markdownEditor.selectionStart = typeof state.selectionStart === "number" ? state.selectionStart : markdownEditor.selectionStart;
+      markdownEditor.selectionEnd = typeof state.selectionEnd === "number" ? state.selectionEnd : markdownEditor.selectionStart;
+      if (state.anchor && typeof state.anchor.scrollTop === "number") {
+        markdownEditor.scrollTop = state.anchor.scrollTop;
+      }
+      return;
+    }
+
+    wysiwygEditor.focus();
+    if (state.range && wysiwygEditor.contains(state.range.commonAncestorContainer)) {
+      try {
+        selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(state.range);
+      } catch (error) {
+        restoreWysiwygAnchor(state.anchor);
+      }
+    } else {
+      restoreWysiwygAnchor(state.anchor);
+    }
+    if (state.anchor && typeof state.anchor.scrollTop === "number") {
+      wysiwygEditor.scrollTop = state.anchor.scrollTop;
+    }
   }
 
   function saveActiveEditorState(session) {
@@ -2665,6 +2725,7 @@
     aiAssistant = ME.aiAssistant.create({
       applyButton: aiReviewApply,
       cancelButton: aiReviewCancel,
+      captureActiveEditorState: captureActiveEditorState,
       closeButton: aiReviewClose,
       captureSelection: actions.captureSelection,
       focusActiveEditor: focusActiveEditor,
@@ -2678,6 +2739,7 @@
       originalText: aiOriginalText,
       resultTitle: aiResultTitle,
       renderMarkdownToHtml: renderMarkdownForSession,
+      restoreActiveEditorState: restoreActiveEditorState,
       resultText: aiResultText,
       diffHideUnchanged: aiDiffHideUnchanged,
       diffInteractiveButton: aiDiffInteractiveButton,
