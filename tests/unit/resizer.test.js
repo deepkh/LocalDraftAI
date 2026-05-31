@@ -113,6 +113,16 @@ runTest("clamps AI panel width to viewport and editor limits", function () {
   assert.equal(handle.attributes["aria-valuenow"], "498");
 });
 
+runTest("clamps AI panel width when the workspace sidebar is expanded", function () {
+  const workspace = createElement({ width: 1200, right: 1200 });
+  const handle = createElement({ offsetWidth: 6 });
+
+  workspace.classList.add("has-workspace-sidebar");
+
+  assert.equal(resizer.setAiAssistantPanelWidth(560, { workspace, handle }), 396);
+  assert.equal(handle.attributes["aria-valuemax"], "396");
+});
+
 runTest("loads saved AI panel width and ignores invalid storage safely", function () {
   const workspace = createElement({ width: 1200, right: 1200 });
   const handle = createElement({ offsetWidth: 6 });

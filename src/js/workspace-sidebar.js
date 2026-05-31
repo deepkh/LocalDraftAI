@@ -204,7 +204,7 @@
 
     function emptyMessage() {
       if (!state.isSupported) {
-        return "<div class=\"workspace-empty\">Folder workspace is supported in Chrome / Edge.<br>You can still open individual Markdown files.</div>";
+        return "<div class=\"workspace-empty\">Folder workspace is supported in Chrome or Edge.<br>You can still open individual Markdown files.</div>";
       }
 
       if (state.isScanning) {
@@ -283,7 +283,7 @@
         return "<div class=\"workspace-empty\">Search only scans .md and .markdown files in the current workspace.</div>";
       }
       if (!search.results || !search.results.length) {
-        return "<div class=\"workspace-empty\">No matches found.</div>";
+        return "<div class=\"workspace-empty\">No Markdown matches found.</div>";
       }
 
       return "<div class=\"workspace-content-results\">" +
@@ -329,12 +329,23 @@
 
     function renderRelatedPanel() {
       var related = state.related || {};
+      var hasRelated;
 
       if (!state.rootName) {
         return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace to see related Markdown files.</div></div>";
       }
       if (!related.activePath) {
         return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace Markdown file to see related files.</div></div>";
+      }
+
+      hasRelated = (related.sameFolder && related.sameFolder.length) ||
+        (related.linked && related.linked.length) ||
+        (related.recent && related.recent.length) ||
+        (related.plans && related.plans.length);
+      if (!hasRelated) {
+        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-related-current\"><span>Related to:</span><strong title=\"" +
+          escapeHtml(related.activePath || "") + "\">" + escapeHtml(related.activePath || "") + "</strong></div>" +
+          "<div class=\"workspace-empty\">No related Markdown files found.</div></div>";
       }
 
       return "<div class=\"workspace-sidebar-body\">" +

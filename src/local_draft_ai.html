@@ -16,22 +16,12 @@
       <div class="toolbar-row file-toolbar" role="toolbar" aria-label="File toolbar">
         <div class="brand">LocalDraftAI</div>
         <div id="documentTitle" class="document-title" aria-live="polite">Untitled.md</div>
-        <div class="group" aria-label="File">
-          <button type="button" id="newFile" class="file-button" title="New document (Ctrl/Cmd+N)">New</button>
-          <button type="button" id="openFile" class="file-button" title="Open Markdown file (Ctrl/Cmd+O)">Open</button>
-          <button type="button" id="saveFile" class="file-button" title="Save document (Ctrl/Cmd+S)">Save</button>
-          <button type="button" id="saveAsFile" class="file-button" title="Save document as (Ctrl/Cmd+Shift+S)">Save
-            As</button>
-          <select id="recentFiles" class="recent-select" title="Open or remove recent files"
-            aria-label="Open or remove recent files">
-            <option value="">Recent</option>
-          </select>
-        </div>
         <div class="group workspace-toolbar-group" aria-label="Workspace">
           <button type="button" id="workspaceButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
             title="Workspace">Workspace</button>
           <div id="workspaceMenu" class="ai-menu workspace-menu" role="menu" hidden>
             <button type="button" id="openWorkspaceFolder" role="menuitem">Open Folder</button>
+            <button type="button" id="restoreWorkspace" role="menuitem">Restore Workspace</button>
             <button type="button" id="refreshWorkspace" role="menuitem">Refresh Workspace</button>
             <button type="button" id="closeWorkspace" role="menuitem">Close Workspace</button>
             <div class="ai-menu-separator" role="separator"></div>
@@ -40,11 +30,51 @@
             <button type="button" id="minimizeWorkspaceSidebar" role="menuitem">Minimize Sidebar</button>
           </div>
         </div>
+        <div class="group file-toolbar-group" aria-label="File">
+          <button type="button" id="fileMenuButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            title="File">File</button>
+          <div id="fileMenu" class="ai-menu file-menu" role="menu" hidden>
+            <button type="button" id="newFile" role="menuitem" title="New document (Ctrl/Cmd+N)">New File</button>
+            <button type="button" id="openFile" role="menuitem" title="Open Markdown file (Ctrl/Cmd+O)">Open File</button>
+            <button type="button" id="saveFile" role="menuitem" title="Save document (Ctrl/Cmd+S)">Save</button>
+            <button type="button" id="saveAsFile" role="menuitem" title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <label class="menu-select-label" for="recentFiles">Recent Files</label>
+            <select id="recentFiles" class="recent-select" title="Open or remove recent files"
+              aria-label="Open or remove recent files">
+              <option value="">Recent</option>
+            </select>
+          </div>
+        </div>
+        <div class="group editor-mode-toolbar-group" aria-label="Editor mode">
+          <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false"
+            title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+        </div>
+        <div class="group" aria-label="Soft wrap">
+          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true"
+            title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
+        </div>
         <div class="group ai-toolbar-group" aria-label="AI Assistant">
           <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
             title="AI Assistant">AI Assistant</button>
           <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
           <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
+        </div>
+        <div class="group more-toolbar-group" aria-label="More">
+          <button type="button" id="moreButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            title="More actions">More</button>
+          <div id="moreMenu" class="ai-menu more-menu" role="menu" hidden>
+            <button type="button" id="openPreview" role="menuitem" disabled
+              title="Preview is not available in the current layout">Open Preview</button>
+            <button type="button" id="splitPreview" role="menuitem" disabled
+              title="Split preview is not available in the current layout">Split Preview</button>
+            <button type="button" id="copyRenderedHtml" role="menuitem">Copy rendered HTML</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" id="aiSettingsMenuButton" role="menuitem">Settings</button>
+            <button type="button" id="feedbackButton" role="menuitem">Feedback</button>
+            <button type="button" id="aboutButton" role="menuitem" title="About LocalDraftAI"
+              aria-label="About LocalDraftAI">About</button>
+          </div>
         </div>
       </div>
       <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
@@ -89,17 +119,9 @@
           <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)"
             aria-label="Redo">-&gt;</button>
         </div>
-        <div class="group" aria-label="Soft wrap">
-          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true"
-            title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
-        </div>
         <div class="group focus-mode-group" aria-label="Focus mode">
           <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false"
             title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
-        </div>
-        <div class="group" aria-label="About">
-          <button type="button" id="aboutButton" class="wide-button" title="About LocalDraftAI"
-            aria-label="About LocalDraftAI">About</button>
         </div>
       </nav>
       <div class="tab-strip" aria-label="Open documents">
@@ -123,10 +145,8 @@
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="pane-status">
           <div class="status-controls" role="toolbar" aria-label="Editor view controls">
-            <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false"
-              title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+            <span id="modeLabel" class="editor-mode-label">WYSIWYG</span>
           </div>
-          <span id="modeLabel" class="visually-hidden">WYSIWYG</span>
           <span class="feedback-hint">Found a bug or have an idea? <a
               href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send
               feedback on GitHub.</a></span>
@@ -137,15 +157,15 @@
         </div>
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true"
-            data-placeholder="Start writing"></div>
-          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" placeholder="Start writing Markdown"
-            hidden></textarea>
+            data-placeholder="Open or create a Markdown file to start writing."></div>
+          <textarea id="markdownEditor" class="markdown-editor" spellcheck="false"
+            placeholder="Open or create a Markdown file to start writing." hidden></textarea>
         </div>
       </section>
       <div id="aiPanelResizeHandle" class="ai-panel-resize-handle" role="separator" aria-orientation="vertical"
         aria-label="Resize AI Assistant panel" aria-valuemin="320" aria-valuemax="420" aria-valuenow="420" tabindex="0"
         title="Resize AI Assistant panel"></div>
-      <aside id="aiAssistantPanel" class="ai-assistant-panel" aria-label="AI Assistant panel" hidden>
+      <aside id="aiAssistantPanel" class="right-workspace-panel ai-assistant-panel" aria-label="AI Assistant panel" hidden>
         <div id="aiAssistantPanelBody" class="ai-assistant-panel-body"></div>
       </aside>
     </main>

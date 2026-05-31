@@ -133,8 +133,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
 - Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
+- Global toolbar actions are grouped into Workspace, File, and More menus, while Markdown/WYSIWYG, Soft Wrap, and AI Assistant remain visible controls.
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
-- The AI Assistant review panel is manually resizable on desktop, stores its width in localStorage, and should clamp so the editor remains usable.
+- The AI Assistant review panel is manually resizable on wide desktop layouts, stores its width in localStorage, and should clamp against the workspace sidebar so the editor remains usable.
 - AI actions should operate on selected text and show review UI before applying changes; keep the modal path available as a fallback while the panel experiment stabilizes.
 - AI capture should send selected content as Markdown fragments in both WYSIWYG and Markdown modes; WYSIWYG list selections should preserve Markdown list markers.
 - AI review should keep AI Result - AI can make mistakes editable and refresh the visual diff when it changes.

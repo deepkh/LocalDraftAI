@@ -21,6 +21,7 @@
   var wysiwygNeedsSync = false;
   var isSyncingEditors = false;
   var activeEditSource = null;
+  var lastEditorAnchor = null;
   var softWrapEnabled = editorMode.readStoredSoftWrap();
 
   var wysiwygEditor = document.getElementById("wysiwygEditor");
@@ -119,14 +120,22 @@
   var saveFileButton = document.getElementById("saveFile");
   var saveAsFileButton = document.getElementById("saveAsFile");
   var recentFilesSelect = document.getElementById("recentFiles");
+  var fileMenuButton = document.getElementById("fileMenuButton");
+  var fileMenu = document.getElementById("fileMenu");
   var workspaceButton = document.getElementById("workspaceButton");
   var workspaceMenu = document.getElementById("workspaceMenu");
   var openWorkspaceFolderButton = document.getElementById("openWorkspaceFolder");
+  var restoreWorkspaceButton = document.getElementById("restoreWorkspace");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var showWorkspaceSidebarButton = document.getElementById("showWorkspaceSidebar");
   var hideWorkspaceSidebarButton = document.getElementById("hideWorkspaceSidebar");
   var minimizeWorkspaceSidebarButton = document.getElementById("minimizeWorkspaceSidebar");
+  var moreButton = document.getElementById("moreButton");
+  var moreMenu = document.getElementById("moreMenu");
+  var copyRenderedHtmlButton = document.getElementById("copyRenderedHtml");
+  var aiSettingsMenuButton = document.getElementById("aiSettingsMenuButton");
+  var feedbackButton = document.getElementById("feedbackButton");
   var tabViewport = document.getElementById("tabViewport");
   var tabList = document.getElementById("tabList");
   var tabScrollLeft = document.getElementById("tabScrollLeft");
@@ -493,6 +502,30 @@
     return editorMode.normalizeEditorMode(mode) === EDITOR_MODES.MARKDOWN
       ? captureMarkdownAnchor()
       : captureWysiwygAnchor();
+  }
+
+  function selectionWithinEditor(mode) {
+    var normalized = editorMode.normalizeEditorMode(mode);
+    var selection;
+    var range;
+
+    if (normalized === EDITOR_MODES.MARKDOWN) {
+      return document.activeElement === markdownEditor;
+    }
+
+    selection = window.getSelection();
+    range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    return Boolean(range && wysiwygEditor.contains(range.commonAncestorContainer));
+  }
+
+  function rememberActiveEditorAnchor() {
+    var mode = getActiveMode();
+
+    if (!selectionWithinEditor(mode)) {
+      return;
+    }
+
+    lastEditorAnchor = captureEditorAnchor(mode);
   }
 
   function captureActiveEditorState() {
@@ -907,6 +940,7 @@
       return;
     }
 
+    lastEditorAnchor = null;
     markdownEditor.value = activeSession.markdownText;
     wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
     wysiwygNeedsSync = false;
@@ -1094,7 +1128,9 @@
       aiAssistant.hideTransientUi();
     }
 
-    anchor = captureEditorAnchor(currentMode);
+    anchor = selectionWithinEditor(currentMode) || !lastEditorAnchor || lastEditorAnchor.source !== currentMode
+      ? captureEditorAnchor(currentMode)
+      : lastEditorAnchor;
     flushActiveEditor();
 
     activeSession.editorMode = normalized;
@@ -1168,6 +1204,7 @@
   }
 
   function openAboutDialog() {
+    closeMoreMenu();
     aboutOverlay.hidden = false;
     window.requestAnimationFrame(function () {
       aboutDialog.focus();
@@ -1353,10 +1390,13 @@
       openWorkspaceFolderButton.disabled = !supported;
       openWorkspaceFolderButton.title = supported
         ? "Open a local folder as a Markdown workspace"
-        : "Folder workspace is supported in Chrome / Edge. You can still open individual Markdown files.";
+        : "Folder workspace is supported in Chrome or Edge. You can still open individual Markdown files.";
     }
     if (refreshWorkspaceButton) {
       refreshWorkspaceButton.disabled = !hasWorkspace || workspaceState.isScanning;
+    }
+    if (restoreWorkspaceButton) {
+      restoreWorkspaceButton.disabled = !restorableWorkspaceSession;
     }
     if (closeWorkspaceButton) {
       closeWorkspaceButton.disabled = !hasWorkspace;
@@ -1423,16 +1463,61 @@
     workspaceButton.setAttribute("aria-expanded", "false");
   }
 
-  function positionWorkspaceMenu() {
-    var rect;
-
-    if (!workspaceButton || !workspaceMenu) {
+  function closeFileMenu() {
+    if (!fileMenu || fileMenu.hidden) {
       return;
     }
 
-    rect = workspaceButton.getBoundingClientRect();
-    workspaceMenu.style.top = Math.min(rect.bottom + 6, window.innerHeight - 8) + "px";
-    workspaceMenu.style.left = Math.min(rect.left, window.innerWidth - workspaceMenu.offsetWidth - 8) + "px";
+    fileMenu.hidden = true;
+    fileMenuButton.setAttribute("aria-expanded", "false");
+  }
+
+  function closeMoreMenu() {
+    if (!moreMenu || moreMenu.hidden) {
+      return;
+    }
+
+    moreMenu.hidden = true;
+    moreButton.setAttribute("aria-expanded", "false");
+  }
+
+  function closeGlobalMenus(exceptMenu) {
+    if (exceptMenu !== "workspace") {
+      closeWorkspaceMenu();
+    }
+    if (exceptMenu !== "file") {
+      closeFileMenu();
+    }
+    if (exceptMenu !== "more") {
+      closeMoreMenu();
+    }
+    if (exceptMenu !== "ai" && aiAssistant && typeof aiAssistant.hideTransientUi === "function") {
+      aiAssistant.hideTransientUi();
+    }
+  }
+
+  function positionMenu(button, menu) {
+    var rect;
+
+    if (!button || !menu) {
+      return;
+    }
+
+    rect = button.getBoundingClientRect();
+    menu.style.top = Math.min(rect.bottom + 6, window.innerHeight - 8) + "px";
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + "px";
+  }
+
+  function positionWorkspaceMenu() {
+    positionMenu(workspaceButton, workspaceMenu);
+  }
+
+  function positionFileMenu() {
+    positionMenu(fileMenuButton, fileMenu);
+  }
+
+  function positionMoreMenu() {
+    positionMenu(moreButton, moreMenu);
   }
 
   function toggleWorkspaceMenu() {
@@ -1445,10 +1530,43 @@
       return;
     }
 
+    closeGlobalMenus("workspace");
     updateWorkspaceMenuControls();
     workspaceMenu.hidden = false;
     workspaceButton.setAttribute("aria-expanded", "true");
     positionWorkspaceMenu();
+  }
+
+  function toggleFileMenu() {
+    if (!fileMenu || !fileMenuButton) {
+      return;
+    }
+
+    if (!fileMenu.hidden) {
+      closeFileMenu();
+      return;
+    }
+
+    closeGlobalMenus("file");
+    fileMenu.hidden = false;
+    fileMenuButton.setAttribute("aria-expanded", "true");
+    positionFileMenu();
+  }
+
+  function toggleMoreMenu() {
+    if (!moreMenu || !moreButton) {
+      return;
+    }
+
+    if (!moreMenu.hidden) {
+      closeMoreMenu();
+      return;
+    }
+
+    closeGlobalMenus("more");
+    moreMenu.hidden = false;
+    moreButton.setAttribute("aria-expanded", "true");
+    positionMoreMenu();
   }
 
   function resetWorkspaceState() {
@@ -1505,7 +1623,7 @@
       if (workspaceSidebar) {
         workspaceSidebar.setMode("expanded");
       }
-      showWorkspaceError("Folder workspace is not supported in this browser. Use Chrome or Edge, or open individual Markdown files.");
+      showWorkspaceError("Folder workspace is supported in Chrome or Edge. You can still open individual Markdown files.");
       return;
     }
 
@@ -2145,6 +2263,51 @@
     window.alert(action + " failed. " + (error && error.message ? error.message : ""));
   }
 
+  function copyTextToClipboard(text) {
+    var textarea;
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(text);
+    }
+
+    textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      if (!document.execCommand("copy")) {
+        throw new Error("Clipboard copy failed.");
+      }
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }
+
+  function handleCopyRenderedHtml() {
+    closeMoreMenu();
+    copyTextToClipboard(renderMarkdownForSession(getMarkdownText())).catch(function (error) {
+      showClipboardError("Copy rendered HTML", error);
+    });
+  }
+
+  function handleOpenAiSettingsFromMore() {
+    closeMoreMenu();
+    if (aiEngineChangeSettingsButton) {
+      aiEngineChangeSettingsButton.click();
+    }
+  }
+
+  function handleFeedbackFromMore() {
+    closeMoreMenu();
+    window.open("https://github.com/deepkh/LocalDraftAI/issues", "_blank", "noopener,noreferrer");
+  }
+
   function handleClipboardAction(actionId, detail) {
     var labels = {
       copy: "Copy",
@@ -2731,6 +2894,7 @@
   function handleNewFile() {
     var session;
 
+    closeFileMenu();
     flushActiveEditor();
     session = tabs.createUntitledSession({
       activate: false,
@@ -2747,6 +2911,7 @@
     var existingSession;
     var session;
 
+    closeFileMenu();
     if (!isFileAccessSupported()) {
       return;
     }
@@ -2784,6 +2949,7 @@
   async function handleSaveFile() {
     var activeSession = getActiveSession();
 
+    closeFileMenu();
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -2803,6 +2969,7 @@
   async function handleSaveAsFile() {
     var activeSession = getActiveSession();
 
+    closeFileMenu();
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -2889,6 +3056,7 @@
     var parts;
 
     recentFilesSelect.value = "";
+    closeFileMenu();
 
     if (!value) {
       return;
@@ -3316,11 +3484,20 @@
     saveFileButton.addEventListener("click", handleSaveFile);
     saveAsFileButton.addEventListener("click", handleSaveAsFile);
     recentFilesSelect.addEventListener("change", handleRecentFileChange);
+    if (fileMenuButton) {
+      fileMenuButton.addEventListener("click", toggleFileMenu);
+    }
     if (workspaceButton) {
       workspaceButton.addEventListener("click", toggleWorkspaceMenu);
     }
     if (openWorkspaceFolderButton) {
       openWorkspaceFolderButton.addEventListener("click", handleOpenWorkspaceFolder);
+    }
+    if (restoreWorkspaceButton) {
+      restoreWorkspaceButton.addEventListener("click", function () {
+        closeWorkspaceMenu();
+        handleRestoreWorkspaceSession("restore");
+      });
     }
     if (refreshWorkspaceButton) {
       refreshWorkspaceButton.addEventListener("click", handleRefreshWorkspace);
@@ -3352,6 +3529,23 @@
         }
       });
     }
+    if (moreButton) {
+      moreButton.addEventListener("click", toggleMoreMenu);
+    }
+    if (aiAssistantButton) {
+      aiAssistantButton.addEventListener("click", function () {
+        closeGlobalMenus("ai");
+      });
+    }
+    if (copyRenderedHtmlButton) {
+      copyRenderedHtmlButton.addEventListener("click", handleCopyRenderedHtml);
+    }
+    if (aiSettingsMenuButton) {
+      aiSettingsMenuButton.addEventListener("click", handleOpenAiSettingsFromMore);
+    }
+    if (feedbackButton) {
+      feedbackButton.addEventListener("click", handleFeedbackFromMore);
+    }
 
     toggleEditorMode.addEventListener("pointerdown", function (event) {
       event.preventDefault();
@@ -3378,6 +3572,14 @@
         event.preventDefault();
         closeWorkspaceMenu();
         workspaceButton.focus();
+      } else if (event.key === "Escape" && fileMenu && !fileMenu.hidden) {
+        event.preventDefault();
+        closeFileMenu();
+        fileMenuButton.focus();
+      } else if (event.key === "Escape" && moreMenu && !moreMenu.hidden) {
+        event.preventDefault();
+        closeMoreMenu();
+        moreButton.focus();
       } else if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
         event.preventDefault();
       } else if (event.key === "Escape" && !aboutOverlay.hidden) {
@@ -3398,6 +3600,24 @@
         !workspaceButton.contains(event.target)
       ) {
         closeWorkspaceMenu();
+      }
+      if (
+        fileMenu &&
+        !fileMenu.hidden &&
+        !fileMenu.contains(event.target) &&
+        fileMenuButton &&
+        !fileMenuButton.contains(event.target)
+      ) {
+        closeFileMenu();
+      }
+      if (
+        moreMenu &&
+        !moreMenu.hidden &&
+        !moreMenu.contains(event.target) &&
+        moreButton &&
+        !moreButton.contains(event.target)
+      ) {
+        closeMoreMenu();
       }
     });
     formatBlock.addEventListener("change", function () {
@@ -3435,6 +3655,12 @@
       updateTabScrollButtons();
       if (workspaceMenu && !workspaceMenu.hidden) {
         positionWorkspaceMenu();
+      }
+      if (fileMenu && !fileMenu.hidden) {
+        positionFileMenu();
+      }
+      if (moreMenu && !moreMenu.hidden) {
+        positionMoreMenu();
       }
     });
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -3552,7 +3778,10 @@
     markdownEditor.addEventListener("dragover", handleEditorDragOver);
     markdownEditor.addEventListener("drop", handleEditorDrop);
 
-    document.addEventListener("selectionchange", actions.updateFormatSelect);
+    document.addEventListener("selectionchange", function () {
+      rememberActiveEditorAnchor();
+      actions.updateFormatSelect();
+    });
 
     document.addEventListener("keydown", function (event) {
       var isModifier = event.metaKey || event.ctrlKey;

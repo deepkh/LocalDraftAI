@@ -41,7 +41,8 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
-- **AI side workspace**: the right-hand workspace is used as an AI Assistant review panel while keeping the editor visible, and its width can be resized on desktop.
+- **Grouped toolbar**: Workspace, File, and More menus keep global actions discoverable while Markdown/WYSIWYG, Soft Wrap, and AI Assistant stay visible.
+- **AI side workspace**: the right-hand workspace is used as an AI Assistant review panel while keeping the editor visible, and its width can be resized on desktop with editor-width clamping.
 - **No build step required**: static HTML, CSS, and JavaScript.
 
 ---
@@ -99,6 +100,12 @@ Delete is intentionally not included. Rename is conservative: LocalDraftAI write
 Likely planning files show a small `PLAN` badge. A file is treated as a plan when it is under `plans/`, starts with `Plan_`, ends with `_Plan`, or has `plan` in the Markdown filename.
 
 Workspace features are still focused on Markdown planning and writing. LocalDraftAI does not execute AI agents, terminal commands, Codex CLI, OpenCode, Git operations, rollback snapshots, embeddings, or multi-file AI edits.
+
+### Layout
+
+The main layout is a stable three-region workspace: the left sidebar is for Markdown workspace navigation, the center is the active editor and tabs, and the right panel is reserved for AI Assistant review. The top toolbar groups global actions into `Workspace`, `File`, and `More` menus. Preview entries remain behind `More` as unavailable actions because the app does not currently ship a permanent preview pane.
+
+On wide screens, the left sidebar, editor, and AI review panel can coexist. The sidebar and AI panel both clamp their saved widths so the editor remains usable. On medium and narrow screens, side panels move out of the grid instead of squeezing the editor.
 
 ---
 

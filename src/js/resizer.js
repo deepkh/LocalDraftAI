@@ -8,7 +8,8 @@
   var AI_PANEL_MIN_WIDTH = 320;
   var AI_PANEL_MAX_VIEWPORT_RATIO = 0.6;
   var EDITOR_MIN_WIDTH = 480;
-  var AI_PANEL_DESKTOP_MEDIA = "(min-width: 941px)";
+  var AI_PANEL_DESKTOP_MEDIA = "(min-width: 1181px)";
+  var WORKSPACE_SIDEBAR_MINIMIZED_WIDTH = 44;
 
   function createResizer(context) {
     var workspace = context.workspace;
@@ -139,10 +140,28 @@
     var handleWidth = handle && handle.offsetWidth ? handle.offsetWidth : 6;
     var style = window.getComputedStyle && workspace ? window.getComputedStyle(workspace) : null;
     var columnGap = style ? parseFloat(style.columnGap || style.gap || "0") || 0 : 0;
-    var reservedWidth = EDITOR_MIN_WIDTH + handleWidth + (columnGap * 2);
+    var rootStyle = document.documentElement && document.documentElement.style;
+    var sidebarWidth = 0;
+    var sidebarResizerWidth = 0;
+    var reservedWidth;
     var viewportMax = Math.floor((window.innerWidth || workspaceWidth) * AI_PANEL_MAX_VIEWPORT_RATIO);
-    var layoutMax = Math.floor(workspaceWidth - reservedWidth);
-    var max = Math.max(AI_PANEL_MIN_WIDTH, Math.min(viewportMax, layoutMax));
+    var layoutMax;
+    var max;
+
+    if (workspace && workspace.classList && workspace.classList.contains("has-workspace-sidebar")) {
+      sidebarWidth = parseFloat(
+        (rootStyle && typeof rootStyle.getPropertyValue === "function" ? rootStyle.getPropertyValue("--workspace-sidebar-width") : "") ||
+        (style && style.getPropertyValue && style.getPropertyValue("--workspace-sidebar-width")) ||
+        "280"
+      ) || 280;
+      sidebarResizerWidth = 6;
+    } else if (workspace && workspace.classList && workspace.classList.contains("workspace-sidebar-minimized")) {
+      sidebarWidth = WORKSPACE_SIDEBAR_MINIMIZED_WIDTH;
+    }
+
+    reservedWidth = EDITOR_MIN_WIDTH + handleWidth + sidebarWidth + sidebarResizerWidth + (columnGap * (sidebarWidth ? 4 : 2));
+    layoutMax = Math.floor(workspaceWidth - reservedWidth);
+    max = Math.max(AI_PANEL_MIN_WIDTH, Math.min(viewportMax, layoutMax));
 
     return {
       min: AI_PANEL_MIN_WIDTH,
