@@ -2627,6 +2627,17 @@
         updateModeControls();
         updateDocumentTitle();
         renderTabs();
+      },
+      captureSelectionForTest: function () {
+        var selection = actions.captureSelection();
+
+        return selection ? {
+          captureMethod: selection.captureMethod || "",
+          contentType: selection.contentType || "",
+          mode: selection.mode || "",
+          text: selection.text || "",
+          value: selection.value || ""
+        } : null;
       }
     };
   }

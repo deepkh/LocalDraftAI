@@ -111,6 +111,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
 - The right-hand workspace should remain available for future AI Assistant panels.
 - AI actions should operate on selected text and show a review dialog before applying changes.
+- AI capture should send selected content as Markdown fragments in both WYSIWYG and Markdown modes; WYSIWYG list selections should preserve Markdown list markers.
 - AI review should keep AI Result editable and refresh the visual diff when it changes.
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
 - AI review Advanced overrides should be temporary to the current action dialog and should only affect output after Regenerate Result succeeds.
@@ -162,6 +163,12 @@ Run the headless browser Soft Wrap and mode-switch smoke test with Chrome availa
 
 ```bash
 node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
+```
+
+Run the headless browser WYSIWYG AI list capture smoke test with Chrome available on `PATH`:
+
+```bash
+node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
 ```
 
 ## Documentation

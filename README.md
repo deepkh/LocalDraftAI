@@ -235,6 +235,8 @@ When you paste, drop, or insert the first local image, the app asks for a worksp
 
 The AI Assistant can be opened from the toolbar menu or from the editor right-click menu when text is selected.
 
+Selections are sent as Markdown fragments in both editor modes. In WYSIWYG mode, selected lists keep their Markdown list markers in the AI review, while partial text selections inside one list item stay as the selected inline text.
+
 Example actions:
 
 - Fix grammar

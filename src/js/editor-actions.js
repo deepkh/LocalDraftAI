@@ -298,6 +298,145 @@
       );
     }
 
+    function closestElement(node, selector, boundary) {
+      var current = node && node.nodeType === Node.ELEMENT_NODE
+        ? node
+        : node && node.parentElement;
+
+      while (current && current !== boundary) {
+        if (current.matches && current.matches(selector)) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+
+      return null;
+    }
+
+    function rangeIntersectsNodeSafe(range, node) {
+      try {
+        return range.intersectsNode(node);
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function getSelectedListItems(range) {
+      return Array.prototype.slice.call(wysiwygEditor.querySelectorAll("li"))
+        .filter(function (item) {
+          return rangeIntersectsNodeSafe(range, item) && String(item.textContent || "").trim();
+        });
+    }
+
+    function hasSelectedListAncestor(item, selectedItems) {
+      var current = item.parentElement;
+
+      while (current && current !== wysiwygEditor) {
+        if (current.tagName && current.tagName.toLowerCase() === "li" && selectedItems.indexOf(current) !== -1) {
+          return true;
+        }
+        current = current.parentElement;
+      }
+
+      return false;
+    }
+
+    function topSelectedListItems(items) {
+      return items.filter(function (item) {
+        return !hasSelectedListAncestor(item, items);
+      });
+    }
+
+    function selectedListItemsToMarkdownFragment(items) {
+      var root = document.createElement("div");
+      var currentParent = null;
+      var currentList = null;
+
+      topSelectedListItems(items).forEach(function (item) {
+        var parent = item.parentElement;
+
+        if (!parent || !/^(ul|ol)$/i.test(parent.tagName || "")) {
+          return;
+        }
+
+        if (parent !== currentParent) {
+          currentParent = parent;
+          currentList = document.createElement(parent.tagName.toLowerCase());
+          root.appendChild(currentList);
+        }
+
+        currentList.appendChild(item.cloneNode(true));
+      });
+
+      return ME.markdown.htmlToMarkdown(root);
+    }
+
+    function replacementRangeForListItems(items) {
+      var selectedItems = topSelectedListItems(items);
+      var range;
+
+      if (!selectedItems.length) {
+        return null;
+      }
+
+      range = document.createRange();
+      range.setStartBefore(selectedItems[0]);
+      range.setEndAfter(selectedItems[selectedItems.length - 1]);
+      return range;
+    }
+
+    function isPartialSingleListItemSelection(range, items, selectionText) {
+      var startItem;
+      var endItem;
+      var itemText;
+
+      if (items.length !== 1) {
+        return false;
+      }
+
+      startItem = closestElement(range.startContainer, "li", wysiwygEditor);
+      endItem = closestElement(range.endContainer, "li", wysiwygEditor);
+      if (!startItem || startItem !== endItem || startItem !== items[0]) {
+        return false;
+      }
+
+      itemText = String(startItem.textContent || "").replace(/\s+/g, " ").trim();
+      return String(selectionText || "").replace(/\s+/g, " ").trim() !== itemText;
+    }
+
+    function serializeWysiwygRangeToMarkdown(range, selectionText) {
+      var items = getSelectedListItems(range);
+      var container;
+      var markdownText;
+
+      if (items.length && isPartialSingleListItemSelection(range, items, selectionText)) {
+        return {
+          captureMethod: "dom-list-partial-text",
+          replacementRange: range.cloneRange(),
+          text: selectionText
+        };
+      }
+
+      if (items.length) {
+        markdownText = selectedListItemsToMarkdownFragment(items);
+        if (markdownText) {
+          return {
+            captureMethod: "dom-list-aware-markdown",
+            replacementRange: replacementRangeForListItems(items),
+            text: markdownText
+          };
+        }
+      }
+
+      container = document.createElement("div");
+      container.appendChild(range.cloneContents());
+      return {
+        captureMethod: "dom-markdown",
+        replacementRange: range.cloneRange(),
+        text: ME.markdown.htmlToMarkdown(container) || selectionText
+      };
+    }
+
     function restoreWysiwygSelection(savedSelection) {
       var selection;
 
@@ -732,8 +871,8 @@
     function captureSelection() {
       var selection;
       var range;
-      var container;
-      var text;
+      var captured;
+      var selectionText;
 
       if (document.activeElement === markdownEditor) {
         return selectedTextareaRange();
@@ -755,14 +894,15 @@
         return selectedTextareaRange();
       }
 
-      container = document.createElement("div");
-      container.appendChild(range.cloneContents());
-      text = ME.markdown.htmlToMarkdown(container) || selection.toString();
+      selectionText = selection.toString();
+      captured = serializeWysiwygRangeToMarkdown(range, selectionText);
       return {
+        captureMethod: captured.captureMethod,
+        contentType: "text/markdown-fragment",
         mode: "wysiwyg",
-        range: range.cloneRange(),
-        text: text,
-        value: text
+        range: captured.replacementRange || range.cloneRange(),
+        text: captured.text,
+        value: captured.text
       };
     }
 
