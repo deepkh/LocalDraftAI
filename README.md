@@ -155,109 +155,6 @@ OLLAMA_ORIGINS=*
 
 Restart Ollama after changing the environment variable.
 
-### Run as a Linux systemd Service
-
-This is useful if you want LocalDraft AI to start automatically after boot and always be available from a local browser.
-
-#### 1. Install required packages
-
-```bash
-sudo apt update
-sudo apt install -y git python3
-```
-
-#### 2. Install LocalDraft AI under `/opt`
-
-```bash
-sudo git clone https://github.com/deepkh/LocalDraftAI.git /opt/LocalDraftAI
-```
-
-If the folder already exists, update it instead:
-
-```bash
-cd /opt/LocalDraftAI
-sudo git pull
-```
-
-#### 3. Create a systemd service
-
-```bash
-sudo tee /etc/systemd/system/localdraftai.service > /dev/null <<'EOF'
-[Unit]
-Description=LocalDraft AI local Markdown editor
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/LocalDraftAI
-ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-#### 4. Enable and start the service
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now localdraftai.service
-```
-
-#### 5. Check service status
-
-```bash
-systemctl status localdraftai.service
-```
-
-#### 6. Open LocalDraft AI
-
-```text
-http://127.0.0.1:8000/src/local_draft_ai.html
-```
-
-#### 7. View logs
-
-```bash
-journalctl -u localdraftai.service -f
-```
-
-#### 8. Stop or restart the service
-
-```bash
-sudo systemctl stop localdraftai.service
-sudo systemctl restart localdraftai.service
-```
-
-By default, the service only listens on `127.0.0.1`, so it is only reachable from the same Linux machine.
-
-To allow access from other devices on your LAN, edit the service file:
-
-```bash
-sudo nano /etc/systemd/system/localdraftai.service
-```
-
-Change:
-
-```ini
-ExecStart=/usr/bin/python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-to:
-
-```ini
-ExecStart=/usr/bin/python3 -m http.server 8000 --bind 0.0.0.0
-```
-
-Then reload and restart:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart localdraftai.service
-```
-
 ## Browser Support Notes
 
 LocalDraftAI works best in Chromium-based browsers such as Chrome or Edge.
@@ -291,6 +188,8 @@ Example actions:
 - Fix Markdown syntax
 
 Use **Configure AI Actions...** in the AI Assistant menu, or **Configure AI Actions** in AI Assistant Settings, to edit the action YAML. The config is validated before saving and stored locally in the browser with a last-good fallback. You can disable, delete, or add actions, import or export `localdraft-ai-actions.yml`, and restore the built-in defaults without a server or cloud account.
+
+For custom AI Assistant menu items, see [Configurable AI Actions](#configurable-ai-actions).
 
 The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review panel supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
 
@@ -381,6 +280,289 @@ OLLAMA_ORIGINS=*
 ```
 
 Restart Ollama after changing the environment variable.
+
+---
+
+## Configurable AI Actions
+
+LocalDraftAI lets you customize the AI Assistant menu. The default AI Actions, such as Grammar Correction, Improve Wording, Summarize, Beautify Markdown, and Fix Markdown Syntax, are stored as local YAML configuration.
+
+You can:
+
+- Add new AI Actions
+- Disable or delete existing AI Actions
+- Rename menu labels and groups
+- Change prompts
+- Export or import the YAML configuration
+- Reset the configuration to the built-in defaults
+
+The configuration is stored locally in your browser. It is not uploaded to LocalDraftAI servers.
+
+To edit AI Actions:
+
+1. Open LocalDraftAI.
+2. Open the **AI Assistant** menu.
+3. Choose **Configure AI Actions...**.
+4. Edit the YAML.
+5. Click **Validate**.
+6. Click **Save**.
+7. Reopen the AI Assistant menu to see the updated AI Actions.
+
+If the YAML is invalid, LocalDraftAI will not save it. The previous working AI Actions configuration continues to be used.
+
+### YAML Format
+
+The configuration starts with a version and an `actions` list. Each item in the list defines one AI Action:
+
+```yaml
+version: 1
+
+actions:
+  - id: correctGrammar
+    enabled: true
+    label: Grammar Correction
+    description: Correct grammar and spelling while preserving Markdown.
+    category: AI Assistant
+    promptType: grammar
+    requiresSelection: true
+    inputMode: selection
+    outputMode: replace-selection
+    reasoningDefault: off
+    prompt: |
+      You are editing Markdown text.
+
+      Task:
+      Correct grammar and spelling only.
+
+      Rules:
+      - Preserve Markdown structure.
+      - Do not change code blocks.
+      - Do not change inline code.
+      - Do not change URLs.
+      - Do not change image paths.
+      - Do not change heading levels.
+      - Return only the corrected Markdown.
+```
+
+Keep `version: 1` at the top, and keep every AI Action indented under `actions:`.
+
+### YAML Fields
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique internal AI Action ID. Letters, numbers, `_`, and `-` are recommended. Do not duplicate IDs. |
+| `enabled` | No | `true` shows the AI Action in the menu. `false` hides it. The default is `true`. |
+| `label` | Yes | Display name shown in the AI Assistant menu. |
+| `description` | No | Short explanation of what the AI Action does. |
+| `category` | No | Menu group name, such as `AI Assistant`, `Markdown`, `Translation`, or `Custom`. The default is `Custom`. |
+| `promptType` | No | Optional internal type name. For a custom AI Action, this can match `id`. |
+| `requiresSelection` | No | `true` means the AI Action requires selected text. The default is `true`. |
+| `inputMode` | No | Input mode metadata. Use `selection` for current AI Actions. |
+| `outputMode` | No | Suggested apply behavior: `replace-selection`, `insert-after-selection`, or `show-only`. The default is `replace-selection`. |
+| `reasoningDefault` | No | Default reasoning level: `off`, `low`, `medium`, `high`, `xhigh`, or `auto`. The default is `low`. |
+| `prompt` | Yes | Instructions sent to the configured AI provider. Use `prompt: |` for a multi-line prompt. |
+
+The most important fields for a custom AI Action are:
+
+```text
+id
+enabled
+label
+category
+prompt
+```
+
+### Disable an AI Action
+
+Set `enabled: false` to hide an AI Action from the menu without deleting its configuration:
+
+```yaml
+- id: makeShorter
+  enabled: false
+  label: Make Shorter
+  description: Shorten selected text.
+  category: AI Assistant
+  promptType: make_shorter
+  requiresSelection: true
+  inputMode: selection
+  outputMode: replace-selection
+  reasoningDefault: low
+  prompt: |
+    Make the selected Markdown shorter while preserving the key meaning.
+```
+
+### Add a Custom AI Action
+
+Add another item under `actions:`. Give it a unique `id`, a menu `label`, and a clear prompt:
+
+```yaml
+- id: myCustomAction
+  enabled: true
+  label: My Custom Action
+  description: Describe what this AI Action does.
+  category: Custom
+  promptType: custom
+  requiresSelection: true
+  inputMode: selection
+  outputMode: replace-selection
+  reasoningDefault: low
+  prompt: |
+    You are editing Markdown text.
+
+    Task:
+    Describe exactly what you want the AI to do.
+
+    Rules:
+    - Preserve Markdown structure.
+    - Do not modify code blocks unless the task requires it.
+    - Return only the final result.
+```
+
+### Example: English to Traditional Chinese
+
+To translate selected English Markdown into Traditional Chinese, add this item under `actions:`:
+
+```yaml
+- id: englishToTraditionalChinese
+  enabled: true
+  label: English to Traditional Chinese
+  description: Translate selected English Markdown into Traditional Chinese.
+  category: Translation
+  promptType: translation
+  requiresSelection: true
+  inputMode: selection
+  outputMode: replace-selection
+  reasoningDefault: low
+  prompt: |
+    You are translating Markdown text.
+
+    Task:
+    Translate the selected English text into Traditional Chinese.
+
+    Rules:
+    - Use natural Traditional Chinese used in Taiwan.
+    - Preserve the original meaning.
+    - Preserve Markdown structure.
+    - Do not translate code blocks.
+    - Do not translate inline code.
+    - Do not change URLs.
+    - Do not change image paths.
+    - Keep product names, file names, command names, API names, and variable names unchanged unless translation is clearly appropriate.
+    - Return only the translated Markdown.
+```
+
+After saving the YAML:
+
+1. Select English text in the editor.
+2. Open the AI Assistant menu.
+3. Choose **English to Traditional Chinese**.
+4. Review the AI result.
+5. Apply it to replace the selected text.
+
+### Example: Traditional Chinese to English
+
+```yaml
+- id: traditionalChineseToEnglish
+  enabled: true
+  label: Traditional Chinese to English
+  description: Translate selected Traditional Chinese Markdown into English.
+  category: Translation
+  promptType: translation
+  requiresSelection: true
+  inputMode: selection
+  outputMode: replace-selection
+  reasoningDefault: low
+  prompt: |
+    You are translating Markdown text.
+
+    Task:
+    Translate the selected Traditional Chinese text into natural English.
+
+    Rules:
+    - Preserve the original meaning.
+    - Use clear and natural English.
+    - Preserve Markdown structure.
+    - Do not translate code blocks.
+    - Do not translate inline code.
+    - Do not change URLs.
+    - Do not change image paths.
+    - Keep product names, file names, command names, API names, and variable names unchanged unless translation is clearly appropriate.
+    - Return only the translated Markdown.
+```
+
+### Prompt Writing Tips
+
+- Be specific about the task.
+- Tell the AI whether it must preserve Markdown.
+- Tell the AI not to modify code blocks, inline code, URLs, or image paths.
+- Tell the AI to return only the final result.
+- Use `reasoningDefault: off` or `low` for simple editing tasks.
+- Use `reasoningDefault: medium` or higher for complex rewriting, planning, or analysis tasks.
+
+A useful prompt pattern is:
+
+```yaml
+prompt: |
+  You are editing Markdown text.
+
+  Task:
+  Explain the task clearly.
+
+  Rules:
+  - Preserve Markdown structure.
+  - Do not modify code blocks.
+  - Do not change URLs.
+  - Return only the final result.
+```
+
+### Import, Export, and Reset
+
+- **Export YAML** downloads the current valid AI Actions configuration as `localdraft-ai-actions.yml`.
+- **Import YAML** loads a `.yml` or `.yaml` file into the editor. Click **Save** to validate and apply it.
+- **Reset Defaults** loads the built-in LocalDraftAI AI Actions into the editor. Click **Save** to apply them.
+- Invalid YAML does not overwrite the previous working configuration.
+
+### Privacy Note
+
+AI Actions are stored locally in your browser. The YAML configuration itself is not uploaded to LocalDraftAI servers.
+
+When you run an AI Action, LocalDraftAI sends the selected Markdown and the AI Action prompt to the provider you configured, such as a local Ollama server or an optional cloud provider. Current AI Actions use selected text and do not send the rest of the document. Local mock actions run in the browser without a server request.
+
+For local-first usage, configure a local provider such as Ollama.
+
+### Troubleshooting
+
+#### My AI Action Does Not Appear in the Menu
+
+Check that:
+
+- `enabled` is `true`.
+- `id` is unique.
+- `label` is not empty.
+- `prompt` is not empty.
+- YAML indentation is correct.
+- You clicked **Save** after editing.
+
+#### YAML Validation Failed
+
+Check that:
+
+- You used spaces, not tabs.
+- Every AI Action starts with `- id:` under `actions:`.
+- Multi-line prompts use `prompt: |`.
+- Prompt lines are indented under `prompt: |`.
+- `reasoningDefault` and `outputMode` use supported values from the table above.
+
+#### The AI Changed My Markdown Links or Code
+
+Add stricter rules to the prompt, for example:
+
+```yaml
+- Do not modify code blocks.
+- Do not modify inline code.
+- Do not change URLs.
+- Do not change image paths.
+```
 
 ---
 
