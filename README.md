@@ -423,32 +423,33 @@ Add another item under `actions:`. Give it a unique `id`, a menu `label`, and a 
 To translate selected English Markdown into Traditional Chinese, add this item under `actions:`:
 
 ```yaml
-- id: englishToTraditionalChinese
-  enabled: true
-  label: English to Traditional Chinese
-  description: Translate selected English Markdown into Traditional Chinese.
-  category: Translation
-  promptType: translation
-  requiresSelection: true
-  inputMode: selection
-  outputMode: replace-selection
-  reasoningDefault: low
-  prompt: |
-    You are translating Markdown text.
+  - id: englishToTraditionalChinese
+    enabled: true
+    label: English to Traditional Chinese
+    description: Translate selected English Markdown into Traditional Chinese.
+    category: Translation
+    promptType: translation
+    requiresSelection: true
+    inputMode: selection
+    outputMode: replace-selection
+    reasoningDefault: low
+    prompt: |
+      You are translating Markdown text.
 
-    Task:
-    Translate the selected English text into Traditional Chinese.
+      Task:
+      Translate the selected English text into Traditional Chinese.
 
-    Rules:
-    - Use natural Traditional Chinese used in Taiwan.
-    - Preserve the original meaning.
-    - Preserve Markdown structure.
-    - Do not translate code blocks.
-    - Do not translate inline code.
-    - Do not change URLs.
-    - Do not change image paths.
-    - Keep product names, file names, command names, API names, and variable names unchanged unless translation is clearly appropriate.
-    - Return only the translated Markdown.
+      Rules:
+        - Use natural Traditional Chinese used in Taiwan.
+        - Preserve the original meaning.
+        - Preserve Markdown structure.
+        - Do not translate code blocks.
+        - Do not translate inline code.
+        - Do not change URLs.
+        - Do not change image paths.
+        - Keep product names, file names, command names, API names, and variable names unchanged unless translation is clearly appropriate.
+        - Return only the translated Markdown.
+
 ```
 
 After saving the YAML:
