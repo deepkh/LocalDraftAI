@@ -53,17 +53,15 @@
 
   function renderAiItems(menu, onAction) {
     var renderedAny = false;
+    var title = document.createElement("div");
+
+    title.className = "ai-menu-title";
+    title.textContent = "AI Assistant";
+    menu.appendChild(title);
 
     ME.aiActions.groups().forEach(function (group, groupIndex) {
       if (groupIndex > 0) {
         appendSeparator(menu);
-      }
-
-      if (groupIndex === 0) {
-        var title = document.createElement("div");
-        title.className = "ai-menu-title";
-        title.textContent = "AI Assistant";
-        menu.appendChild(title);
       }
 
       group.actions.forEach(function (action) {
@@ -83,6 +81,27 @@
     return renderedAny;
   }
 
+  function renderConfigureItem(menu, onConfigure, renderedAny) {
+    var item;
+
+    if (!renderedAny) {
+      item = document.createElement("button");
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.textContent = "No AI actions configured";
+      item.disabled = true;
+      menu.appendChild(item);
+    }
+
+    appendSeparator(menu);
+    item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.textContent = "Configure AI Actions...";
+    item.addEventListener("click", onConfigure);
+    menu.appendChild(item);
+  }
+
   function renderMenuItems(menu, options) {
     menu.innerHTML = "";
 
@@ -91,10 +110,14 @@
     }
 
     if (options.canShowAi) {
+      var renderedAny;
       if (options.onClipboardAction) {
         appendSeparator(menu);
       }
-      renderAiItems(menu, options.onAiAction);
+      renderedAny = renderAiItems(menu, options.onAiAction);
+      if (options.onConfigure) {
+        renderConfigureItem(menu, options.onConfigure, renderedAny);
+      }
     }
   }
 
@@ -162,6 +185,10 @@
             source: "context"
           });
         },
+        onConfigure: options.onConfigure ? function () {
+          hide();
+          options.onConfigure();
+        } : null,
         onClipboardAction: options.onClipboardAction ? function (actionId, detail) {
           hide();
           options.onClipboardAction(actionId, detail);

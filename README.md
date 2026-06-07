@@ -34,7 +34,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files with collapsible folders, reopen recent workspaces, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
-- **AI Assistant**: fix grammar, improve wording, make text professional, summarize, shorten, and clean up Markdown with local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
+- **Configurable AI Assistant**: edit the local YAML action list to add, disable, remove, import, or export writing actions for local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
 - **Reasoning mode**: choose Auto, Off, Low, Medium, High, or Extra High reasoning for providers that support it; Auto uses per-action defaults.
 - **Review before apply**: AI output opens in a right-hand review panel with the original selection, editable result, visual diffs, the AI engine used for the result, and interactive accept/reject mode before it changes the document.
 - **AI revisions and restore**: regenerate AI output as selectable revisions, choose how to apply the result, and restore the original selection after an AI replacement when it can be matched safely.
@@ -290,13 +290,15 @@ Example actions:
 - Beautify Markdown
 - Fix Markdown syntax
 
+Use **Configure AI Actions...** in the AI Assistant menu, or **Configure AI Actions** in AI Assistant Settings, to edit the action YAML. The config is validated before saving and stored locally in the browser with a last-good fallback. You can disable, delete, or add actions, import or export `localdraft-ai-actions.yml`, and restore the built-in defaults without a server or cloud account.
+
 The AI Assistant uses local mock transforms by default, so the UI can be tested without a real AI server. The review panel supports side-by-side, unified, and interactive diff modes; interactive mode lets you accept or reject changed lines before applying the final replacement.
 
 On desktop, drag the thin handle between the editor and the AI Assistant panel to resize the review workspace. The width is saved in the browser and restored on reload; double-click the handle to reset it.
 
 Regenerate adds a new selectable revision instead of replacing the previous result. The apply mode can replace the selection, insert the result below the selection, or copy the result without changing the document. After a replacement or insert, the panel shows **Restore Original** when the original can be restored safely.
 
-To use a real model, choose an AI provider in settings. LocalDraftAI only sends the selected text and action prompt to the provider you configure.
+To use a real model, choose an AI provider in settings. Only the selected Markdown text and the configured action prompt are sent to the provider you choose.
 
 ### Configure AI Provider
 
@@ -428,6 +430,10 @@ Restart Ollama after changing the environment variable.
 │   └── js/
 │       ├── app.js
 │       ├── asset-store.js
+│       ├── ai-action-config-dialog.js
+│       ├── ai-action-config-store.js
+│       ├── ai-action-config.js
+│       ├── ai-action-defaults.js
 │       ├── ai-actions.js
 │       ├── ai-assistant.js
 │       ├── ai-context-menu.js
@@ -459,11 +465,17 @@ Restart Ollama after changing the environment variable.
 │       ├── utils.js
 │       ├── viewport.js
 │       ├── workspace-sidebar.js
-│       └── workspace-store.js
+│       ├── workspace-store.js
+│       └── vendor/
+│           ├── LICENSE-js-yaml.txt
+│           └── js-yaml.min.js
 ├── tests/
 │   ├── e2e/
-│   │   └── soft-wrap-mode-switch.headless.mjs
+│   │   ├── ai-action-config.headless.mjs
+│   │   ├── soft-wrap-mode-switch.headless.mjs
+│   │   └── wysiwyg-ai-list-capture.headless.mjs
 │   └── unit/
+│       ├── ai-action-config.test.js
 │       ├── ai-actions.test.js
 │       ├── ai-assistant.test.js
 │       ├── ai-context-menu.test.js
@@ -508,6 +520,10 @@ Restart Ollama after changing the environment variable.
 | `src/js/workspace-store.js` | Local folder workspace scanning and Markdown file tree model |
 | `src/js/workspace-sidebar.js` | Workspace sidebar rendering, search, persisted state, and resizing |
 | `src/js/asset-store.js` | Local image workspace handling |
+| `src/js/ai-action-defaults.js` | Built-in AI Actions YAML |
+| `src/js/ai-action-config.js` | AI Actions YAML parsing, validation, normalization, and prompt building |
+| `src/js/ai-action-config-store.js` | IndexedDB persistence with last-good and localStorage fallback |
+| `src/js/ai-action-config-dialog.js` | YAML validation, save, import, export, and reset dialog |
 | `src/js/ai-assistant.js` | AI action workflow, review panel/modal fallback, revisions, and restore |
 | `src/js/ai-diff.js` | Visual text diff helpers for AI review UI |
 | `src/js/ai-patch.js` | Interactive AI diff accept/reject state and renderer |
@@ -523,6 +539,8 @@ Restart Ollama after changing the environment variable.
 | `src/js/markdown-ai-guards.js` | Markdown safety checks for AI output |
 | `src/js/markdown-repair.js` | Markdown cleanup helpers |
 
+The local YAML parser is the MIT-licensed `js-yaml` 4.1.0 browser build. Its attribution is kept in `src/js/vendor/LICENSE-js-yaml.txt` and in the vendored file header.
+
 ---
 
 ## Tests
@@ -530,6 +548,7 @@ Restart Ollama after changing the environment variable.
 Run the dependency-free unit tests with Node.js:
 
 ```bash
+node tests/unit/ai-action-config.test.js
 node tests/unit/ai-actions.test.js
 node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
@@ -562,10 +581,12 @@ for test in tests/unit/*.test.js; do
 done
 ```
 
-Run the headless browser Soft Wrap and mode-switch smoke test with Chrome available on `PATH`:
+Run the headless browser smoke tests with Chrome available on `PATH`:
 
 ```bash
 node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
+node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
+node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
 ```
 
 ---

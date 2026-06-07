@@ -115,6 +115,19 @@
   var aiSettingsSave = document.getElementById("aiSettingsSave");
   var aiSettingsCancel = document.getElementById("aiSettingsCancel");
   var aiSettingsClose = document.getElementById("aiSettingsClose");
+  var aiSettingsConfigureActions = document.getElementById("aiSettingsConfigureActions");
+  var aiActionConfigOverlay = document.getElementById("aiActionConfigOverlay");
+  var aiActionConfigDialog = document.getElementById("aiActionConfigDialog");
+  var aiActionConfigEditor = document.getElementById("aiActionConfigEditor");
+  var aiActionConfigStatus = document.getElementById("aiActionConfigStatus");
+  var aiActionConfigValidate = document.getElementById("aiActionConfigValidate");
+  var aiActionConfigImport = document.getElementById("aiActionConfigImport");
+  var aiActionConfigImportInput = document.getElementById("aiActionConfigImportInput");
+  var aiActionConfigExport = document.getElementById("aiActionConfigExport");
+  var aiActionConfigReset = document.getElementById("aiActionConfigReset");
+  var aiActionConfigCancel = document.getElementById("aiActionConfigCancel");
+  var aiActionConfigClose = document.getElementById("aiActionConfigClose");
+  var aiActionConfigSave = document.getElementById("aiActionConfigSave");
   var documentTitle = document.getElementById("documentTitle");
   var newFileButton = document.getElementById("newFile");
   var openFileButton = document.getElementById("openFile");
@@ -4373,6 +4386,20 @@
     }
 
     aiAssistant = ME.aiAssistant.create({
+      actionConfig: {
+        cancelButton: aiActionConfigCancel,
+        closeButton: aiActionConfigClose,
+        dialog: aiActionConfigDialog,
+        editor: aiActionConfigEditor,
+        exportButton: aiActionConfigExport,
+        importButton: aiActionConfigImport,
+        importInput: aiActionConfigImportInput,
+        overlay: aiActionConfigOverlay,
+        resetButton: aiActionConfigReset,
+        saveButton: aiActionConfigSave,
+        status: aiActionConfigStatus,
+        validateButton: aiActionConfigValidate
+      },
       applyButton: aiReviewApply,
       applyModeInputs: aiApplyModeInputs,
       applyStatus: aiApplyStatus,
@@ -4432,6 +4459,7 @@
         apiKeyInput: aiApiKeyInput,
         cancelButton: aiSettingsCancel,
         closeButton: aiSettingsClose,
+        configureActionsButton: aiSettingsConfigureActions,
         dialog: aiSettingsDialog,
         endpointInput: aiEndpointInput,
         form: aiSettingsForm,

@@ -17,9 +17,12 @@ function createStorage() {
 
 global.window = {
   AbortController: global.AbortController,
+  jsyaml: require("../../src/js/vendor/js-yaml.min.js"),
   localStorage: createStorage()
 };
 
+require("../../src/js/ai-action-defaults.js");
+require("../../src/js/ai-action-config.js");
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-repair.js");
 require("../../src/js/ai-reasoning.js");

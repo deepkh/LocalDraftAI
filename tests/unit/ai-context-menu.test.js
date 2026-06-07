@@ -5,7 +5,8 @@ const listeners = {};
 global.window = {
   addEventListener() {},
   innerWidth: 1024,
-  innerHeight: 768
+  innerHeight: 768,
+  jsyaml: require("../../src/js/vendor/js-yaml.min.js")
 };
 
 global.document = {
@@ -27,6 +28,8 @@ global.document = {
   addEventListener() {}
 };
 
+require("../../src/js/ai-action-defaults.js");
+require("../../src/js/ai-action-config.js");
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-ai-guards.js");
 require("../../src/js/ai-context-menu.js");

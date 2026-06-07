@@ -1,7 +1,11 @@
 const assert = require("node:assert/strict");
 
-global.window = {};
+global.window = {
+  jsyaml: require("../../src/js/vendor/js-yaml.min.js")
+};
 
+require("../../src/js/ai-action-defaults.js");
+require("../../src/js/ai-action-config.js");
 require("../../src/js/ai-actions.js");
 require("../../src/js/markdown-repair.js");
 

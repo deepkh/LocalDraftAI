@@ -40,7 +40,11 @@ src/js/workspace-search.js   Markdown workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Local image workspace/assets handling
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
-src/js/ai-actions.js         AI action definitions and transforms
+src/js/ai-actions.js         Compatibility facade for configured AI actions
+src/js/ai-action-defaults.js Default AI Actions YAML
+src/js/ai-action-config.js   AI Actions YAML parsing, validation, and compatibility adapter
+src/js/ai-action-config-store.js IndexedDB AI Actions YAML persistence and fallback
+src/js/ai-action-config-dialog.js Configure AI Actions dialog
 src/js/ai-diff.js            Visual diff helpers for AI review results
 src/js/ai-patch.js           Interactive AI diff accept/reject state
 src/js/ai-provider.js        Compatibility wrapper for AI provider calls
@@ -138,6 +142,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
 - The AI Assistant review panel is manually resizable on wide desktop layouts, stores its width in localStorage, and should clamp against the workspace sidebar so the editor remains usable.
 - AI actions should operate on selected text and show review UI before applying changes; keep the modal path available as a fallback while the panel experiment stabilizes.
+- AI action menus are generated from validated local YAML. Invalid YAML must not replace the current or last-good config.
 - AI capture should send selected content as Markdown fragments in both WYSIWYG and Markdown modes; WYSIWYG list selections should preserve Markdown list markers.
 - AI review should keep AI Result - AI can make mistakes editable and refresh the visual diff when it changes.
 - AI review should show the AI Engine summary for the provider, model, and reasoning settings that generated the currently visible result.
@@ -159,6 +164,7 @@ Common commands:
 
 ```bash
 node tests/unit/ai-actions.test.js
+node tests/unit/ai-action-config.test.js
 node tests/unit/ai-assistant.test.js
 node tests/unit/ai-context-menu.test.js
 node tests/unit/ai-diff.test.js
@@ -201,6 +207,12 @@ Run the headless browser WYSIWYG AI list capture smoke test with Chrome availabl
 
 ```bash
 node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
+```
+
+Run the configurable AI Actions menu and dialog smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
 ```
 
 ## Documentation

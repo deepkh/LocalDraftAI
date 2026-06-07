@@ -412,9 +412,37 @@ SOFTWARE.</pre>
           <div id="aiSettingsStatus" class="ai-settings-status" aria-live="polite"></div>
         </form>
         <div class="ai-settings-actions">
+          <button type="button" id="aiSettingsConfigureActions" class="file-button">Configure AI Actions</button>
           <button type="button" id="aiSettingsTest" class="file-button">Test Connection</button>
           <button type="button" id="aiSettingsCancel" class="file-button">Cancel</button>
           <button type="button" id="aiSettingsSave" class="file-button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiActionConfigOverlay" class="ai-settings-overlay" hidden>
+      <div id="aiActionConfigDialog" class="ai-settings-dialog ai-action-config-dialog" role="dialog"
+        aria-modal="true" aria-labelledby="aiActionConfigTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="aiActionConfigTitle">Configure AI Actions</h2>
+          <button type="button" id="aiActionConfigClose" class="icon-text ai-settings-close"
+            aria-label="Close AI Actions config">×</button>
+        </div>
+        <div class="ai-settings-body">
+          <p class="ai-settings-note">Configure the AI Assistant menu using YAML. Disabled actions are hidden.
+            Changes are stored locally in this browser.</p>
+          <textarea id="aiActionConfigEditor" class="ai-action-config-editor" spellcheck="false"
+            aria-label="AI Actions YAML"></textarea>
+          <div id="aiActionConfigStatus" class="ai-action-config-status" aria-live="polite"></div>
+        </div>
+        <div class="ai-settings-actions ai-action-config-toolbar">
+          <input type="file" id="aiActionConfigImportInput" accept=".yml,.yaml,text/yaml,text/plain" hidden>
+          <button type="button" id="aiActionConfigValidate" class="file-button">Validate</button>
+          <button type="button" id="aiActionConfigImport" class="file-button">Import YAML</button>
+          <button type="button" id="aiActionConfigExport" class="file-button">Export YAML</button>
+          <button type="button" id="aiActionConfigReset" class="file-button">Reset Defaults</button>
+          <button type="button" id="aiActionConfigCancel" class="file-button">Cancel</button>
+          <button type="button" id="aiActionConfigSave" class="file-button">Save</button>
         </div>
       </div>
     </div>
@@ -438,6 +466,10 @@ SOFTWARE.</pre>
   <script src="js/viewport.js"></script>
   <script src="js/editor-actions.js"></script>
   <script src="js/resizer.js"></script>
+  <script src="js/vendor/js-yaml.min.js"></script>
+  <script src="js/ai-action-defaults.js"></script>
+  <script src="js/ai-action-config-store.js"></script>
+  <script src="js/ai-action-config.js"></script>
   <script src="js/ai-actions.js"></script>
   <script src="js/markdown-repair.js"></script>
   <script src="js/markdown-ai-guards.js"></script>
@@ -455,6 +487,7 @@ SOFTWARE.</pre>
   <script src="js/ai-provider.js"></script>
   <script src="js/ai-status.js"></script>
   <script src="js/ai-settings.js"></script>
+  <script src="js/ai-action-config-dialog.js"></script>
   <script src="js/ai-context-menu.js"></script>
   <script src="js/ai-assistant.js"></script>
   <script src="js/app.js"></script>

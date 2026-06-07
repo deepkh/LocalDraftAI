@@ -61,6 +61,7 @@
     var reviewLogResizeObserver = null;
     var contextMenu;
     var settingsDialog = null;
+    var actionConfigDialog = null;
     var aiStatus = ME.aiStatus ? ME.aiStatus.create({
       onStatusChange: function (state) {
         renderStatusBadge(state);
@@ -135,7 +136,8 @@
         high: "High",
         low: "Low",
         medium: "Medium",
-        off: "Off"
+        off: "Off",
+        xhigh: "Extra High"
       };
       var key = String(value || "off").toLowerCase();
 
@@ -1053,6 +1055,19 @@
       }
     }
 
+    function openActionConfigDialog() {
+      closeToolbarMenu();
+      if (contextMenu) {
+        contextMenu.hide();
+      }
+      if (settingsDialog && settingsDialog.isOpen()) {
+        settingsDialog.close();
+      }
+      if (actionConfigDialog) {
+        actionConfigDialog.open();
+      }
+    }
+
     function appendSeparator(menu) {
       var separator = document.createElement("div");
 
@@ -1170,6 +1185,10 @@
     }
 
     function renderMenu(menu, onAction) {
+      var renderedAny = false;
+      var emptyItem;
+      var configureItem;
+
       menu.innerHTML = "";
       appendStatusSection(menu);
 
@@ -1188,8 +1207,25 @@
             onAction(action.id);
           });
           menu.appendChild(item);
+          renderedAny = true;
         });
       });
+
+      if (!renderedAny) {
+        emptyItem = document.createElement("button");
+        emptyItem.type = "button";
+        emptyItem.disabled = true;
+        emptyItem.textContent = "No AI actions configured";
+        menu.appendChild(emptyItem);
+      }
+
+      appendSeparator(menu);
+      configureItem = document.createElement("button");
+      configureItem.type = "button";
+      configureItem.setAttribute("role", "menuitem");
+      configureItem.textContent = "Configure AI Actions...";
+      configureItem.addEventListener("click", openActionConfigDialog);
+      menu.appendChild(configureItem);
     }
 
     function selectedRange() {
@@ -1822,6 +1858,11 @@
         handled = true;
       }
 
+      if (actionConfigDialog && actionConfigDialog.isOpen()) {
+        actionConfigDialog.close();
+        handled = true;
+      }
+
       return handled;
     }
 
@@ -1962,13 +2003,36 @@
         settingsDialog.bindEvents();
       }
 
+      if (context.actionConfig && ME.aiActionConfigDialog) {
+        actionConfigDialog = ME.aiActionConfigDialog.create({
+          cancelButton: context.actionConfig.cancelButton,
+          closeButton: context.actionConfig.closeButton,
+          dialog: context.actionConfig.dialog,
+          editor: context.actionConfig.editor,
+          exportButton: context.actionConfig.exportButton,
+          focusAfterClose: context.focusActiveEditor,
+          importButton: context.actionConfig.importButton,
+          importInput: context.actionConfig.importInput,
+          overlay: context.actionConfig.overlay,
+          resetButton: context.actionConfig.resetButton,
+          saveButton: context.actionConfig.saveButton,
+          status: context.actionConfig.status,
+          validateButton: context.actionConfig.validateButton
+        });
+        actionConfigDialog.bindEvents();
+        if (context.settings && context.settings.configureActionsButton) {
+          context.settings.configureActionsButton.addEventListener("click", openActionConfigDialog);
+        }
+      }
+
       contextMenu = ME.aiContextMenu.create({
         captureSelection: context.captureSelection,
         getActiveMode: context.getActiveMode,
         markdownEditor: markdownEditor,
         wysiwygEditor: context.wysiwygEditor,
         onClipboardAction: context.onClipboardAction,
-        onAction: requestAction
+        onAction: requestAction,
+        onConfigure: openActionConfigDialog
       });
       contextMenu.bindEvents();
 
@@ -1976,6 +2040,13 @@
         renderStatusBadge(aiStatus.getState());
         aiStatus.start();
       }
+
+      if (ME.aiActionConfig) {
+        ME.aiActionConfig.load().then(rerenderOpenToolbarMenu).catch(function (error) {
+          console.warn("LocalDraftAI could not initialize AI Actions.", error);
+        });
+      }
+      window.addEventListener("localdraftai:ai-actions-changed", rerenderOpenToolbarMenu);
     }
 
     return {
@@ -1989,7 +2060,11 @@
         if (settingsDialog && settingsDialog.isOpen()) {
           settingsDialog.close();
         }
+        if (actionConfigDialog && actionConfigDialog.isOpen()) {
+          actionConfigDialog.close();
+        }
       },
+      openActionConfig: openActionConfigDialog,
       requestAction: requestAction
     };
   }
