@@ -142,6 +142,173 @@
     return !!match;
   }
 
+  function splitTableRow(line) {
+    var text = String(line || "");
+    var cells = [];
+    var cell = "";
+    var codeTicks = 0;
+    var i = 0;
+
+    while (i < text.length) {
+      var character = text.charAt(i);
+
+      if (character === "\\" && i + 1 < text.length) {
+        cell += character + text.charAt(i + 1);
+        i += 2;
+        continue;
+      }
+
+      if (character === "`") {
+        var tickStart = i;
+        while (i < text.length && text.charAt(i) === "`") {
+          i += 1;
+        }
+        var tickCount = i - tickStart;
+        cell += text.slice(tickStart, i);
+        if (!codeTicks) {
+          codeTicks = tickCount;
+        } else if (tickCount === codeTicks) {
+          codeTicks = 0;
+        }
+        continue;
+      }
+
+      if (character === "|" && !codeTicks) {
+        cells.push(cell);
+        cell = "";
+        i += 1;
+        continue;
+      }
+
+      cell += character;
+      i += 1;
+    }
+
+    cells.push(cell);
+    if (/^\s*\|/.test(text) && cells.length && !cells[0].trim()) {
+      cells.shift();
+    }
+    if (/\|\s*$/.test(text) && cells.length && !cells[cells.length - 1].trim()) {
+      cells.pop();
+    }
+
+    return cells.map(normalizeTableCell);
+  }
+
+  function normalizeTableCell(value) {
+    return String(value || "").trim();
+  }
+
+  function isTableDelimiterCell(value) {
+    return /^:?-{3,}:?$/.test(normalizeTableCell(value));
+  }
+
+  function parseTableDelimiter(line) {
+    var cells = splitTableRow(line);
+
+    if (!cells.length || !cells.every(isTableDelimiterCell)) {
+      return null;
+    }
+
+    return cells.map(function (cell) {
+      var left = cell.charAt(0) === ":";
+      var right = cell.charAt(cell.length - 1) === ":";
+
+      if (left && right) {
+        return "center";
+      }
+      if (right) {
+        return "right";
+      }
+      if (left) {
+        return "left";
+      }
+      return "";
+    });
+  }
+
+  function isExplicitSingleCellTableRow(line) {
+    return /^\s*\|[\s\S]*\|\s*$/.test(String(line || ""));
+  }
+
+  function isTableStart(lines, index) {
+    var headerCells;
+    var alignments;
+
+    if (index + 1 >= lines.length) {
+      return false;
+    }
+
+    headerCells = splitTableRow(lines[index]);
+    alignments = parseTableDelimiter(lines[index + 1]);
+
+    if (!alignments || headerCells.length !== alignments.length) {
+      return false;
+    }
+
+    return headerCells.length >= 2 || (
+      headerCells.length === 1 &&
+      isExplicitSingleCellTableRow(lines[index]) &&
+      isExplicitSingleCellTableRow(lines[index + 1])
+    );
+  }
+
+  function tableCellAttributes(alignment) {
+    if (!alignment) {
+      return "";
+    }
+
+    return ' data-md-align="' + alignment + '" class="md-table-align-' + alignment + '"';
+  }
+
+  function normalizeTableRow(cells, length) {
+    var normalized = cells.slice(0, length);
+    while (normalized.length < length) {
+      normalized.push("");
+    }
+    return normalized;
+  }
+
+  function parseTableBlock(lines, start, lineOffset, options) {
+    var headerCells = splitTableRow(lines[start]);
+    var alignments = parseTableDelimiter(lines[start + 1]);
+    var i = start + 2;
+    var bodyRows = [];
+    var headerHtml;
+    var bodyHtml;
+
+    while (i < lines.length && !isBlank(lines[i])) {
+      var cells = splitTableRow(lines[i]);
+      var isRow = headerCells.length === 1
+        ? isExplicitSingleCellTableRow(lines[i])
+        : cells.length > 1 || isExplicitSingleCellTableRow(lines[i]);
+
+      if (!isRow) {
+        break;
+      }
+
+      bodyRows.push({
+        cells: normalizeTableRow(cells, headerCells.length),
+        line: lineOffset + i
+      });
+      i += 1;
+    }
+
+    headerHtml = headerCells.map(function (cell, index) {
+      return "<th" + tableCellAttributes(alignments[index]) + ">" + renderInline(cell, options) + "</th>";
+    }).join("");
+    bodyHtml = bodyRows.map(function (row) {
+      return "<tr" + blockAttrs(row.line) + ">" + row.cells.map(function (cell, index) {
+        return "<td" + tableCellAttributes(alignments[index]) + ">" + renderInline(cell, options) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+
+    return {
+      html: '<table class="md-table"' + blockAttrs(lineOffset + start) + "><thead><tr" + blockAttrs(lineOffset + start) + ">" + headerHtml + "</tr></thead><tbody>" + bodyHtml + "</tbody></table>",
+      end: i
+    };
+  }
+
   function isBlockStart(line) {
     return (
       /^```/.test(line) ||
@@ -291,6 +458,13 @@
         continue;
       }
 
+      if (isTableStart(lines, i)) {
+        var tableBlock = parseTableBlock(lines, i, lineOffset, options);
+        html.push(tableBlock.html);
+        i = tableBlock.end;
+        continue;
+      }
+
       if (/^>\s?/.test(line)) {
         var quoteLines = [];
         var quoteLine = lineOffset + i;
@@ -315,7 +489,7 @@
 
       var paragraph = [];
       var paragraphLine = lineOffset + i;
-      while (i < lines.length && !isBlank(lines[i]) && !isBlockStart(lines[i])) {
+      while (i < lines.length && !isBlank(lines[i]) && !isBlockStart(lines[i]) && !isTableStart(lines, i)) {
         paragraph.push(lines[i]);
         i += 1;
       }
@@ -352,7 +526,7 @@
       return false;
     }
 
-    return /^(blockquote|div|h[1-6]|hr|li|ol|p|pre|section|article|ul)$/i.test(node.tagName);
+    return /^(blockquote|div|h[1-6]|hr|li|ol|p|pre|section|article|table|ul)$/i.test(node.tagName);
   }
 
   function hasMarkdownBlockChildren(node) {
@@ -525,6 +699,141 @@
     return items.join("\n");
   }
 
+  function tableRows(table) {
+    var rows = [];
+
+    function walk(node) {
+      Array.prototype.forEach.call(node.children || [], function (child) {
+        var tag = child.tagName.toLowerCase();
+
+        if (tag === "table") {
+          return;
+        }
+        if (tag === "tr") {
+          rows.push(child);
+          return;
+        }
+        walk(child);
+      });
+    }
+
+    walk(table);
+    return rows;
+  }
+
+  function tableRowCells(row) {
+    return Array.prototype.filter.call(row.children || [], function (child) {
+      return /^(th|td)$/i.test(child.tagName);
+    });
+  }
+
+  function escapeTableCellPipes(value) {
+    var text = String(value || "");
+    var output = "";
+    var codeTicks = 0;
+    var i = 0;
+
+    while (i < text.length) {
+      var character = text.charAt(i);
+
+      if (character === "\\" && i + 1 < text.length) {
+        output += character + text.charAt(i + 1);
+        i += 2;
+        continue;
+      }
+
+      if (character === "`") {
+        var tickStart = i;
+        while (i < text.length && text.charAt(i) === "`") {
+          i += 1;
+        }
+        var tickCount = i - tickStart;
+        output += text.slice(tickStart, i);
+        if (!codeTicks) {
+          codeTicks = tickCount;
+        } else if (tickCount === codeTicks) {
+          codeTicks = 0;
+        }
+        continue;
+      }
+
+      output += character === "|" && !codeTicks ? "\\|" : character;
+      i += 1;
+    }
+
+    return output;
+  }
+
+  function tableCellToMarkdown(cell) {
+    return escapeTableCellPipes(
+      inlineNodesToMarkdown(cell).replace(/\s*\n+\s*/g, " ").trim()
+    );
+  }
+
+  function tableCellAlignment(cell) {
+    var alignment = String(cell.getAttribute("data-md-align") || cell.getAttribute("align") || "").toLowerCase();
+    var className;
+    var classMatch;
+
+    if (/^(left|center|right)$/.test(alignment)) {
+      return alignment;
+    }
+
+    className = cell.getAttribute("class") || "";
+    classMatch = className.match(/(?:^|\s)md-table-align-(left|center|right)(?:\s|$)/);
+    return classMatch ? classMatch[1] : "";
+  }
+
+  function tableDelimiterForAlignment(alignment) {
+    if (alignment === "left") {
+      return ":---";
+    }
+    if (alignment === "center") {
+      return ":---:";
+    }
+    if (alignment === "right") {
+      return "---:";
+    }
+    return "---";
+  }
+
+  function tableToMarkdown(table) {
+    var rows = tableRows(table);
+    var headerRow = rows[0];
+    var headerCells;
+    var columnCount;
+    var output;
+
+    if (!headerRow) {
+      return "";
+    }
+
+    headerCells = tableRowCells(headerRow);
+    columnCount = headerCells.length;
+    if (!columnCount) {
+      return "";
+    }
+
+    output = [
+      "| " + headerCells.map(tableCellToMarkdown).join(" | ") + " |",
+      "| " + headerCells.map(function (cell) {
+        return tableDelimiterForAlignment(tableCellAlignment(cell));
+      }).join(" | ") + " |"
+    ];
+
+    rows.slice(1).forEach(function (row) {
+      var cells = tableRowCells(row).slice(0, columnCount);
+      while (cells.length < columnCount) {
+        cells.push(null);
+      }
+      output.push("| " + cells.map(function (cell) {
+        return cell ? tableCellToMarkdown(cell) : "";
+      }).join(" | ") + " |");
+    });
+
+    return output.join("\n");
+  }
+
   function nodeToMarkdown(node, inline, depth) {
     var childDepth = depth || 0;
 
@@ -586,6 +895,10 @@
     if (tag === "pre") {
       var info = markdownFenceInfo(node);
       return "```" + info + "\n" + codeBlockText(node).replace(/\n+$/g, "") + "\n```";
+    }
+
+    if (tag === "table") {
+      return tableToMarkdown(node);
     }
 
     if (tag === "blockquote") {
@@ -673,6 +986,12 @@
       p: true,
       pre: true,
       strong: true,
+      table: true,
+      tbody: true,
+      td: true,
+      th: true,
+      thead: true,
+      tr: true,
       ul: true
     };
 
@@ -732,6 +1051,18 @@
           return "";
         }
         return '<img src="' + escapeAttribute(src) + '" alt="' + escapeAttribute(alt) + '">';
+      }
+
+      if (tag === "table") {
+        return '<table class="md-table">' + children + "</table>";
+      }
+
+      if (tag === "th" || tag === "td") {
+        var alignment = String(node.getAttribute("data-md-align") || node.getAttribute("align") || "").toLowerCase();
+        var alignmentAttribute = /^(left|center|right)$/.test(alignment)
+          ? ' data-md-align="' + alignment + '"'
+          : "";
+        return "<" + tag + alignmentAttribute + ">" + children + "</" + tag + ">";
       }
 
       return "<" + tag + ">" + children + "</" + tag + ">";

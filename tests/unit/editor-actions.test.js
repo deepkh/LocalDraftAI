@@ -125,3 +125,18 @@ runTest("replaces selected Markdown with a horizontal rule", function () {
 
   assert.equal(setup.markdownEditor.value, "Before\n\n---\n\nAfter");
 });
+
+runTest("inserts a Markdown table as a separated block", function () {
+  const setup = createActions("Before\nAfter");
+
+  setup.markdownEditor.selectionStart = "Before".length;
+  setup.markdownEditor.selectionEnd = "Before".length;
+  setup.actions.applyToolbarAction("insertTable");
+
+  assert.equal(
+    setup.markdownEditor.value,
+    "Before\n\n| Column 1 | Column 2 | Column 3 |\n" +
+    "| --- | --- | --- |\n" +
+    "| Cell 1 | Cell 2 | Cell 3 |\n\nAfter"
+  );
+});

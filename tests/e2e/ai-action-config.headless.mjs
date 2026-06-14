@@ -190,9 +190,7 @@ async function main() {
     assert.equal(contextLabels.includes("Make Shorter"), false);
     assert.equal(contextLabels.includes("Translate to Traditional Chinese"), true);
 
-    await evaluate(send, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
-    await evaluate(send, `document.querySelector("#aiAssistantButton").click()`);
-    await evaluate(send, `Array.from(document.querySelectorAll("#aiToolbarMenu button"))
+    await evaluate(send, `Array.from(document.querySelectorAll(".ai-context-menu button"))
       .find((item) => item.textContent === "Translate to Traditional Chinese").click()`);
     await waitFor(send, `document.querySelector("#aiAssistantPanel").hidden === false`);
     assert.match(await evaluate(send, `document.querySelector("#aiReviewTitle").textContent`), /Translate to Traditional Chinese/);

@@ -27,7 +27,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text in one main editor.
 - **Soft Wrap**: wrap long lines visually in WYSIWYG and Markdown modes without inserting real line breaks.
 - **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps rich HTML when the browser clipboard allows it.
-- **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, and horizontal rules.
+- **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
@@ -112,6 +112,19 @@ Workspace features are still focused on Markdown planning and writing. LocalDraf
 The main layout is a stable three-region workspace: the left sidebar is for Markdown workspace navigation, the center is the active editor and tabs, and the right panel is reserved for AI Assistant review. The top toolbar groups global actions into `Workspace`, `File`, and `More` menus. Preview entries remain behind `More` as unavailable actions because the app does not currently ship a permanent preview pane.
 
 On wide screens, the left sidebar, editor, and AI review panel can coexist. The sidebar and AI panel both clamp their saved widths so the editor remains usable. On medium and narrow screens, side panels move out of the grid instead of squeezing the editor.
+
+---
+
+## Markdown Tables
+
+Use the `Table` toolbar button to insert a starter pipe table. Tables render in WYSIWYG mode and round-trip back to Markdown, including column alignment and escaped pipes inside cells.
+
+```markdown
+| Feature | Status |
+| --- | --- |
+| WYSIWYG table rendering | Supported |
+| Markdown round trip | Supported |
+```
 
 ---
 
@@ -770,6 +783,7 @@ Run the headless browser smoke tests with Chrome available on `PATH`:
 node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
 node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
 node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
+node --experimental-websocket tests/e2e/markdown-table.headless.mjs
 ```
 
 ---

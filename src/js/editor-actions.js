@@ -128,6 +128,15 @@
         return;
       }
 
+      if (action === "insertTable") {
+        insertTextareaBlock(
+          "| Column 1 | Column 2 | Column 3 |\n" +
+          "| --- | --- | --- |\n" +
+          "| Cell 1 | Cell 2 | Cell 3 |"
+        );
+        return;
+      }
+
       if (action === "link") {
         var url = window.prompt("URL");
         if (!url) {
@@ -268,6 +277,8 @@
         createWysiwygLink();
       } else if (action === "horizontalRule") {
         insertWysiwygHorizontalRule();
+      } else if (action === "insertTable") {
+        insertWysiwygTable();
       }
     }
 
@@ -836,7 +847,7 @@
       while (node && node !== wysiwygEditor) {
         if (
           node.nodeType === Node.ELEMENT_NODE &&
-          /^(blockquote|div|h[1-6]|li|ol|p|pre|ul)$/i.test(node.tagName)
+          /^(blockquote|div|h[1-6]|li|ol|p|pre|table|ul)$/i.test(node.tagName)
         ) {
           return node;
         }
@@ -844,6 +855,71 @@
       }
 
       return null;
+    }
+
+    function createStarterTable() {
+      var table = document.createElement("table");
+      var thead = document.createElement("thead");
+      var tbody = document.createElement("tbody");
+      var headerRow = document.createElement("tr");
+      var bodyRow = document.createElement("tr");
+
+      table.className = "md-table";
+      ["Column 1", "Column 2", "Column 3"].forEach(function (label) {
+        var cell = document.createElement("th");
+        cell.textContent = label;
+        headerRow.appendChild(cell);
+      });
+      ["Cell 1", "Cell 2", "Cell 3"].forEach(function (label) {
+        var cell = document.createElement("td");
+        cell.textContent = label;
+        bodyRow.appendChild(cell);
+      });
+      thead.appendChild(headerRow);
+      tbody.appendChild(bodyRow);
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function insertWysiwygTable() {
+      var selection;
+      var range;
+      var block;
+      var table = createStarterTable();
+      var after = document.createElement("p");
+      var caret = document.createRange();
+
+      wysiwygEditor.focus();
+      selection = window.getSelection();
+      range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+
+      if (!isSelectionInsideWysiwyg(range)) {
+        range = document.createRange();
+        range.selectNodeContents(wysiwygEditor);
+        range.collapse(false);
+      }
+
+      block = wysiwygBlockForRange(range);
+      if (block && block.parentNode) {
+        if (!range.collapsed) {
+          range.deleteContents();
+        }
+        block.parentNode.insertBefore(table, block.nextSibling);
+      } else {
+        range.deleteContents();
+        range.insertNode(table);
+      }
+
+      after.appendChild(document.createElement("br"));
+      table.parentNode.insertBefore(after, table.nextSibling);
+      caret.setStart(table.querySelector("th"), 0);
+      caret.collapse(true);
+
+      selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(caret);
+      context.scheduleSyncFromWysiwyg();
     }
 
     function insertWysiwygHorizontalRule() {

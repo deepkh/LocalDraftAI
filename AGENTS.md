@@ -131,7 +131,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG mode supports rich HTML paste.
 - The editor right-click menu should include Cut, Copy, and Paste; Markdown mode uses plain text, while WYSIWYG mode should preserve rich HTML clipboard data when the browser allows it.
 - Markdown mode should accept plain Markdown text.
-- Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, and horizontal rules.
+- Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - Escaped Markdown punctuation should render and round-trip as literal text in WYSIWYG mode.
 - LocalDraftAI uses one main editor surface.
 - Only one editor mode is visible at a time: WYSIWYG or Markdown.
@@ -213,6 +213,12 @@ Run the configurable AI Actions menu and dialog smoke test:
 
 ```bash
 node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
+```
+
+Run the Markdown table render, round-trip, and toolbar smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/markdown-table.headless.mjs
 ```
 
 ## Documentation

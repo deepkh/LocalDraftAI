@@ -113,6 +113,59 @@ runTest("renders fenced code language info into data attributes", function () {
   assert.match(html, /<pre data-md-line="0" data-md-fence-info="bash"><code data-md-fence-info="bash">/);
 });
 
+runTest("renders Markdown pipe tables", function () {
+  const html = markdown.renderMarkdown("| Name | Role |\n| --- | --- |\n| Garry | Developer |");
+
+  assert.match(html, /<table class="md-table"/);
+  assert.match(html, /<thead><tr[^>]*><th>Name<\/th><th>Role<\/th><\/tr><\/thead>/);
+  assert.match(html, /<tbody><tr[^>]*><td>Garry<\/td><td>Developer<\/td><\/tr><\/tbody>/);
+});
+
+runTest("renders tables without outer pipes and normalizes uneven rows", function () {
+  const html = markdown.renderMarkdown("Name | Role\n--- | ---\n| Garry |\nAda | Developer | Extra");
+
+  assert.match(html, /<table class="md-table"/);
+  assert.match(html, /<tr[^>]*><td>Garry<\/td><td><\/td><\/tr>/);
+  assert.match(html, /<tr[^>]*><td>Ada<\/td><td>Developer<\/td><\/tr>/);
+  assert.doesNotMatch(html, /Extra/);
+});
+
+runTest("renders table column alignment", function () {
+  const html = markdown.renderMarkdown("| Left | Center | Right |\n| :--- | :---: | ---: |\n| A | B | C |");
+
+  assert.match(html, /md-table-align-left/);
+  assert.match(html, /md-table-align-center/);
+  assert.match(html, /md-table-align-right/);
+});
+
+runTest("keeps escaped pipes inside one table cell", function () {
+  const html = markdown.renderMarkdown("| Text |\n| --- |\n| A \\| B |");
+
+  assert.match(html, /<td>A \| B<\/td>/);
+  assert.equal((html.match(/<td/g) || []).length, 1);
+});
+
+runTest("keeps inline code pipes inside one table cell", function () {
+  const html = markdown.renderMarkdown("| Code |\n| --- |\n| `a | b` |");
+
+  assert.match(html, /<td><code>a \| b<\/code><\/td>/);
+  assert.equal((html.match(/<td/g) || []).length, 1);
+});
+
+runTest("does not parse pipe text without a delimiter row as a table", function () {
+  const html = markdown.renderMarkdown("A | B\nnot a delimiter");
+
+  assert.doesNotMatch(html, /<table/);
+  assert.match(html, /<p/);
+});
+
+runTest("does not parse table syntax inside fenced code blocks", function () {
+  const html = markdown.renderMarkdown("```\n| A | B |\n| --- | --- |\n```");
+
+  assert.doesNotMatch(html, /<table/);
+  assert.match(html, /<pre/);
+});
+
 runTest("converts rendered fenced code language info back to Markdown", function () {
   const code = elementNode("code", { "data-md-fence-info": "bash" }, [
     elementNode("span", {}, [textNode("npm test")])
@@ -121,6 +174,50 @@ runTest("converts rendered fenced code language info back to Markdown", function
   const root = elementNode("div", {}, [pre]);
 
   assert.equal(markdown.htmlToMarkdown(root), "```bash\nnpm test\n```");
+});
+
+runTest("converts HTML tables back to Markdown pipe tables", function () {
+  const table = elementNode("table", {}, [
+    elementNode("thead", {}, [
+      elementNode("tr", {}, [
+        elementNode("th", {}, [textNode("Name")]),
+        elementNode("th", {}, [textNode("Role")])
+      ])
+    ]),
+    elementNode("tbody", {}, [
+      elementNode("tr", {}, [
+        elementNode("td", {}, [textNode("Garry")]),
+        elementNode("td", {}, [textNode("Developer")])
+      ])
+    ])
+  ]);
+  const root = elementNode("div", {}, [table]);
+
+  assert.equal(
+    markdown.htmlToMarkdown(root),
+    "| Name | Role |\n| --- | --- |\n| Garry | Developer |"
+  );
+});
+
+runTest("preserves table alignment and escapes cell pipes in Markdown", function () {
+  const table = elementNode("table", {}, [
+    elementNode("tr", {}, [
+      elementNode("th", { "data-md-align": "left" }, [textNode("Left")]),
+      elementNode("th", { "data-md-align": "center" }, [textNode("Center")]),
+      elementNode("th", { "data-md-align": "right" }, [textNode("Right")])
+    ]),
+    elementNode("tr", {}, [
+      elementNode("td", {}, [textNode("A | B")]),
+      elementNode("td", {}, [elementNode("code", {}, [textNode("x | y")])]),
+      elementNode("td", {}, [textNode("C")])
+    ])
+  ]);
+  const root = elementNode("div", {}, [table]);
+
+  assert.equal(
+    markdown.htmlToMarkdown(root),
+    "| Left | Center | Right |\n| :--- | :---: | ---: |\n| A \\| B | `x | y` | C |"
+  );
 });
 
 runTest("renders escaped Markdown punctuation as literal WYSIWYG text", function () {

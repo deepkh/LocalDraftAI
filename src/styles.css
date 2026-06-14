@@ -1382,6 +1382,41 @@
       color: #3f4743;
     }
 
+    .wysiwyg .md-table {
+      width: 100%;
+      margin: 0.75rem 0;
+      border-collapse: collapse;
+      white-space: pre-wrap;
+    }
+
+    .wysiwyg .md-table th,
+    .wysiwyg .md-table td {
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .wysiwyg .md-table th {
+      background: var(--panel-alt);
+      font-weight: 600;
+    }
+
+    .wysiwyg .md-table th.md-table-align-left,
+    .wysiwyg .md-table td.md-table-align-left {
+      text-align: left;
+    }
+
+    .wysiwyg .md-table th.md-table-align-center,
+    .wysiwyg .md-table td.md-table-align-center {
+      text-align: center;
+    }
+
+    .wysiwyg .md-table th.md-table-align-right,
+    .wysiwyg .md-table td.md-table-align-right {
+      text-align: right;
+    }
+
     .wysiwyg pre {
       white-space: pre;
       overflow: auto;
