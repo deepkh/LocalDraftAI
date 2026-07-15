@@ -28,6 +28,7 @@ src/js/app.js                App startup and wiring
 src/js/command-registry.js   Application command registration and execution
 src/js/menu-bar.js           Application menu interaction and command dispatch
 src/js/activity-bar.js       Workbench view and sidebar routing
+src/js/theme.js              Application light/dark theme state, persistence, and control synchronization
 src/js/status-bar.js         Compact workspace, document, editor, and AI status
 src/js/document-session.js   Per-tab document state
 src/js/tab-manager.js        Multi-tab behavior
@@ -147,6 +148,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - LocalDraftAI uses one main editor surface.
 - The application shell uses semantic Menu Bar, Activity Bar, Primary Sidebar, Editor Area, Secondary Sidebar, and Status Bar regions.
 - The Activity Bar routes Explorer, Search, and Related to the existing workspace sidebar, opens the AI Secondary Sidebar without moving review state, and opens the existing Settings dialog.
+- Theme is application-level state with supported `light` and `dark` values stored under `localdraftai.appearance.theme` in localStorage.
+- Apply the persisted theme before the stylesheet renders; switching themes must not modify document, editor, tab, sidebar, workspace, or AI state.
+- Theme-sensitive colors belong in semantic CSS variables with light defaults and dark overrides.
 - The command registry maps Menu Bar commands to existing app behavior; menu modules must not reimplement file, editor, workspace, or AI operations.
 - The Status Bar displays workspace, unsaved-document, editor mode, Soft Wrap, Markdown cursor, word count, and AI provider state passed from their existing owners.
 - Only one editor mode is visible at a time: WYSIWYG or Markdown.
@@ -201,6 +205,7 @@ node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/resizer.test.js
 node tests/unit/tab-manager.test.js
+node tests/unit/theme.test.js
 node tests/unit/workspace-store.test.js
 ```
 

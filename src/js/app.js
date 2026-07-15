@@ -30,6 +30,7 @@
   var markdownEditor = document.getElementById("markdownEditor");
   var workspace = document.getElementById("workspace");
   var activityBarElement = document.getElementById("activityBar");
+  var themeToggleButton = document.getElementById("themeToggleButton");
   var workspaceSidebarElement = document.getElementById("workspaceSidebar");
   var workspaceSidebarResizer = document.getElementById("workspaceSidebarResizer");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
@@ -3922,6 +3923,11 @@
 
     register("view.toggleEditorMode", toggleEditorModeState);
     register("view.toggleSoftWrap", toggleSoftWrapState);
+    register("view.toggleTheme", function () {
+      if (ME.theme) {
+        ME.theme.toggleTheme();
+      }
+    });
     register("view.toggleFocusMode", toggleFocusModeState);
     register("view.togglePrimarySidebar", function () {
       if (workspaceSidebar) {
@@ -4028,6 +4034,11 @@
 
     if (toggleFocusMode) {
       toggleFocusMode.addEventListener("click", toggleFocusModeState);
+    }
+    if (themeToggleButton && ME.commandRegistry) {
+      themeToggleButton.addEventListener("click", function () {
+        ME.commandRegistry.executeCommand("view.toggleTheme");
+      });
     }
     aboutClose.addEventListener("click", closeAboutDialog);
     aboutOverlay.addEventListener("click", function (event) {

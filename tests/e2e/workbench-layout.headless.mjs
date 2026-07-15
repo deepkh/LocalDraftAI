@@ -134,6 +134,23 @@ async function main() {
     const { send } = connection;
 
     await waitFor(send, "Boolean(window.MarkdownEditor && window.MarkdownEditor.__testApi)");
+    await evaluate(send, `(() => {
+      localStorage.removeItem("localdraftai.appearance.theme");
+      location.reload();
+    })()`);
+    await delay(300);
+    await waitFor(send, "Boolean(window.MarkdownEditor && window.MarkdownEditor.__testApi)");
+
+    const startupTheme = await evaluate(send, `(() => {
+      const themeScript = document.querySelector('script[src="js/theme.js"]');
+      const stylesheet = document.querySelector('link[href="styles.css"]');
+      return {
+        appliedBeforeStyles: Boolean(themeScript && stylesheet && (themeScript.compareDocumentPosition(stylesheet) & 4)),
+        stored: localStorage.getItem("localdraftai.appearance.theme"),
+        theme: document.documentElement.dataset.theme
+      };
+    })()`);
+    assert.deepEqual(startupTheme, { appliedBeforeStyles: true, stored: null, theme: "light" });
 
     const shell = await evaluate(send, `(() => {
       const ids = ["workbench", "menuBar", "activityBar", "workspaceSidebar", "editorArea", "aiAssistantPanel", "statusBar"];
@@ -157,7 +174,7 @@ async function main() {
     assert.equal(shell.editorOwnsChrome, true);
     assert.equal(shell.activeActivities, 1);
     assert.equal(shell.statusHeight, 24);
-    assert.equal(shell.activityButtons.length, 5);
+    assert.equal(shell.activityButtons.length, 6);
     shell.activityButtons.forEach((button) => {
       assert.equal(button.type, "button");
       assert.ok(button.title);
@@ -207,6 +224,107 @@ async function main() {
     assert.equal(restored.sidebarWidth, 360);
     assert.equal(restored.storedMode, "expanded");
     assert.equal(restored.storedWidth, "360");
+
+    await evaluate(send, `(() => {
+      window.MarkdownEditor.__testApi.loadMarkdownForTest("Theme.md", "Theme state must stay unchanged.");
+      if (window.MarkdownEditor.__testApi.getEditorStateForTest().editorMode !== "markdown") {
+        document.querySelector("#toggleEditorMode").click();
+      }
+      const editor = document.querySelector("#markdownEditor");
+      editor.focus();
+      editor.selectionStart = 6;
+      editor.selectionEnd = 11;
+      document.dispatchEvent(new Event("selectionchange"));
+    })()`);
+    const beforeThemeToggle = await evaluate(send, `(() => {
+      const activeTab = document.querySelector('[role="tab"][aria-selected="true"]');
+      return {
+        activeTabId: activeTab && activeTab.dataset.sessionId,
+        activeTabTitle: activeTab && activeTab.textContent,
+        editor: window.MarkdownEditor.__testApi.getEditorStateForTest(),
+        sidebarWidth: document.querySelector("#workspaceSidebar").getBoundingClientRect().width,
+        workspaceClasses: document.querySelector("#workspace").className
+      };
+    })()`);
+
+    await evaluate(send, `document.querySelector("#themeToggleButton").click()`);
+    const darkTheme = await evaluate(send, `(() => {
+      const activeTab = document.querySelector('[role="tab"][aria-selected="true"]');
+      const toggle = document.querySelector("#themeToggleButton");
+      return {
+        activeTabId: activeTab && activeTab.dataset.sessionId,
+        activeTabTitle: activeTab && activeTab.textContent,
+        ariaLabel: toggle.getAttribute("aria-label"),
+        ariaPressed: toggle.getAttribute("aria-pressed"),
+        editor: window.MarkdownEditor.__testApi.getEditorStateForTest(),
+        moonDisplay: getComputedStyle(toggle.querySelector(".theme-icon-moon")).display,
+        sidebarWidth: document.querySelector("#workspaceSidebar").getBoundingClientRect().width,
+        stored: localStorage.getItem("localdraftai.appearance.theme"),
+        sunDisplay: getComputedStyle(toggle.querySelector(".theme-icon-sun")).display,
+        theme: document.documentElement.dataset.theme,
+        workspaceClasses: document.querySelector("#workspace").className
+      };
+    })()`);
+    assert.equal(darkTheme.theme, "dark");
+    assert.equal(darkTheme.stored, "dark");
+    assert.equal(darkTheme.ariaPressed, "true");
+    assert.equal(darkTheme.ariaLabel, "Switch to light theme");
+    assert.equal(darkTheme.moonDisplay, "none");
+    assert.notEqual(darkTheme.sunDisplay, "none");
+    assert.deepEqual({
+      activeTabId: darkTheme.activeTabId,
+      activeTabTitle: darkTheme.activeTabTitle,
+      editor: darkTheme.editor,
+      sidebarWidth: darkTheme.sidebarWidth,
+      workspaceClasses: darkTheme.workspaceClasses
+    }, beforeThemeToggle);
+
+    await evaluate(send, `document.querySelector("#viewMenuButton").click()`);
+    assert.equal(await evaluate(send, `document.querySelector("#darkThemeMenuItem").getAttribute("aria-checked")`), "true");
+    await evaluate(send, `document.querySelector("#viewMenuButton").dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }))`);
+
+    await evaluate(send, `document.querySelector('[data-workbench-view="settings"]').click()`);
+    const settingsSurface = await evaluate(send, `getComputedStyle(document.querySelector("#aiSettingsDialog")).backgroundColor`);
+    await evaluate(send, `document.querySelector("#aiSettingsCancel").click()`);
+    await evaluate(send, `(() => {
+      const editor = document.querySelector("#markdownEditor");
+      editor.focus();
+      editor.selectionStart = 0;
+      editor.selectionEnd = editor.value.length;
+      document.querySelector("#aiAssistantButton").click();
+      document.querySelector("#aiToolbarMenu [data-action-id]").click();
+    })()`);
+    await waitFor(send, `document.querySelector("#aiAssistantPanel").hidden === false && document.querySelector("#aiAssistantPanelWelcome").hidden === true`);
+    const darkSurfaces = await evaluate(send, `({
+      editor: getComputedStyle(document.querySelector("#editorArea")).backgroundColor,
+      panel: getComputedStyle(document.querySelector("#aiAssistantPanel")).backgroundColor,
+      review: getComputedStyle(document.querySelector("#aiReviewDialog")).backgroundColor
+    })`);
+    assert.equal(settingsSurface, darkSurfaces.editor);
+    assert.equal(darkSurfaces.panel, darkSurfaces.editor);
+    assert.equal(darkSurfaces.review, darkSurfaces.editor);
+    assert.notEqual(darkSurfaces.editor, "rgb(255, 255, 255)");
+    await evaluate(send, `document.querySelector("#aiAssistantPanelClose").click()`);
+
+    await evaluate(send, `location.reload()`);
+    await delay(300);
+    await waitFor(send, "Boolean(window.MarkdownEditor && window.MarkdownEditor.__testApi)");
+    assert.deepEqual(await evaluate(send, `({
+      checked: document.querySelector("#darkThemeMenuItem").getAttribute("aria-checked"),
+      pressed: document.querySelector("#themeToggleButton").getAttribute("aria-pressed"),
+      stored: localStorage.getItem("localdraftai.appearance.theme"),
+      theme: document.documentElement.dataset.theme
+    })`), { checked: "true", pressed: "true", stored: "dark", theme: "dark" });
+
+    await evaluate(send, `(() => {
+      document.querySelector("#viewMenuButton").click();
+      document.querySelector("#darkThemeMenuItem").click();
+    })()`);
+    assert.deepEqual(await evaluate(send, `({
+      checked: document.querySelector("#darkThemeMenuItem").getAttribute("aria-checked"),
+      stored: localStorage.getItem("localdraftai.appearance.theme"),
+      theme: document.documentElement.dataset.theme
+    })`), { checked: "false", stored: "light", theme: "light" });
 
     await evaluate(send, `document.querySelector('[data-workbench-view="search"]').click()`);
     let activity = await evaluate(send, `({

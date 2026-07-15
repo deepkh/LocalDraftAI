@@ -26,6 +26,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
 - **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text in one main editor.
 - **Soft Wrap**: wrap long lines visually in WYSIWYG and Markdown modes without inserting real line breaks.
+- **Day/Night theme**: switch between light and dark workbench themes; the selected appearance is stored locally in the browser.
 - **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps rich HTML when the browser clipboard allows it.
 - **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
@@ -112,6 +113,8 @@ Workspace features are still focused on Markdown planning and writing. LocalDraf
 The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. Tabs and document formatting controls are contained in the Editor Area. File, Edit, View, Workspace, AI, and Help menus dispatch to the same local file, editor, workspace, and AI behavior used by shortcuts and existing controls.
 
 The Activity Bar switches Explorer, Search, and Related without resetting workspace collapse, search, scroll, or selection state. Clicking the active primary view hides the Primary Sidebar and clicking it again restores the same view. AI Assistant opens or focuses the Secondary Sidebar, and Settings opens the existing provider dialog.
+
+Use the moon/sun button above Settings, or `View -> Dark Theme`, to switch appearance without reloading or changing document and workbench state. Light is the default. The supported `light` or `dark` value is stored under `localdraftai.appearance.theme` in localStorage and restored before the stylesheet renders.
 
 The Status Bar shows the current workspace, unsaved state, editor mode, Soft Wrap, Markdown cursor line and column, word and character counts, and accessible AI provider status. Lower-priority fields collapse on narrow screens.
 
