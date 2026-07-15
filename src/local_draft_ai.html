@@ -11,17 +11,17 @@
 </head>
 
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="toolbar-row file-toolbar" role="toolbar" aria-label="File toolbar">
+  <div id="workbench" class="app workbench">
+    <header id="menuBar" class="menu-bar">
+      <div class="toolbar-row file-toolbar menu-bar-actions" role="menubar" aria-label="Application menu">
         <div class="brand">LocalDraftAI</div>
         <div id="documentTitle" class="document-title" aria-live="polite">Untitled.md</div>
         <div class="group workspace-toolbar-group" aria-label="Workspace">
           <button type="button" id="workspaceButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
-            title="Workspace">Workspace</button>
+            role="menuitem" title="Workspace">Workspace</button>
           <div id="workspaceMenu" class="ai-menu workspace-menu" role="menu" hidden>
-            <button type="button" id="openWorkspaceFolder" role="menuitem">Open Folder</button>
-            <button type="button" id="restoreWorkspace" role="menuitem">Restore Workspace</button>
+            <button type="button" id="openWorkspaceFolder" role="menuitem" data-command="workspace.openFolder">Open Folder</button>
+            <button type="button" id="restoreWorkspace" role="menuitem" data-command="workspace.restore">Restore Workspace</button>
             <div class="ai-menu-separator" role="separator"></div>
             <label class="menu-select-label" for="recentWorkspaces">Recent Workspaces</label>
             <select id="recentWorkspaces" class="recent-select" title="Open or remove recent workspaces"
@@ -29,25 +29,29 @@
               <option value="">No recent</option>
             </select>
             <div class="ai-menu-separator" role="separator"></div>
-            <button type="button" id="refreshWorkspace" role="menuitem">Refresh Workspace</button>
-            <button type="button" id="closeWorkspace" role="menuitem">Close Workspace</button>
+            <button type="button" id="refreshWorkspace" role="menuitem" data-command="workspace.refresh">Refresh Workspace</button>
+            <button type="button" id="closeWorkspace" role="menuitem" data-command="workspace.close">Close Workspace</button>
             <div class="ai-menu-separator" role="separator"></div>
-            <button type="button" id="expandWorkspaceFolders" role="menuitem">Expand All Folders</button>
-            <button type="button" id="collapseWorkspaceFolders" role="menuitem">Collapse All Folders</button>
+            <button type="button" id="expandWorkspaceFolders" role="menuitem" data-command="workspace.expandAll">Expand All Folders</button>
+            <button type="button" id="collapseWorkspaceFolders" role="menuitem" data-command="workspace.collapseAll">Collapse All Folders</button>
             <div class="ai-menu-separator" role="separator"></div>
-            <button type="button" id="showWorkspaceSidebar" role="menuitem">Show Sidebar</button>
-            <button type="button" id="hideWorkspaceSidebar" role="menuitem">Hide Sidebar</button>
-            <button type="button" id="minimizeWorkspaceSidebar" role="menuitem">Minimize Sidebar</button>
+            <button type="button" id="showWorkspaceSidebar" role="menuitem" data-command="view.showPrimarySidebar">Show Sidebar</button>
+            <button type="button" id="hideWorkspaceSidebar" role="menuitem" data-command="view.hidePrimarySidebar">Hide Sidebar</button>
+            <button type="button" id="minimizeWorkspaceSidebar" role="menuitem" data-command="view.minimizePrimarySidebar">Minimize Sidebar</button>
           </div>
         </div>
         <div class="group file-toolbar-group" aria-label="File">
           <button type="button" id="fileMenuButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
-            title="File">File</button>
+            role="menuitem" title="File">File</button>
           <div id="fileMenu" class="ai-menu file-menu" role="menu" hidden>
-            <button type="button" id="newFile" role="menuitem" title="New document (Ctrl/Cmd+N)">New File</button>
-            <button type="button" id="openFile" role="menuitem" title="Open Markdown file (Ctrl/Cmd+O)">Open File</button>
-            <button type="button" id="saveFile" role="menuitem" title="Save document (Ctrl/Cmd+S)">Save</button>
-            <button type="button" id="saveAsFile" role="menuitem" title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
+            <button type="button" id="newFile" role="menuitem" data-command="file.new"
+              title="New document (Ctrl/Cmd+N)">New</button>
+            <button type="button" id="openFile" role="menuitem" data-command="file.open"
+              title="Open Markdown file (Ctrl/Cmd+O)">Open File</button>
+            <button type="button" id="saveFile" role="menuitem" data-command="file.save"
+              title="Save document (Ctrl/Cmd+S)">Save</button>
+            <button type="button" id="saveAsFile" role="menuitem" data-command="file.saveAs"
+              title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
             <div class="ai-menu-separator" role="separator"></div>
             <label class="menu-select-label" for="recentFiles">Recent Files</label>
             <select id="recentFiles" class="recent-select" title="Open or remove recent files"
@@ -56,6 +60,88 @@
             </select>
           </div>
         </div>
+        <div class="group edit-menu-group" aria-label="Edit">
+          <button type="button" id="editMenuButton" class="menu-bar-button" role="menuitem" aria-haspopup="menu"
+            aria-expanded="false" title="Edit">Edit</button>
+          <div id="editMenu" class="ai-menu edit-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-command="edit.undo">Undo</button>
+            <button type="button" role="menuitem" data-command="edit.redo">Redo</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" role="menuitem" data-command="edit.cut">Cut</button>
+            <button type="button" role="menuitem" data-command="edit.copy">Copy</button>
+            <button type="button" role="menuitem" data-command="edit.paste">Paste</button>
+            <button type="button" role="menuitem" disabled title="Use the browser Find command (Ctrl/Cmd+F)">Find</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" id="copyRenderedHtml" role="menuitem" data-command="edit.copyRenderedHtml">Copy rendered HTML</button>
+          </div>
+        </div>
+        <div class="group view-menu-group" aria-label="View">
+          <button type="button" id="viewMenuButton" class="menu-bar-button" role="menuitem" aria-haspopup="menu"
+            aria-expanded="false" title="View">View</button>
+          <div id="viewMenu" class="ai-menu view-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-command="view.toggleEditorMode">WYSIWYG / Markdown</button>
+            <button type="button" role="menuitem" data-command="view.toggleSoftWrap">Soft Wrap</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" role="menuitem" data-command="view.togglePrimarySidebar">Primary Sidebar</button>
+            <button type="button" role="menuitem" data-command="view.toggleSecondarySidebar">AI Assistant</button>
+            <button type="button" role="menuitem" data-command="view.toggleFocusMode">Focus Mode</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" role="menuitem" disabled title="Preview is not available in the current layout">Preview</button>
+          </div>
+        </div>
+        <div class="group ai-toolbar-group" aria-label="AI Assistant">
+          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            role="menuitem" title="AI Assistant">AI</button>
+          <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
+        </div>
+        <div class="group more-toolbar-group" aria-label="Help">
+          <button type="button" id="moreButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
+            role="menuitem" title="Help and more actions">Help</button>
+          <div id="moreMenu" class="ai-menu more-menu" role="menu" hidden>
+            <button type="button" id="feedbackButton" role="menuitem" data-command="help.openFeedback">Feedback</button>
+            <button type="button" id="aboutButton" role="menuitem" data-command="help.showAbout" title="About LocalDraftAI"
+              aria-label="About LocalDraftAI">About</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div id="workspace" class="workspace workbench-body">
+      <nav id="activityBar" class="activity-bar" aria-label="Workbench views">
+        <div class="activity-bar-primary">
+          <button type="button" class="activity-bar-button is-active" data-workbench-view="files" title="Explorer"
+            aria-label="Explorer" aria-current="page">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 5.5h6l2 2h9v11h-17z"/><path d="M3.5 8.5h17"/></svg>
+          </button>
+          <button type="button" class="activity-bar-button" data-workbench-view="search" title="Search"
+            aria-label="Search">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></svg>
+          </button>
+          <button type="button" class="activity-bar-button" data-workbench-view="related" title="Related"
+            aria-label="Related">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 8 7.5 6.5a3.5 3.5 0 0 0-5 5L5 14a3.5 3.5 0 0 0 5 0l1-1"/><path d="m15 16 1.5 1.5a3.5 3.5 0 0 0 5-5L19 10a3.5 3.5 0 0 0-5 0l-1 1"/><path d="m8.5 15.5 7-7"/></svg>
+          </button>
+          <button type="button" class="activity-bar-button" data-workbench-view="ai" title="AI Assistant"
+            aria-label="AI Assistant">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2z"/></svg>
+          </button>
+        </div>
+        <div class="activity-bar-secondary">
+          <button type="button" class="activity-bar-button" data-workbench-view="settings" title="Settings"
+            aria-label="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5 7 7M17 17l1.5 1.5M18.5 5.5 17 7M7 17l-1.5 1.5"/></svg>
+          </button>
+        </div>
+      </nav>
+
+      <aside id="workspaceSidebar" class="workspace-sidebar primary-sidebar" aria-label="Primary workspace sidebar"></aside>
+      <div id="workspaceSidebarResizer" class="workspace-sidebar-resizer" role="separator" aria-orientation="vertical"
+        aria-label="Resize workspace sidebar" aria-valuemin="220" aria-valuemax="480" aria-valuenow="280" tabindex="0"
+        title="Resize workspace sidebar" hidden></div>
+
+      <main id="editorArea" class="editor-area" aria-label="Editor area">
+        <header class="topbar">
+      <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
         <div class="group editor-mode-toolbar-group" aria-label="Editor mode">
           <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false"
             title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
@@ -64,30 +150,6 @@
           <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true"
             title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
         </div>
-        <div class="group ai-toolbar-group" aria-label="AI Assistant">
-          <button type="button" id="aiAssistantButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
-            title="AI Assistant">AI Assistant</button>
-          <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
-          <div id="aiToolbarMenu" class="ai-menu ai-toolbar-menu" role="menu" hidden></div>
-        </div>
-        <div class="group more-toolbar-group" aria-label="More">
-          <button type="button" id="moreButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
-            title="More actions">More</button>
-          <div id="moreMenu" class="ai-menu more-menu" role="menu" hidden>
-            <button type="button" id="openPreview" role="menuitem" disabled
-              title="Preview is not available in the current layout">Open Preview</button>
-            <button type="button" id="splitPreview" role="menuitem" disabled
-              title="Split preview is not available in the current layout">Split Preview</button>
-            <button type="button" id="copyRenderedHtml" role="menuitem">Copy rendered HTML</button>
-            <div class="ai-menu-separator" role="separator"></div>
-            <button type="button" id="aiSettingsMenuButton" role="menuitem">Settings</button>
-            <button type="button" id="feedbackButton" role="menuitem">Feedback</button>
-            <button type="button" id="aboutButton" role="menuitem" title="About LocalDraftAI"
-              aria-label="About LocalDraftAI">About</button>
-          </div>
-        </div>
-      </div>
-      <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
         <div class="group" aria-label="Text style">
           <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
             <option value="P">Text</option>
@@ -147,26 +209,8 @@
         <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)"
           aria-label="New tab">+</button>
       </div>
-    </header>
-
-    <main id="workspace" class="workspace">
-      <aside id="workspaceSidebar" class="workspace-sidebar" aria-label="Workspace sidebar"></aside>
-      <div id="workspaceSidebarResizer" class="workspace-sidebar-resizer" role="separator" aria-orientation="vertical"
-        aria-label="Resize workspace sidebar" aria-valuemin="220" aria-valuemax="480" aria-valuenow="280" tabindex="0"
-        title="Resize workspace sidebar" hidden></div>
+      </header>
       <section id="editorPane" class="editor-pane" aria-label="Editor">
-        <div class="pane-status">
-          <div class="status-controls" role="toolbar" aria-label="Editor view controls">
-            <span id="modeLabel" class="editor-mode-label">WYSIWYG</span>
-          </div>
-          <span class="feedback-hint">Found a bug or have an idea? <a
-              href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank" rel="noreferrer noopener">Send
-              feedback on GitHub.</a></span>
-          <span class="status-meta">
-            <span id="wordCount">0 words</span>
-            <span id="charCount">0 chars</span>
-          </span>
-        </div>
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true"
             data-placeholder="Open or create a Markdown file to start writing."></div>
@@ -174,13 +218,45 @@
             placeholder="Open or create a Markdown file to start writing." hidden></textarea>
         </div>
       </section>
+      </main>
       <div id="aiPanelResizeHandle" class="ai-panel-resize-handle" role="separator" aria-orientation="vertical"
         aria-label="Resize AI Assistant panel" aria-valuemin="320" aria-valuemax="420" aria-valuenow="420" tabindex="0"
         title="Resize AI Assistant panel"></div>
-      <aside id="aiAssistantPanel" class="right-workspace-panel ai-assistant-panel" aria-label="AI Assistant panel" hidden>
-        <div id="aiAssistantPanelBody" class="ai-assistant-panel-body"></div>
+      <aside id="aiAssistantPanel" class="right-workspace-panel ai-assistant-panel secondary-sidebar"
+        aria-label="AI Assistant secondary sidebar" hidden>
+        <div id="aiAssistantPanelBody" class="ai-assistant-panel-body">
+          <section id="aiAssistantPanelWelcome" class="ai-assistant-welcome" aria-labelledby="aiAssistantWelcomeTitle">
+            <div class="ai-assistant-welcome-header">
+              <h2 id="aiAssistantWelcomeTitle">AI Assistant</h2>
+              <button type="button" id="aiAssistantPanelClose" class="icon-text" title="Close AI Assistant"
+                aria-label="Close AI Assistant">×</button>
+            </div>
+            <div class="ai-assistant-welcome-body">
+              <p>Select Markdown in the editor, then choose an action from the AI menu.</p>
+              <button type="button" id="aiAssistantPanelSettings" class="file-button">AI Provider Settings</button>
+            </div>
+          </section>
+        </div>
       </aside>
-    </main>
+    </div>
+
+    <footer id="statusBar" class="status-bar">
+      <div class="status-bar-left">
+        <span id="workspaceStatus" class="status-bar-item" title="Current workspace">No Workspace</span>
+        <span id="documentStatus" class="status-bar-item status-bar-document" hidden></span>
+        <span id="applicationStatus" class="status-bar-item" role="status" aria-live="polite" hidden></span>
+        <span class="feedback-hint"><a href="https://github.com/deepkh/LocalDraftAI/issues" target="_blank"
+            rel="noreferrer noopener">Feedback</a></span>
+      </div>
+      <div class="status-bar-right">
+        <span id="modeLabel" class="status-bar-item editor-mode-label">WYSIWYG</span>
+        <span id="softWrapStatus" class="status-bar-item" title="Soft Wrap is enabled">Wrap</span>
+        <span id="cursorPosition" class="status-bar-item status-bar-cursor" hidden></span>
+        <span id="wordCount" class="status-bar-item">0 words</span>
+        <span id="charCount" class="status-bar-item status-bar-secondary">0 chars</span>
+        <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
+      </div>
+    </footer>
 
     <div id="aboutOverlay" class="about-overlay" hidden>
       <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"
@@ -451,6 +527,9 @@ SOFTWARE.</pre>
   </div>
 
   <script src="js/utils.js"></script>
+  <script src="js/command-registry.js"></script>
+  <script src="js/menu-bar.js"></script>
+  <script src="js/status-bar.js"></script>
   <script src="js/markdown.js"></script>
   <script src="js/editor-mode.js"></script>
   <script src="js/history.js"></script>
@@ -463,6 +542,7 @@ SOFTWARE.</pre>
   <script src="js/workspace-operations.js"></script>
   <script src="js/workspace-search.js"></script>
   <script src="js/workspace-sidebar.js"></script>
+  <script src="js/activity-bar.js"></script>
   <script src="js/asset-store.js"></script>
   <script src="js/recent-files.js"></script>
   <script src="js/viewport.js"></script>

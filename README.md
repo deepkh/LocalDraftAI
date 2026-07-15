@@ -41,7 +41,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
-- **Grouped toolbar**: Workspace, File, and More menus keep global actions discoverable while Markdown/WYSIWYG, Soft Wrap, and AI Assistant stay visible.
+- **Workbench layout**: a compact Menu Bar, Activity Bar, Primary Sidebar, Editor Area, AI Secondary Sidebar, and live Status Bar keep navigation separate from writing controls.
 - **AI side workspace**: the right-hand workspace is used as an AI Assistant review panel while keeping the editor visible, and its width can be resized on desktop with editor-width clamping.
 - **No build step required**: static HTML, CSS, and JavaScript.
 
@@ -109,9 +109,13 @@ Workspace features are still focused on Markdown planning and writing. LocalDraf
 
 ### Layout
 
-The main layout is a stable three-region workspace: the left sidebar is for Markdown workspace navigation, the center is the active editor and tabs, and the right panel is reserved for AI Assistant review. The top toolbar groups global actions into `Workspace`, `File`, and `More` menus. Preview entries remain behind `More` as unavailable actions because the app does not currently ship a permanent preview pane.
+The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. Tabs and document formatting controls are contained in the Editor Area. File, Edit, View, Workspace, AI, and Help menus dispatch to the same local file, editor, workspace, and AI behavior used by shortcuts and existing controls.
 
-On wide screens, the left sidebar, editor, and AI review panel can coexist. The sidebar and AI panel both clamp their saved widths so the editor remains usable. On medium and narrow screens, side panels move out of the grid instead of squeezing the editor.
+The Activity Bar switches Explorer, Search, and Related without resetting workspace collapse, search, scroll, or selection state. Clicking the active primary view hides the Primary Sidebar and clicking it again restores the same view. AI Assistant opens or focuses the Secondary Sidebar, and Settings opens the existing provider dialog.
+
+The Status Bar shows the current workspace, unsaved state, editor mode, Soft Wrap, Markdown cursor line and column, word and character counts, and accessible AI provider status. Lower-priority fields collapse on narrow screens.
+
+On wide screens, the Activity Bar, Primary Sidebar, editor, and AI review panel can coexist. The sidebar and AI panel both clamp their saved widths so the editor remains usable. At medium widths the sidebars become overlays instead of squeezing the editor, and at narrow widths the editor remains the full primary surface without page-level horizontal overflow.
 
 ---
 
@@ -186,7 +190,7 @@ When you paste, drop, or insert the first local image, the app asks for a worksp
 
 ## AI Assistant
 
-The AI Assistant can be opened from the toolbar menu or from the editor right-click menu when text is selected.
+The AI Assistant can be opened from the application AI menu or from the editor right-click menu when text is selected.
 
 Selections are sent as Markdown fragments in both editor modes. In WYSIWYG mode, selected lists keep their Markdown list markers in the AI review, while partial text selections inside one list item stay as the selected inline text.
 
@@ -647,6 +651,8 @@ Add stricter rules to the prompt, for example:
 │       ├── ai-reasoning.js
 │       ├── ai-settings.js
 │       ├── ai-status.js
+│       ├── activity-bar.js
+│       ├── command-registry.js
 │       ├── document-session.js
 │       ├── editor-actions.js
 │       ├── editor-mode.js
@@ -655,8 +661,10 @@ Add stricter rules to the prompt, for example:
 │       ├── markdown.js
 │       ├── markdown-ai-guards.js
 │       ├── markdown-repair.js
+│       ├── menu-bar.js
 │       ├── recent-files.js
 │       ├── resizer.js
+│       ├── status-bar.js
 │       ├── tab-manager.js
 │       ├── utils.js
 │       ├── viewport.js
@@ -668,7 +676,9 @@ Add stricter rules to the prompt, for example:
 ├── tests/
 │   ├── e2e/
 │   │   ├── ai-action-config.headless.mjs
+│   │   ├── markdown-table.headless.mjs
 │   │   ├── soft-wrap-mode-switch.headless.mjs
+│   │   ├── workbench-layout.headless.mjs
 │   │   └── wysiwyg-ai-list-capture.headless.mjs
 │   └── unit/
 │       ├── ai-action-config.test.js
@@ -687,9 +697,12 @@ Add stricter rules to the prompt, for example:
 │       ├── ai-settings.test.js
 │       ├── ai-status.test.js
 │       ├── ai-transport-openai-compatible.test.js
+│       ├── activity-bar.test.js
+│       ├── command-registry.test.js
 │       ├── editor-actions.test.js
 │       ├── markdown-ai-guards.test.js
 │       ├── markdown.test.js
+│       ├── status-bar.test.js
 │       ├── tab-manager.test.js
 │       └── workspace-store.test.js
 ├── AGENTS.md
@@ -706,6 +719,10 @@ Add stricter rules to the prompt, for example:
 | `src/local_draft_ai.html` | Main static app shell |
 | `src/styles.css` | App layout and visual styles |
 | `src/js/app.js` | App startup and high-level wiring |
+| `src/js/command-registry.js` | Application command registration and execution |
+| `src/js/menu-bar.js` | Menu interaction, keyboard behavior, and command dispatch |
+| `src/js/activity-bar.js` | Explorer, Search, Related, AI, and Settings routing |
+| `src/js/status-bar.js` | Compact workspace, document, editor, and AI status formatting |
 | `src/js/document-session.js` | Per-tab document state |
 | `src/js/tab-manager.js` | Multi-tab behavior |
 | `src/js/markdown.js` | Markdown parsing/rendering helpers |

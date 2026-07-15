@@ -45,6 +45,10 @@
     var patchResetButton = context.patchResetButton;
     var aiAssistantPanel = context.aiAssistantPanel;
     var aiAssistantPanelBody = context.aiAssistantPanelBody;
+    var aiAssistantPanelWelcome = context.aiAssistantPanelWelcome;
+    var aiAssistantPanelClose = context.aiAssistantPanelClose;
+    var aiAssistantPanelSettings = context.aiAssistantPanelSettings;
+    var onPanelVisibilityChange = context.onPanelVisibilityChange || function () {};
     var applyModeInputs = context.applyModeInputs || [];
     var applyStatus = context.applyStatus;
     var applyStatusText = context.applyStatusText;
@@ -65,6 +69,9 @@
     var aiStatus = ME.aiStatus ? ME.aiStatus.create({
       onStatusChange: function (state) {
         renderStatusBadge(state);
+        if (typeof context.onStatusChange === "function") {
+          context.onStatusChange(state);
+        }
         rerenderOpenToolbarMenu();
       },
       provider: provider
@@ -164,6 +171,10 @@
 
     function openReviewSurface() {
       if (isPanelReviewLayout()) {
+        if (aiAssistantPanelWelcome) {
+          aiAssistantPanelWelcome.hidden = true;
+        }
+        reviewDialog.hidden = false;
         aiAssistantPanelBody.appendChild(reviewDialog);
         aiAssistantPanel.hidden = false;
         if (workspace && workspace.classList) {
@@ -171,6 +182,7 @@
         }
         reviewOverlay.hidden = true;
         setReviewDialogMode("panel");
+        onPanelVisibilityChange(true);
         return;
       }
 
@@ -188,6 +200,46 @@
 
       if (workspace && workspace.classList) {
         workspace.classList.remove("ai-panel-open");
+      }
+      onPanelVisibilityChange(false);
+    }
+
+    function openAssistant() {
+      if (!isPanelReviewLayout()) {
+        openToolbarMenu();
+        return;
+      }
+
+      if (reviewState) {
+        openReviewSurface();
+        reviewDialog.focus();
+        return;
+      }
+
+      reviewDialog.hidden = true;
+      if (aiAssistantPanelWelcome) {
+        aiAssistantPanelWelcome.hidden = false;
+      }
+      aiAssistantPanel.hidden = false;
+      if (workspace && workspace.classList) {
+        workspace.classList.add("ai-panel-open");
+      }
+      onPanelVisibilityChange(true);
+      if (aiAssistantPanelClose) {
+        aiAssistantPanelClose.focus();
+      }
+    }
+
+    function isPanelOpen() {
+      return Boolean(aiAssistantPanel && !aiAssistantPanel.hidden);
+    }
+
+    function closeAssistant() {
+      if (reviewState) {
+        closeReview({ restoreEditorState: !hasAppliedRevision() });
+      } else {
+        hideReviewSurface();
+        context.focusActiveEditor();
       }
     }
 
@@ -1188,9 +1240,21 @@
       var renderedAny = false;
       var emptyItem;
       var configureItem;
+      var openItem;
 
       menu.innerHTML = "";
       appendStatusSection(menu);
+
+      openItem = document.createElement("button");
+      openItem.type = "button";
+      openItem.setAttribute("role", "menuitem");
+      openItem.textContent = "Open AI Assistant";
+      openItem.addEventListener("click", function () {
+        closeToolbarMenu();
+        openAssistant();
+      });
+      menu.appendChild(openItem);
+      appendSeparator(menu);
 
       actions.groups().forEach(function (group, groupIndex) {
         if (groupIndex > 0) {
@@ -1882,6 +1946,21 @@
       window.addEventListener("scroll", positionToolbarMenu, { passive: true });
       bindReviewLogResize();
 
+      if (aiAssistantPanelClose) {
+        aiAssistantPanelClose.addEventListener("click", function () {
+          if (reviewState) {
+            closeReview({ restoreEditorState: !hasAppliedRevision() });
+          } else {
+            hideReviewSurface();
+            context.focusActiveEditor();
+          }
+        });
+      }
+
+      if (aiAssistantPanelSettings) {
+        aiAssistantPanelSettings.addEventListener("click", openSettingsDialog);
+      }
+
       applyButton.addEventListener("click", applyReview);
       cancelButton.addEventListener("click", function () {
         closeReview({ restoreEditorState: !hasAppliedRevision() });
@@ -2051,6 +2130,7 @@
 
     return {
       bindEvents: bindEvents,
+      closeAssistant: closeAssistant,
       closeTransientUi: closeTransientUi,
       hideTransientUi: function () {
         closeToolbarMenu();
@@ -2064,7 +2144,10 @@
           actionConfigDialog.close();
         }
       },
+      isPanelOpen: isPanelOpen,
+      openAssistant: openAssistant,
       openActionConfig: openActionConfigDialog,
+      openSettings: openSettingsDialog,
       requestAction: requestAction
     };
   }

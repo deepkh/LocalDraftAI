@@ -143,6 +143,7 @@
     var rootStyle = document.documentElement && document.documentElement.style;
     var sidebarWidth = 0;
     var sidebarResizerWidth = 0;
+    var activityBarWidth = 0;
     var reservedWidth;
     var viewportMax = Math.floor((window.innerWidth || workspaceWidth) * AI_PANEL_MAX_VIEWPORT_RATIO);
     var layoutMax;
@@ -159,7 +160,12 @@
       sidebarWidth = WORKSPACE_SIDEBAR_MINIMIZED_WIDTH;
     }
 
-    reservedWidth = EDITOR_MIN_WIDTH + handleWidth + sidebarWidth + sidebarResizerWidth + (columnGap * (sidebarWidth ? 4 : 2));
+    if (workspace && workspace.querySelector && workspace.querySelector(".activity-bar")) {
+      activityBarWidth = 46;
+    }
+
+    reservedWidth = EDITOR_MIN_WIDTH + handleWidth + activityBarWidth + sidebarWidth + sidebarResizerWidth +
+      (columnGap * (sidebarWidth ? 4 : 2));
     layoutMax = Math.floor(workspaceWidth - reservedWidth);
     max = Math.max(AI_PANEL_MIN_WIDTH, Math.min(viewportMax, layoutMax));
 

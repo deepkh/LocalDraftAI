@@ -25,6 +25,10 @@ assets/LocalDraftAI.ico      App favicon
 assets/local-draft-ai-snapshot.png README snapshot image
 src/styles.css               App styling
 src/js/app.js                App startup and wiring
+src/js/command-registry.js   Application command registration and execution
+src/js/menu-bar.js           Application menu interaction and command dispatch
+src/js/activity-bar.js       Workbench view and sidebar routing
+src/js/status-bar.js         Compact workspace, document, editor, and AI status
 src/js/document-session.js   Per-tab document state
 src/js/tab-manager.js        Multi-tab behavior
 src/js/markdown.js           Markdown conversion/rendering
@@ -63,6 +67,7 @@ src/js/ai-context-menu.js    Right-click editor clipboard and AI action menu
 src/js/markdown-ai-guards.js AI output safety checks for Markdown
 src/js/markdown-repair.js    Markdown cleanup helpers
 src/js/resizer.js            AI Assistant panel resize behavior
+tests/e2e/workbench-layout.headless.mjs Semantic workbench and responsive layout smoke test
 tests/unit/                  Dependency-free unit tests
 tests/e2e/                   Dependency-free browser smoke tests
 .agents/skills/              More detailed subsystem guidance
@@ -108,9 +113,15 @@ Use these routes:
   - `.agents/skills/editor-actions.md`
   - `src/js/editor-actions.js`
 - Layout, editor surface, Soft Wrap, focus mode, viewport behavior:
+  - `.agents/skills/workbench-layout.md`
   - `.agents/skills/styles.md`
   - `.agents/skills/resizer.md`
   - `.agents/skills/viewport.md`
+  - `src/js/activity-bar.js`
+  - `src/js/command-registry.js`
+  - `src/js/menu-bar.js`
+  - `src/js/status-bar.js`
+  - `src/js/app.js`
   - `src/styles.css`
   - `src/js/resizer.js`
   - `src/js/viewport.js`
@@ -134,11 +145,15 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - Escaped Markdown punctuation should render and round-trip as literal text in WYSIWYG mode.
 - LocalDraftAI uses one main editor surface.
+- The application shell uses semantic Menu Bar, Activity Bar, Primary Sidebar, Editor Area, Secondary Sidebar, and Status Bar regions.
+- The Activity Bar routes Explorer, Search, and Related to the existing workspace sidebar, opens the AI Secondary Sidebar without moving review state, and opens the existing Settings dialog.
+- The command registry maps Menu Bar commands to existing app behavior; menu modules must not reimplement file, editor, workspace, or AI operations.
+- The Status Bar displays workspace, unsaved-document, editor mode, Soft Wrap, Markdown cursor, word count, and AI provider state passed from their existing owners.
 - Only one editor mode is visible at a time: WYSIWYG or Markdown.
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
 - Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
-- Global toolbar actions are grouped into Workspace, File, and More menus, while Markdown/WYSIWYG, Soft Wrap, and AI Assistant remain visible controls.
+- Application actions remain available from the compact Menu Bar, while Markdown/WYSIWYG, Soft Wrap, formatting, and Focus Mode stay in the Editor Area toolbar.
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
 - The AI Assistant review panel is manually resizable on wide desktop layouts, stores its width in localStorage, and should clamp against the workspace sidebar so the editor remains usable.
 - AI actions should operate on selected text and show review UI before applying changes; keep the modal path available as a fallback while the panel experiment stabilizes.
@@ -219,6 +234,12 @@ Run the Markdown table render, round-trip, and toolbar smoke test:
 
 ```bash
 node --experimental-websocket tests/e2e/markdown-table.headless.mjs
+```
+
+Run the semantic workbench and responsive layout smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/workbench-layout.headless.mjs
 ```
 
 ## Documentation

@@ -25,14 +25,21 @@
   var lastEditorAnchor = null;
   var softWrapEnabled = editorMode.readStoredSoftWrap();
 
+  var menuBarElement = document.getElementById("menuBar");
   var wysiwygEditor = document.getElementById("wysiwygEditor");
   var markdownEditor = document.getElementById("markdownEditor");
   var workspace = document.getElementById("workspace");
+  var activityBarElement = document.getElementById("activityBar");
   var workspaceSidebarElement = document.getElementById("workspaceSidebar");
   var workspaceSidebarResizer = document.getElementById("workspaceSidebarResizer");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
   var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
+  var workspaceStatus = document.getElementById("workspaceStatus");
+  var documentStatus = document.getElementById("documentStatus");
+  var applicationStatus = document.getElementById("applicationStatus");
+  var softWrapStatus = document.getElementById("softWrapStatus");
+  var cursorPosition = document.getElementById("cursorPosition");
   var wordCount = document.getElementById("wordCount");
   var charCount = document.getElementById("charCount");
   var formatBlock = document.getElementById("formatBlock");
@@ -78,6 +85,9 @@
   var aiReviewClose = document.getElementById("aiReviewClose");
   var aiAssistantPanel = document.getElementById("aiAssistantPanel");
   var aiAssistantPanelBody = document.getElementById("aiAssistantPanelBody");
+  var aiAssistantPanelWelcome = document.getElementById("aiAssistantPanelWelcome");
+  var aiAssistantPanelClose = document.getElementById("aiAssistantPanelClose");
+  var aiAssistantPanelSettings = document.getElementById("aiAssistantPanelSettings");
   var aiPanelResizeHandle = document.getElementById("aiPanelResizeHandle");
   var aiRevisionSection = document.getElementById("aiRevisionSection");
   var aiRevisionList = document.getElementById("aiRevisionList");
@@ -136,6 +146,10 @@
   var recentFilesSelect = document.getElementById("recentFiles");
   var fileMenuButton = document.getElementById("fileMenuButton");
   var fileMenu = document.getElementById("fileMenu");
+  var editMenuButton = document.getElementById("editMenuButton");
+  var editMenu = document.getElementById("editMenu");
+  var viewMenuButton = document.getElementById("viewMenuButton");
+  var viewMenu = document.getElementById("viewMenu");
   var workspaceButton = document.getElementById("workspaceButton");
   var workspaceMenu = document.getElementById("workspaceMenu");
   var openWorkspaceFolderButton = document.getElementById("openWorkspaceFolder");
@@ -150,9 +164,6 @@
   var minimizeWorkspaceSidebarButton = document.getElementById("minimizeWorkspaceSidebar");
   var moreButton = document.getElementById("moreButton");
   var moreMenu = document.getElementById("moreMenu");
-  var copyRenderedHtmlButton = document.getElementById("copyRenderedHtml");
-  var aiSettingsMenuButton = document.getElementById("aiSettingsMenuButton");
-  var feedbackButton = document.getElementById("feedbackButton");
   var tabViewport = document.getElementById("tabViewport");
   var tabList = document.getElementById("tabList");
   var tabScrollLeft = document.getElementById("tabScrollLeft");
@@ -165,7 +176,10 @@
   var redoButton = document.querySelector('[data-action="redo"]');
 
   var viewport;
+  var statusBarController;
+  var menuBarController;
   var aiPanelResizer;
+  var activityBar;
   var actions;
   var aiAssistant;
   var workspaceSidebar;
@@ -233,6 +247,9 @@
     }
     if (modeLabel) {
       modeLabel.textContent = normalized === "markdown" ? "Markdown" : "WYSIWYG";
+    }
+    if (statusBarController) {
+      statusBarController.setMode(normalized);
     }
     if (actions) {
       actions.updateFormatSelect();
@@ -778,11 +795,32 @@
 
   function updateCounts() {
     var text = getMarkdownText();
-    var trimmed = text.trim();
-    var words = trimmed ? trimmed.split(/\s+/).length : 0;
+    var trimmed;
+    var words;
 
+    if (statusBarController) {
+      statusBarController.scheduleCounts(text);
+      return;
+    }
+    trimmed = text.trim();
+    words = trimmed ? trimmed.split(/\s+/).length : 0;
     wordCount.textContent = words + (words === 1 ? " word" : " words");
     charCount.textContent = text.length + (text.length === 1 ? " char" : " chars");
+  }
+
+  function updateCursorStatus() {
+    var mode;
+
+    if (!statusBarController) {
+      return;
+    }
+
+    mode = getEditorMode();
+    statusBarController.setCursor(
+      mode,
+      mode === EDITOR_MODES.MARKDOWN ? markdownEditor.value : getMarkdownText(),
+      mode === EDITOR_MODES.MARKDOWN ? markdownEditor.selectionStart : 0
+    );
   }
 
   function updateDocumentTitle() {
@@ -793,6 +831,12 @@
     documentTitle.textContent = displayTitle;
     documentTitle.title = session && session.dirty ? title + " has unsaved changes" : title;
     document.title = displayTitle + " - LocalDraftAI";
+    if (statusBarController) {
+      statusBarController.setDocument({
+        dirty: Boolean(session && session.dirty),
+        title: title
+      });
+    }
   }
 
   function updateDirtyState() {
@@ -903,6 +947,9 @@
         ? "Disable Soft Wrap and allow horizontal scrolling"
         : "Enable Soft Wrap to visually wrap long lines";
     }
+    if (statusBarController) {
+      statusBarController.setSoftWrap(softWrapEnabled);
+    }
   }
 
   function updateModeControls() {
@@ -918,6 +965,9 @@
 
     if (modeLabel) {
       modeLabel.textContent = mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
+    }
+    if (statusBarController) {
+      statusBarController.setMode(mode);
     }
 
     applySoftWrapState();
@@ -970,6 +1020,7 @@
     }
     updateCounts();
     updateModeControls();
+    updateCursorStatus();
     activeSession.history.updateControls();
     updateDocumentTitle();
     renderTabs();
@@ -996,6 +1047,7 @@
 
       viewport.remember();
       actions.updateFormatSelect();
+      updateCursorStatus();
     });
   }
 
@@ -1022,6 +1074,7 @@
     }
 
     updateCounts();
+    updateCursorStatus();
 
     if (history && options.history !== false) {
       history.record(activeSession.markdownText);
@@ -1106,6 +1159,7 @@
       force: true
     });
     updateCounts();
+    updateCursorStatus();
 
     if (getActiveMode() === "wysiwyg") {
       wysiwygNeedsSync = false;
@@ -1169,6 +1223,7 @@
 
     updateModeControls();
     updateCounts();
+    updateCursorStatus();
 
     window.requestAnimationFrame(function () {
       if (normalized === EDITOR_MODES.MARKDOWN) {
@@ -1470,6 +1525,9 @@
   }
 
   function renderWorkspaceSidebar() {
+    if (statusBarController) {
+      statusBarController.setWorkspace(workspaceState.rootName);
+    }
     if (!workspaceSidebar) {
       return;
     }
@@ -1611,6 +1669,10 @@
   }
 
   function closeWorkspaceMenu() {
+    if (menuBarController) {
+      menuBarController.close("workspace");
+      return;
+    }
     if (!workspaceMenu || workspaceMenu.hidden) {
       return;
     }
@@ -1620,6 +1682,10 @@
   }
 
   function closeFileMenu() {
+    if (menuBarController) {
+      menuBarController.close("file");
+      return;
+    }
     if (!fileMenu || fileMenu.hidden) {
       return;
     }
@@ -1629,6 +1695,10 @@
   }
 
   function closeMoreMenu() {
+    if (menuBarController) {
+      menuBarController.close("help");
+      return;
+    }
     if (!moreMenu || moreMenu.hidden) {
       return;
     }
@@ -1638,6 +1708,9 @@
   }
 
   function closeGlobalMenus(exceptMenu) {
+    if (menuBarController) {
+      menuBarController.closeAll(exceptMenu === "more" ? "help" : exceptMenu);
+    }
     if (exceptMenu !== "workspace") {
       closeWorkspaceMenu();
     }
@@ -1650,79 +1723,6 @@
     if (exceptMenu !== "ai" && aiAssistant && typeof aiAssistant.hideTransientUi === "function") {
       aiAssistant.hideTransientUi();
     }
-  }
-
-  function positionMenu(button, menu) {
-    var rect;
-
-    if (!button || !menu) {
-      return;
-    }
-
-    rect = button.getBoundingClientRect();
-    menu.style.top = Math.min(rect.bottom + 6, window.innerHeight - 8) + "px";
-    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + "px";
-  }
-
-  function positionWorkspaceMenu() {
-    positionMenu(workspaceButton, workspaceMenu);
-  }
-
-  function positionFileMenu() {
-    positionMenu(fileMenuButton, fileMenu);
-  }
-
-  function positionMoreMenu() {
-    positionMenu(moreButton, moreMenu);
-  }
-
-  function toggleWorkspaceMenu() {
-    if (!workspaceMenu || !workspaceButton) {
-      return;
-    }
-
-    if (!workspaceMenu.hidden) {
-      closeWorkspaceMenu();
-      return;
-    }
-
-    closeGlobalMenus("workspace");
-    updateWorkspaceMenuControls();
-    workspaceMenu.hidden = false;
-    workspaceButton.setAttribute("aria-expanded", "true");
-    positionWorkspaceMenu();
-  }
-
-  function toggleFileMenu() {
-    if (!fileMenu || !fileMenuButton) {
-      return;
-    }
-
-    if (!fileMenu.hidden) {
-      closeFileMenu();
-      return;
-    }
-
-    closeGlobalMenus("file");
-    fileMenu.hidden = false;
-    fileMenuButton.setAttribute("aria-expanded", "true");
-    positionFileMenu();
-  }
-
-  function toggleMoreMenu() {
-    if (!moreMenu || !moreButton) {
-      return;
-    }
-
-    if (!moreMenu.hidden) {
-      closeMoreMenu();
-      return;
-    }
-
-    closeGlobalMenus("more");
-    moreMenu.hidden = false;
-    moreButton.setAttribute("aria-expanded", "true");
-    positionMoreMenu();
   }
 
   function resetWorkspaceState() {
@@ -2723,13 +2723,6 @@
     copyTextToClipboard(renderMarkdownForSession(getMarkdownText())).catch(function (error) {
       showClipboardError("Copy rendered HTML", error);
     });
-  }
-
-  function handleOpenAiSettingsFromMore() {
-    closeMoreMenu();
-    if (aiEngineChangeSettingsButton) {
-      aiEngineChangeSettingsButton.click();
-    }
   }
 
   function handleFeedbackFromMore() {
@@ -3892,8 +3885,113 @@
     return false;
   }
 
+  function registerApplicationCommands() {
+    var registry = ME.commandRegistry;
+
+    if (!registry) {
+      return;
+    }
+
+    function register(commandId, handler) {
+      if (!registry.hasCommand(commandId)) {
+        registry.registerCommand(commandId, handler);
+      }
+    }
+
+    register("file.new", handleNewFile);
+    register("file.open", handleOpenFile);
+    register("file.save", handleSaveFile);
+    register("file.saveAs", handleSaveAsFile);
+
+    register("edit.undo", function () {
+      applyHistoryStep(-1);
+    });
+    register("edit.redo", function () {
+      applyHistoryStep(1);
+    });
+    register("edit.cut", function () {
+      handleClipboardAction("cut");
+    });
+    register("edit.copy", function () {
+      handleClipboardAction("copy");
+    });
+    register("edit.paste", function () {
+      handleClipboardAction("paste");
+    });
+    register("edit.copyRenderedHtml", handleCopyRenderedHtml);
+
+    register("view.toggleEditorMode", toggleEditorModeState);
+    register("view.toggleSoftWrap", toggleSoftWrapState);
+    register("view.toggleFocusMode", toggleFocusModeState);
+    register("view.togglePrimarySidebar", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.setMode(workspaceSidebar.getMode() === "hidden" ? "expanded" : "hidden");
+      }
+    });
+    register("view.showPrimarySidebar", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.setMode("expanded");
+      }
+    });
+    register("view.hidePrimarySidebar", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.setMode("hidden");
+      }
+    });
+    register("view.minimizePrimarySidebar", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.setMode("minimized");
+      }
+    });
+    register("view.toggleSecondarySidebar", function () {
+      if (!aiAssistant) {
+        return;
+      }
+      if (aiAssistant.isPanelOpen()) {
+        aiAssistant.closeAssistant();
+      } else {
+        aiAssistant.openAssistant();
+      }
+    });
+
+    register("workspace.openFolder", handleOpenWorkspaceFolder);
+    register("workspace.restore", function () {
+      return handleRestoreWorkspaceSession("restore");
+    });
+    register("workspace.refresh", handleRefreshWorkspace);
+    register("workspace.close", handleCloseWorkspace);
+    register("workspace.expandAll", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.expandAllFolders();
+      }
+    });
+    register("workspace.collapseAll", function () {
+      if (workspaceSidebar) {
+        workspaceSidebar.collapseAllFolders();
+      }
+    });
+
+    register("ai.openAssistant", function () {
+      if (aiAssistant) {
+        aiAssistant.openAssistant();
+      }
+    });
+    register("ai.configureActions", function () {
+      if (aiAssistant) {
+        aiAssistant.openActionConfig();
+      }
+    });
+    register("ai.openSettings", function () {
+      if (aiAssistant) {
+        aiAssistant.openSettings();
+      }
+    });
+
+    register("help.openFeedback", handleFeedbackFromMore);
+    register("help.showAbout", openAboutDialog);
+  }
+
   function bindEvents() {
-    newFileButton.addEventListener("click", handleNewFile);
     newTabButton.addEventListener("click", handleNewFile);
     if (tabScrollLeft) {
       tabScrollLeft.addEventListener("click", function () {
@@ -3909,90 +4007,14 @@
       tabViewport.addEventListener("scroll", updateTabScrollButtons, { passive: true });
       tabViewport.addEventListener("wheel", handleTabWheel, { passive: false });
     }
-    openFileButton.addEventListener("click", handleOpenFile);
-    saveFileButton.addEventListener("click", handleSaveFile);
-    saveAsFileButton.addEventListener("click", handleSaveAsFile);
     recentFilesSelect.addEventListener("change", handleRecentFileChange);
-    if (fileMenuButton) {
-      fileMenuButton.addEventListener("click", toggleFileMenu);
-    }
-    if (workspaceButton) {
-      workspaceButton.addEventListener("click", toggleWorkspaceMenu);
-    }
-    if (openWorkspaceFolderButton) {
-      openWorkspaceFolderButton.addEventListener("click", handleOpenWorkspaceFolder);
-    }
-    if (restoreWorkspaceButton) {
-      restoreWorkspaceButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        handleRestoreWorkspaceSession("restore");
-      });
-    }
     if (recentWorkspacesSelect) {
       recentWorkspacesSelect.addEventListener("change", handleRecentWorkspaceChange);
-    }
-    if (refreshWorkspaceButton) {
-      refreshWorkspaceButton.addEventListener("click", handleRefreshWorkspace);
-    }
-    if (closeWorkspaceButton) {
-      closeWorkspaceButton.addEventListener("click", handleCloseWorkspace);
-    }
-    if (expandWorkspaceFoldersButton) {
-      expandWorkspaceFoldersButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        if (workspaceSidebar) {
-          workspaceSidebar.expandAllFolders();
-        }
-      });
-    }
-    if (collapseWorkspaceFoldersButton) {
-      collapseWorkspaceFoldersButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        if (workspaceSidebar) {
-          workspaceSidebar.collapseAllFolders();
-        }
-      });
-    }
-    if (showWorkspaceSidebarButton) {
-      showWorkspaceSidebarButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        if (workspaceSidebar) {
-          workspaceSidebar.setMode("expanded");
-        }
-      });
-    }
-    if (hideWorkspaceSidebarButton) {
-      hideWorkspaceSidebarButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        if (workspaceSidebar) {
-          workspaceSidebar.setMode("hidden");
-        }
-      });
-    }
-    if (minimizeWorkspaceSidebarButton) {
-      minimizeWorkspaceSidebarButton.addEventListener("click", function () {
-        closeWorkspaceMenu();
-        if (workspaceSidebar) {
-          workspaceSidebar.setMode("minimized");
-        }
-      });
-    }
-    if (moreButton) {
-      moreButton.addEventListener("click", toggleMoreMenu);
     }
     if (aiAssistantButton) {
       aiAssistantButton.addEventListener("click", function () {
         closeGlobalMenus("ai");
       });
-    }
-    if (copyRenderedHtmlButton) {
-      copyRenderedHtmlButton.addEventListener("click", handleCopyRenderedHtml);
-    }
-    if (aiSettingsMenuButton) {
-      aiSettingsMenuButton.addEventListener("click", handleOpenAiSettingsFromMore);
-    }
-    if (feedbackButton) {
-      feedbackButton.addEventListener("click", handleFeedbackFromMore);
     }
 
     toggleEditorMode.addEventListener("pointerdown", function (event) {
@@ -4007,7 +4029,6 @@
     if (toggleFocusMode) {
       toggleFocusMode.addEventListener("click", toggleFocusModeState);
     }
-    aboutButton.addEventListener("click", openAboutDialog);
     aboutClose.addEventListener("click", closeAboutDialog);
     aboutOverlay.addEventListener("click", function (event) {
       if (event.target === aboutOverlay) {
@@ -4016,19 +4037,7 @@
     });
 
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && workspaceMenu && !workspaceMenu.hidden) {
-        event.preventDefault();
-        closeWorkspaceMenu();
-        workspaceButton.focus();
-      } else if (event.key === "Escape" && fileMenu && !fileMenu.hidden) {
-        event.preventDefault();
-        closeFileMenu();
-        fileMenuButton.focus();
-      } else if (event.key === "Escape" && moreMenu && !moreMenu.hidden) {
-        event.preventDefault();
-        closeMoreMenu();
-        moreButton.focus();
-      } else if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
+      if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
         event.preventDefault();
       } else if (event.key === "Escape" && !aboutOverlay.hidden) {
         event.preventDefault();
@@ -4039,35 +4048,6 @@
       }
     });
 
-    document.addEventListener("click", function (event) {
-      if (
-        workspaceMenu &&
-        !workspaceMenu.hidden &&
-        !workspaceMenu.contains(event.target) &&
-        workspaceButton &&
-        !workspaceButton.contains(event.target)
-      ) {
-        closeWorkspaceMenu();
-      }
-      if (
-        fileMenu &&
-        !fileMenu.hidden &&
-        !fileMenu.contains(event.target) &&
-        fileMenuButton &&
-        !fileMenuButton.contains(event.target)
-      ) {
-        closeFileMenu();
-      }
-      if (
-        moreMenu &&
-        !moreMenu.hidden &&
-        !moreMenu.contains(event.target) &&
-        moreButton &&
-        !moreButton.contains(event.target)
-      ) {
-        closeMoreMenu();
-      }
-    });
     formatBlock.addEventListener("change", function () {
       if (getActiveMode() === "markdown") {
         actions.applyMarkdownFormat(formatBlock.value);
@@ -4101,15 +4081,6 @@
     window.addEventListener("scroll", viewport.scheduleTracking, { passive: true });
     window.addEventListener("resize", function () {
       updateTabScrollButtons();
-      if (workspaceMenu && !workspaceMenu.hidden) {
-        positionWorkspaceMenu();
-      }
-      if (fileMenu && !fileMenu.hidden) {
-        positionFileMenu();
-      }
-      if (moreMenu && !moreMenu.hidden) {
-        positionMoreMenu();
-      }
     });
     window.addEventListener("beforeunload", handleBeforeUnload);
     wysiwygEditor.addEventListener("scroll", function () {
@@ -4229,6 +4200,7 @@
     document.addEventListener("selectionchange", function () {
       rememberActiveEditorAnchor();
       actions.updateFormatSelect();
+      updateCursorStatus();
     });
 
     document.addEventListener("keydown", function (event) {
@@ -4322,6 +4294,7 @@
         session.dirty = false;
         updateCounts();
         updateModeControls();
+        updateCursorStatus();
         updateDocumentTitle();
         renderTabs();
       },
@@ -4341,6 +4314,22 @@
 
   function init() {
     var initialSession;
+
+    if (ME.statusBar) {
+      statusBarController = ME.statusBar.create({
+        aiStatus: aiStatusBadge,
+        charCount: charCount,
+        cursor: cursorPosition,
+        document: documentStatus,
+        message: applicationStatus,
+        mode: modeLabel,
+        softWrap: softWrapStatus,
+        wordCount: wordCount,
+        workspace: workspaceStatus
+      });
+      statusBarController.setWorkspace("");
+      statusBarController.setSoftWrap(softWrapEnabled);
+    }
 
     viewport = ME.viewport.create({
       getActiveMode: getActiveMode,
@@ -4379,6 +4368,16 @@
         onClose: handleCloseWorkspace,
         onRestoreAction: handleRestoreWorkspaceSession,
         onFolderStateChange: scheduleWorkspaceSessionSave,
+        onModeChange: function (mode) {
+          if (activityBar) {
+            activityBar.syncPrimarySidebarMode(mode);
+          }
+        },
+        onPanelChange: function (panel) {
+          if (activityBar) {
+            activityBar.syncPrimaryView(panel);
+          }
+        },
         onScrollStateChange: scheduleWorkspaceSessionSave,
         onSearchContent: handleWorkspaceContentSearch
       });
@@ -4492,8 +4491,49 @@
       toolbarMenu: aiToolbarMenu,
       workspace: workspace,
       aiAssistantPanel: aiAssistantPanel,
-      aiAssistantPanelBody: aiAssistantPanelBody
+      aiAssistantPanelBody: aiAssistantPanelBody,
+      aiAssistantPanelWelcome: aiAssistantPanelWelcome,
+      aiAssistantPanelClose: aiAssistantPanelClose,
+      aiAssistantPanelSettings: aiAssistantPanelSettings,
+      onPanelVisibilityChange: function (visible) {
+        if (activityBar) {
+          activityBar.syncSecondarySidebar(visible);
+        }
+      },
+      onStatusChange: function (state) {
+        if (statusBarController) {
+          statusBarController.setAiStatus(state);
+        }
+      }
     });
+
+    if (ME.activityBar && activityBarElement) {
+      activityBar = ME.activityBar.create({
+        aiAssistant: aiAssistant,
+        rootElement: activityBarElement,
+        workspaceSidebar: workspaceSidebar
+      });
+    }
+
+    registerApplicationCommands();
+    if (ME.menuBar && menuBarElement && ME.commandRegistry) {
+      menuBarController = ME.menuBar.create({
+        commandRegistry: ME.commandRegistry,
+        entries: [
+          { id: "file", button: fileMenuButton, menu: fileMenu },
+          { id: "edit", button: editMenuButton, menu: editMenu },
+          { id: "view", button: viewMenuButton, menu: viewMenu },
+          { id: "workspace", button: workspaceButton, menu: workspaceMenu, beforeOpen: updateWorkspaceMenuControls },
+          { id: "help", button: moreButton, menu: moreMenu }
+        ],
+        onBeforeOpen: function () {
+          if (aiAssistant) {
+            aiAssistant.hideTransientUi();
+          }
+        },
+        rootElement: menuBarElement
+      });
+    }
 
     tabs = ME.tabManager.create({
       createSession: createSession
@@ -4507,6 +4547,12 @@
     setActiveSession(initialSession, { restoreScroll: false });
     bindEvents();
     aiAssistant.bindEvents();
+    if (activityBar) {
+      activityBar.bindEvents();
+    }
+    if (menuBarController) {
+      menuBarController.bindEvents();
+    }
     installTestApi();
     updateFileControls();
     renderWorkspaceSidebar();

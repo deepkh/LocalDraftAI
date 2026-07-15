@@ -179,6 +179,8 @@
     var onClose = context.onClose || function () {};
     var onContextAction = context.onContextAction || function () {};
     var onFolderStateChange = context.onFolderStateChange || function () {};
+    var onModeChange = context.onModeChange || function () {};
+    var onPanelChange = context.onPanelChange || function () {};
     var onScrollStateChange = context.onScrollStateChange || function () {};
     var onSearchContent = context.onSearchContent || function () {};
     var onRestoreAction = context.onRestoreAction || function () {};
@@ -679,6 +681,7 @@
       mode = normalizeMode(nextMode);
       writeStorage(storage, MODE_STORAGE_KEY, mode);
       render();
+      onModeChange(mode);
     }
 
     function setPanel(nextPanel) {
@@ -686,6 +689,7 @@
       writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
       contextMenu = null;
       render();
+      onPanelChange(activePanel);
     }
 
     function setWorkspaceState(nextState) {
@@ -922,7 +926,7 @@
     }
 
     function widthFromPointer(clientX) {
-      var rect = workspaceElement.getBoundingClientRect();
+      var rect = rootElement.getBoundingClientRect();
 
       return clientX - rect.left;
     }
@@ -1005,6 +1009,9 @@
       getMode: function () {
         return mode;
       },
+      getPanel: function () {
+        return activePanel;
+      },
       getWidth: function () {
         return width;
       },
@@ -1021,6 +1028,7 @@
         writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
         expandParentFolders(selectedPath, true);
         render();
+        onPanelChange(activePanel);
       },
       setDirtyPaths: setDirtyPaths,
       setCollapsedFolders: setCollapsedFolders,
