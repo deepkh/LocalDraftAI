@@ -961,116 +961,434 @@
     return cleanMarkdownSpacing(parts.join("\n\n"));
   }
 
-  function sanitizePastedHtml(html) {
-    var parser = new DOMParser();
-    var doc = parser.parseFromString(String(html || ""), "text/html");
-    var allowed = {
-      a: true,
-      b: true,
-      blockquote: true,
-      br: true,
-      code: true,
-      div: true,
-      em: true,
-      h1: true,
-      h2: true,
-      h3: true,
-      h4: true,
-      h5: true,
-      h6: true,
-      hr: true,
-      img: true,
-      i: true,
-      li: true,
-      ol: true,
-      p: true,
-      pre: true,
-      strong: true,
-      table: true,
-      tbody: true,
-      td: true,
-      th: true,
-      thead: true,
-      tr: true,
-      ul: true
-    };
+  var keptPastedElements = {
+    a: true,
+    b: true,
+    blockquote: true,
+    br: true,
+    code: true,
+    div: true,
+    em: true,
+    h1: true,
+    h2: true,
+    h3: true,
+    h4: true,
+    h5: true,
+    h6: true,
+    hr: true,
+    i: true,
+    img: true,
+    li: true,
+    ol: true,
+    p: true,
+    pre: true,
+    strong: true,
+    table: true,
+    tbody: true,
+    td: true,
+    tfoot: true,
+    th: true,
+    thead: true,
+    tr: true,
+    ul: true
+  };
 
-    function clean(node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return escapeHtml(node.nodeValue || "");
+  var droppedPastedElements = {
+    applet: true,
+    audio: true,
+    base: true,
+    button: true,
+    canvas: true,
+    datalist: true,
+    dialog: true,
+    embed: true,
+    frame: true,
+    frameset: true,
+    iframe: true,
+    input: true,
+    link: true,
+    meta: true,
+    meter: true,
+    noscript: true,
+    object: true,
+    optgroup: true,
+    option: true,
+    output: true,
+    portal: true,
+    progress: true,
+    script: true,
+    select: true,
+    source: true,
+    style: true,
+    svg: true,
+    template: true,
+    textarea: true,
+    title: true,
+    track: true,
+    video: true
+  };
+
+  function classifyPastedElement(tagName) {
+    var tag = String(tagName || "").toLowerCase();
+
+    if (keptPastedElements[tag]) {
+      return "keep";
+    }
+    if (droppedPastedElements[tag]) {
+      return "drop";
+    }
+    return "unwrap";
+  }
+
+  function pastedNodeContainsDroppedElement(node) {
+    var containsDropped = false;
+
+    Array.prototype.some.call(node && node.childNodes || [], function (child) {
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        return false;
       }
-
-      if (node.nodeType !== Node.ELEMENT_NODE) {
-        return "";
+      if (classifyPastedElement(child.tagName) === "drop") {
+        containsDropped = true;
+        return true;
       }
-
-      var tag = node.tagName.toLowerCase();
-
-      if (!allowed[tag]) {
-        return Array.prototype.map.call(node.childNodes, function (child) {
-          return clean(child);
-        }).join("");
+      if (pastedNodeContainsDroppedElement(child)) {
+        containsDropped = true;
+        return true;
       }
+      return false;
+    });
 
-      if (tag === "pre") {
-        return "<pre><code>" + escapeHtml(codeBlockText(node).replace(/\n+$/g, "")) + "</code></pre>";
-      }
+    return containsDropped;
+  }
 
-      var children = Array.prototype.map.call(node.childNodes, function (child) {
-        return clean(child);
-      }).join("");
+  function pastedNodeBoundaryPolicy(node, fromEnd) {
+    var children = Array.prototype.slice.call(node && node.childNodes || []);
+    var index = fromEnd ? children.length - 1 : 0;
+    var step = fromEnd ? -1 : 1;
 
-      if (tag === "b") {
-        tag = "strong";
-      }
+    for (; index >= 0 && index < children.length; index += step) {
+      var child = children[index];
+      var policy;
+      var nestedPolicy;
 
-      if (tag === "i") {
-        tag = "em";
-      }
-
-      if (tag === "br") {
-        return "<br>";
-      }
-
-      if (tag === "hr") {
-        return "<hr>";
-      }
-
-      if (tag === "a") {
-        var href = sanitizeUrl(node.getAttribute("href") || "");
-        if (!href) {
-          return children;
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (child.nodeValue) {
+          return "content";
         }
-        return '<a href="' + escapeAttribute(href) + '">' + children + "</a>";
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue;
       }
 
-      if (tag === "img") {
-        var src = sanitizeImageUrl(node.getAttribute("src") || "");
-        var alt = markdownImageAlt(node.getAttribute("alt") || "");
-        if (!src) {
-          return "";
-        }
-        return '<img src="' + escapeAttribute(src) + '" alt="' + escapeAttribute(alt) + '">';
+      policy = classifyPastedElement(child.tagName);
+      if (policy === "drop") {
+        return "drop";
       }
 
-      if (tag === "table") {
-        return '<table class="md-table">' + children + "</table>";
+      nestedPolicy = pastedNodeBoundaryPolicy(child, fromEnd);
+      if (nestedPolicy) {
+        return nestedPolicy;
       }
-
-      if (tag === "th" || tag === "td") {
-        var alignment = String(node.getAttribute("data-md-align") || node.getAttribute("align") || "").toLowerCase();
-        var alignmentAttribute = /^(left|center|right)$/.test(alignment)
-          ? ' data-md-align="' + alignment + '"'
-          : "";
-        return "<" + tag + alignmentAttribute + ">" + children + "</" + tag + ">";
+      if (policy === "keep") {
+        return "content";
       }
-
-      return "<" + tag + ">" + children + "</" + tag + ">";
     }
 
-    return Array.prototype.map.call(doc.body.childNodes, function (child) {
-      return clean(child);
-    }).join("");
+    return "";
+  }
+
+  function pastedBoundaryText(html) {
+    return String(html || "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;|&#160;|&#xa0;/gi, " ");
+  }
+
+  function isPastedBlockElement(node) {
+    return Boolean(
+      node &&
+      node.nodeType === Node.ELEMENT_NODE &&
+      /^(article|aside|blockquote|body|details|div|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|summary|table|tbody|td|tfoot|th|thead|tr|ul)$/i.test(node.tagName)
+    );
+  }
+
+  function pastedElementHasBlockChild(node) {
+    return Array.prototype.some.call(node && node.childNodes || [], function (child) {
+      return isPastedBlockElement(child);
+    });
+  }
+
+  function pastedHtmlHasMeaningfulContent(html) {
+    return /\S/.test(pastedBoundaryText(html)) || /<(?:br|hr|img)\b/i.test(String(html || ""));
+  }
+
+  function adjacentPastedContent(children, index, step) {
+    var child;
+
+    for (index += step; index >= 0 && index < children.length; index += step) {
+      child = children[index];
+      if (child.nodeType === Node.TEXT_NODE && !/\S/.test(child.nodeValue || "")) {
+        continue;
+      }
+      if (child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.TEXT_NODE) {
+        return child;
+      }
+    }
+
+    return null;
+  }
+
+  function sanitizePastedTextNode(node, parent, index) {
+    var children = Array.prototype.slice.call(parent && parent.childNodes || []);
+    var previous = adjacentPastedContent(children, index, -1);
+    var next = adjacentPastedContent(children, index, 1);
+    var value = String(node.nodeValue || "").replace(/[\t\n\f\r ]+/g, " ");
+
+    if ((!previous && isPastedBlockElement(parent)) || isPastedBlockElement(previous)) {
+      value = value.replace(/^ /, "");
+    }
+    if ((!next && isPastedBlockElement(parent)) || isPastedBlockElement(next)) {
+      value = value.replace(/ $/, "");
+    }
+
+    return escapeHtml(value);
+  }
+
+  function shouldSeparatePastedHtml(leftHtml, rightHtml) {
+    var leftText = pastedBoundaryText(leftHtml);
+    var rightText = pastedBoundaryText(rightHtml);
+    var left = leftText.charAt(leftText.length - 1);
+    var right = rightText.charAt(0);
+
+    if (!left || !right || /\s/.test(left) || /\s/.test(right)) {
+      return false;
+    }
+    if (/[([{'\"/]$/.test(left) || /^[,.;:!?)}\]'\"]/.test(right)) {
+      return false;
+    }
+    return true;
+  }
+
+  function sanitizePastedChildren(node) {
+    var html = "";
+    var droppedAfterContent = false;
+
+    Array.prototype.forEach.call(node.childNodes || [], function (child, index) {
+      var policy = child.nodeType === Node.ELEMENT_NODE
+        ? classifyPastedElement(child.tagName)
+        : "keep";
+      var childHtml;
+      var startsWithDropped;
+      var endsWithDropped;
+
+      if (policy === "drop") {
+        droppedAfterContent = Boolean(pastedBoundaryText(html));
+        return;
+      }
+
+      childHtml = child.nodeType === Node.TEXT_NODE
+        ? sanitizePastedTextNode(child, node, index)
+        : sanitizePastedNode(child);
+      startsWithDropped = child.nodeType === Node.ELEMENT_NODE && pastedNodeBoundaryPolicy(child, false) === "drop";
+      endsWithDropped = child.nodeType === Node.ELEMENT_NODE && pastedNodeBoundaryPolicy(child, true) === "drop";
+      if (!childHtml) {
+        if (startsWithDropped || endsWithDropped) {
+          droppedAfterContent = Boolean(pastedBoundaryText(html));
+        }
+        return;
+      }
+      if ((droppedAfterContent || startsWithDropped) && shouldSeparatePastedHtml(html, childHtml)) {
+        html += " ";
+      }
+      html += childHtml;
+      droppedAfterContent = endsWithDropped && Boolean(pastedBoundaryText(html));
+    });
+
+    return html;
+  }
+
+  function sanitizedPastedText(node) {
+    var output = "";
+    var droppedAfterContent = false;
+
+    function appendText(value) {
+      if (!value) {
+        return;
+      }
+      if (droppedAfterContent && shouldSeparatePastedHtml(escapeHtml(output), escapeHtml(value))) {
+        output += " ";
+      }
+      output += value;
+      droppedAfterContent = false;
+    }
+
+    function appendLineBreak() {
+      if (output && !/\n$/.test(output)) {
+        output += "\n";
+      }
+      droppedAfterContent = false;
+    }
+
+    function walk(current) {
+      var tag;
+
+      if (current.nodeType === Node.TEXT_NODE) {
+        appendText(current.nodeValue || "");
+        return;
+      }
+      if (current.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      tag = current.tagName.toLowerCase();
+      if (classifyPastedElement(tag) === "drop") {
+        droppedAfterContent = Boolean(output);
+        return;
+      }
+      if (tag === "br") {
+        output += "\n";
+        droppedAfterContent = false;
+        return;
+      }
+
+      Array.prototype.forEach.call(current.childNodes || [], walk);
+      if (isCodeLineElement(current)) {
+        appendLineBreak();
+      }
+    }
+
+    Array.prototype.forEach.call(node.childNodes || [], walk);
+    return output.replace(/\r\n?/g, "\n");
+  }
+
+  function rawPastedText(node) {
+    var text = "";
+
+    Array.prototype.forEach.call(node && node.childNodes || [], function (child) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        text += child.nodeValue || "";
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        text += rawPastedText(child);
+      }
+    });
+
+    return text;
+  }
+
+  function shouldUsePlainTextFallback(html, text) {
+    var doc;
+
+    if (!/\S/.test(String(text || ""))) {
+      return false;
+    }
+
+    try {
+      doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+      return !pastedNodeContainsDroppedElement(doc.body) && !/\S/.test(rawPastedText(doc.body));
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function sanitizePastedAttributes(node, tagName) {
+    if (tagName === "a") {
+      var href = sanitizeUrl(node.getAttribute("href") || "");
+      return href ? ' href="' + escapeAttribute(href) + '"' : "";
+    }
+
+    if (tagName === "img") {
+      var src = sanitizeImageUrl(node.getAttribute("src") || "");
+      var alt = markdownImageAlt(node.getAttribute("alt") || "");
+      return src
+        ? ' src="' + escapeAttribute(src) + '" alt="' + escapeAttribute(alt) + '"'
+        : "";
+    }
+
+    if (tagName === "th" || tagName === "td") {
+      var alignment = String(node.getAttribute("data-md-align") || node.getAttribute("align") || "").toLowerCase();
+      return /^(left|center|right)$/.test(alignment)
+        ? ' data-md-align="' + alignment + '"'
+        : "";
+    }
+
+    return "";
+  }
+
+  function sanitizePastedNode(node) {
+    var tag;
+    var policy;
+    var children;
+    var attributes;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      return escapeHtml(node.nodeValue || "");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return "";
+    }
+
+    tag = node.tagName.toLowerCase();
+    policy = classifyPastedElement(tag);
+    if (policy === "drop") {
+      return "";
+    }
+    if (policy === "unwrap") {
+      return sanitizePastedChildren(node);
+    }
+
+    if (tag === "pre") {
+      return "<pre><code>" + escapeHtml(sanitizedPastedText(node).replace(/\n+$/g, "")) + "</code></pre>";
+    }
+
+    children = sanitizePastedChildren(node);
+    if (tag === "b") {
+      tag = "strong";
+    } else if (tag === "i") {
+      tag = "em";
+    }
+
+    if (tag === "div") {
+      if (!pastedHtmlHasMeaningfulContent(children)) {
+        return "";
+      }
+      if (pastedElementHasBlockChild(node)) {
+        return children;
+      }
+    }
+
+    if (tag === "br" || tag === "hr") {
+      return "<" + tag + ">";
+    }
+
+    attributes = sanitizePastedAttributes(node, tag);
+    if (tag === "a" && !attributes) {
+      return children;
+    }
+    if (tag === "img") {
+      return attributes ? "<img" + attributes + ">" : "";
+    }
+    if (tag === "table") {
+      attributes = ' class="md-table"';
+    }
+
+    return "<" + tag + attributes + ">" + children + "</" + tag + ">";
+  }
+
+  function sanitizePastedHtml(html) {
+    var doc;
+    var sanitized;
+
+    if (!String(html || "")) {
+      return "";
+    }
+
+    try {
+      doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+      sanitized = sanitizePastedChildren(doc.body);
+      return /\S/.test(sanitized) ? sanitized : "";
+    } catch (error) {
+      return "";
+    }
   }
 
   ME.markdown = {
@@ -1080,6 +1398,7 @@
     renderMarkdown: renderMarkdown,
     htmlToMarkdown: htmlToMarkdown,
     sanitizePastedHtml: sanitizePastedHtml,
+    shouldUsePlainTextFallback: shouldUsePlainTextFallback,
     unescapeMarkdownText: unescapeMarkdownText
   };
 }());

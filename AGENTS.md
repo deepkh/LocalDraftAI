@@ -69,6 +69,7 @@ src/js/markdown-ai-guards.js AI output safety checks for Markdown
 src/js/markdown-repair.js    Markdown cleanup helpers
 src/js/resizer.js            AI Assistant panel resize behavior
 tests/e2e/workbench-layout.headless.mjs Semantic workbench and responsive layout smoke test
+tests/e2e/wysiwyg-paste-sanitization.headless.mjs Safe rich HTML paste and Markdown round-trip smoke test
 tests/unit/                  Dependency-free unit tests
 tests/e2e/                   Dependency-free browser smoke tests
 .agents/skills/              More detailed subsystem guidance
@@ -140,7 +141,8 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Workspace content search only scans `.md` and `.markdown` files and should cap matches to avoid runaway UI work.
 - Related files are simple rule-based context only: same folder, Markdown links, recently opened workspace files, and plan files. Do not add embeddings or AI context execution here.
 - Plan badges use simple filename/path rules and must not imply any agent execution feature.
-- WYSIWYG mode supports rich HTML paste.
+- WYSIWYG mode supports safe rich HTML paste through one shared sanitizer for native and context-menu paste. Markdown-compatible formatting is preserved, redundant layout containers around document blocks are unwrapped, and webpage controls, executable or embedded content, media widgets, SVG UI, unsafe attributes, inline styles, and event handlers are removed with blocked subtree content.
+- WYSIWYG H1, H2, and H3 headings use compact 24px, 20px, and 18px document typography at weight 600 so pasted heading hierarchy remains visually consistent.
 - The editor right-click menu should include Cut, Copy, and Paste; Markdown mode uses plain text, while WYSIWYG mode should preserve rich HTML clipboard data when the browser allows it.
 - Markdown mode should accept plain Markdown text.
 - Markdown rendering and toolbar actions support basic blocks including headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
@@ -227,6 +229,12 @@ Run the headless browser WYSIWYG AI list capture smoke test with Chrome availabl
 
 ```bash
 node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
+```
+
+Run the safe WYSIWYG rich paste and Markdown round-trip smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/wysiwyg-paste-sanitization.headless.mjs
 ```
 
 Run the configurable AI Actions menu and dialog smoke test:

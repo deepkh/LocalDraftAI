@@ -4125,35 +4125,7 @@
     wysiwygEditor.addEventListener("mouseup", actions.updateFormatSelect);
 
     wysiwygEditor.addEventListener("paste", function (event) {
-      var data = event.clipboardData;
-      var imageFiles;
-      if (!data) {
-        return;
-      }
-
-      if (transferHasImages(data)) {
-        imageFiles = imageFilesFromTransfer(data);
-        event.preventDefault();
-        storeAndInsertImages(imageFiles, {
-          action: "Paste image",
-          alt: "pasted image",
-          fallbackAlt: "pasted image",
-          prefix: "pasted",
-          selection: actions.captureSelection()
-        });
-        return;
-      }
-
-      var html = data.getData("text/html");
-      var text = data.getData("text/plain");
-      event.preventDefault();
-
-      if (html) {
-        actions.insertHtmlAtSelection(markdown.sanitizePastedHtml(html));
-      } else if (text) {
-        document.execCommand("insertText", false, text);
-        scheduleSyncFromWysiwyg();
-      }
+      actions.handleWysiwygPasteEvent(event);
     });
 
     markdownEditor.addEventListener("input", function () {
@@ -4200,7 +4172,11 @@
       }
 
       event.preventDefault();
-      actions.insertTextIntoTextarea(data.getData("text/plain") || "");
+      actions.insertClipboardPayload({
+        files: [],
+        html: data.getData("text/html") || "",
+        text: data.getData("text/plain") || ""
+      }, actions.captureSelection());
     });
 
     wysiwygEditor.addEventListener("dragover", handleEditorDragOver);
@@ -4353,6 +4329,15 @@
       applyHistoryStep: applyHistoryStep,
       formatBlock: formatBlock,
       getActiveMode: getActiveMode,
+      insertClipboardImages: function (files, selection) {
+        return storeAndInsertImages(files, {
+          action: "Paste image",
+          alt: "pasted image",
+          fallbackAlt: "pasted image",
+          prefix: "pasted",
+          selection: selection
+        });
+      },
       markdownEditor: markdownEditor,
       scheduleSyncFromWysiwyg: scheduleSyncFromWysiwyg,
       setMarkdown: setMarkdown,

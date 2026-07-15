@@ -7,3 +7,4 @@
 - Keep application theme state in `src/js/theme.js`. Supported values are `light` and `dark`, persisted under `localdraftai.appearance.theme`.
 - Define theme-sensitive colors as semantic variables in `:root`, with dark overrides under `html[data-theme="dark"]`; component rules should consume the variables instead of hard-coding light surfaces or text colors.
 - Load and apply the persisted theme before `styles.css` renders, and keep theme switching appearance-only so editor and workbench state remain untouched.
+- Keep WYSIWYG H1/H2/H3 typography at 24px/20px/18px with weight 600 and compact document spacing; rich paste relies on these semantic styles after source CSS is stripped.

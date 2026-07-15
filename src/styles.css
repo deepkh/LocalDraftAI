@@ -1748,20 +1748,26 @@
     .wysiwyg h1,
     .wysiwyg h2,
     .wysiwyg h3 {
-      line-height: 1.2;
-      margin: 0.8em 0 0.35em;
+      font-family: -apple-system-body, ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+      font-weight: 600;
     }
 
     .wysiwyg h1 {
-      font-size: 2rem;
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 32px;
     }
 
     .wysiwyg h2 {
-      font-size: 1.55rem;
+      margin: 16px 0 4px;
+      font-size: 20px;
+      line-height: 28px;
     }
 
     .wysiwyg h3 {
-      font-size: 1.25rem;
+      margin: 16px 0 4px;
+      font-size: 18px;
+      line-height: 28px;
     }
 
     .wysiwyg h4,

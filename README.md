@@ -27,7 +27,8 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text in one main editor.
 - **Soft Wrap**: wrap long lines visually in WYSIWYG and Markdown modes without inserting real line breaks.
 - **Day/Night theme**: switch between light and dark workbench themes; the selected appearance is stored locally in the browser.
-- **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps rich HTML when the browser clipboard allows it.
+- **Safe rich paste**: WYSIWYG keyboard, browser-menu, and right-click paste preserve Markdown-compatible document formatting while removing webpage controls, executable content, embedded documents, media widgets, SVG UI, inline styles, and event handlers.
+- **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps safe rich HTML when the browser clipboard allows it.
 - **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
@@ -182,6 +183,8 @@ LocalDraftAI works best in Chromium-based browsers such as Chrome or Edge.
 Browsers without the File System Access API can still use the editor, but local open/save controls may be limited or disabled. Local image storage also requires browser file and folder access.
 
 Right-click Paste uses the browser Clipboard API, so some browsers may ask for clipboard permission or require the app to be served from `localhost`.
+
+All WYSIWYG rich paste routes use the same local sanitizer before insertion. Headings, paragraphs, emphasis, links, lists, code, images, and tables are retained when they can round-trip to Markdown. Redundant webpage layout containers around document blocks are unwrapped so adjacent controls do not flatten headings during insertion. H1, H2, and H3 retain their hierarchy and use compact 24px, 20px, and 18px document typography. Interactive webpage controls, scripts and styles, embedded documents, media widgets, SVG UI icons, inline styles, and event handlers are removed. Markdown mode always pastes plain text.
 
 When you paste, drop, or insert the first local image, the app asks for a workspace folder. It then creates or reuses an `assets/` folder and inserts Markdown image links such as:
 

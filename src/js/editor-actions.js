@@ -711,35 +711,47 @@
 
       if (clipboard && typeof clipboard.read === "function") {
         return clipboard.read().then(function (items) {
-          var htmlPromise = Promise.resolve("");
-          var textPromise = Promise.resolve("");
+          var data = {
+            files: [],
+            html: "",
+            text: ""
+          };
+          var reads = [];
+          var hasHtmlRead = false;
+          var hasTextRead = false;
 
-          items.some(function (item) {
-            if (item.types && item.types.indexOf("text/html") !== -1) {
-              htmlPromise = item.getType("text/html").then(function (blob) {
-                return blob.text();
-              });
-            }
-
-            if (item.types && item.types.indexOf("text/plain") !== -1) {
-              textPromise = item.getType("text/plain").then(function (blob) {
-                return blob.text();
-              });
-            }
-
-            return item.types && (item.types.indexOf("text/html") !== -1 || item.types.indexOf("text/plain") !== -1);
+          items.forEach(function (item) {
+            (item.types || []).forEach(function (type) {
+              if (type === "text/html" && !hasHtmlRead) {
+                hasHtmlRead = true;
+                reads.push(item.getType(type).then(function (blob) {
+                  return blob.text();
+                }).then(function (html) {
+                  data.html = html || "";
+                }));
+              } else if (type === "text/plain" && !hasTextRead) {
+                hasTextRead = true;
+                reads.push(item.getType(type).then(function (blob) {
+                  return blob.text();
+                }).then(function (text) {
+                  data.text = text || "";
+                }));
+              } else if (/^image\//i.test(type)) {
+                reads.push(item.getType(type).then(function (blob) {
+                  data.files.push(blob);
+                }));
+              }
+            });
           });
 
-          return Promise.all([htmlPromise, textPromise]).then(function (values) {
-            return {
-              html: values[0] || "",
-              text: values[1] || ""
-            };
+          return Promise.all(reads).then(function () {
+            return data;
           });
         }).catch(function () {
           if (typeof clipboard.readText === "function") {
             return clipboard.readText().then(function (text) {
               return {
+                files: [],
                 html: "",
                 text: text
               };
@@ -752,6 +764,7 @@
       if (clipboard && typeof clipboard.readText === "function") {
         return clipboard.readText().then(function (text) {
           return {
+            files: [],
             html: "",
             text: text
           };
@@ -761,26 +774,116 @@
       return Promise.reject(new Error("Clipboard API is not available."));
     }
 
+    function imageFilesFromClipboardData(data) {
+      var files = [];
+      var seen = [];
+      var i;
+      var file;
+
+      function addFile(candidate) {
+        if (!candidate || !/^image\//i.test(candidate.type || "") || seen.indexOf(candidate) !== -1) {
+          return;
+        }
+        seen.push(candidate);
+        files.push(candidate);
+      }
+
+      if (data && data.items) {
+        for (i = 0; i < data.items.length; i += 1) {
+          if (
+            data.items[i].kind === "file" &&
+            /^image\//i.test(data.items[i].type || "") &&
+            typeof data.items[i].getAsFile === "function"
+          ) {
+            addFile(data.items[i].getAsFile());
+          }
+        }
+      }
+
+      if (data && data.files) {
+        for (i = 0; i < data.files.length; i += 1) {
+          file = data.files[i];
+          addFile(file);
+        }
+      }
+
+      return files;
+    }
+
+    function clipboardPayloadFromData(data) {
+      return {
+        files: imageFilesFromClipboardData(data),
+        html: data && typeof data.getData === "function" ? data.getData("text/html") : "",
+        text: data && typeof data.getData === "function" ? data.getData("text/plain") : ""
+      };
+    }
+
+    function insertTextIntoWysiwyg(text, savedSelection) {
+      var previousScrollTop = wysiwygEditor.scrollTop;
+
+      wysiwygEditor.focus();
+      restoreWysiwygSelection(savedSelection);
+      document.execCommand("insertText", false, text);
+      context.scheduleSyncFromWysiwyg();
+      restoreWysiwygScrollTop(previousScrollTop);
+    }
+
+    function shouldUsePlainTextFallback(rawHtml, text) {
+      if (ME.markdown && typeof ME.markdown.shouldUsePlainTextFallback === "function") {
+        return ME.markdown.shouldUsePlainTextFallback(rawHtml, text);
+      }
+      return /\S/.test(String(text || "")) && !/\S/.test(textFromHtml(rawHtml));
+    }
+
+    function insertClipboardPayload(payload, savedSelection) {
+      var data = payload || {};
+      var text = data.text || (data.html ? textFromHtml(data.html) : "");
+      var files = Array.prototype.filter.call(data.files || [], function (file) {
+        return file && /^image\//i.test(file.type || "");
+      });
+      var sanitizedHtml;
+
+      if ((savedSelection && savedSelection.mode === "markdown") || context.getActiveMode() === "markdown") {
+        if (text) {
+          insertTextIntoTextarea(text, savedSelection);
+        }
+        return;
+      }
+
+      if (files.length && typeof context.insertClipboardImages === "function") {
+        return context.insertClipboardImages(files, savedSelection);
+      }
+
+      if (data.html) {
+        sanitizedHtml = ME.markdown.sanitizePastedHtml(data.html);
+        if (sanitizedHtml) {
+          insertHtmlAtSelection(sanitizedHtml, savedSelection);
+          return;
+        }
+        if (shouldUsePlainTextFallback(data.html, data.text)) {
+          insertTextIntoWysiwyg(data.text, savedSelection);
+        }
+        return;
+      }
+
+      if (text) {
+        insertTextIntoWysiwyg(text, savedSelection);
+      }
+    }
+
+    function handleWysiwygPasteEvent(event) {
+      if (!event || !event.clipboardData) {
+        return false;
+      }
+
+      event.preventDefault();
+      insertClipboardPayload(clipboardPayloadFromData(event.clipboardData), captureSelection());
+      return true;
+    }
+
     function pasteFromClipboard(savedSelection) {
       return readClipboardData().then(function (data) {
-        var text = data.text || (data.html ? textFromHtml(data.html) : "");
-
-        if ((savedSelection && savedSelection.mode === "markdown") || context.getActiveMode() === "markdown") {
-          insertTextIntoTextarea(text, savedSelection);
-          return;
-        }
-
-        wysiwygEditor.focus();
-        restoreWysiwygSelection(savedSelection);
-        if (data.html) {
-          insertHtmlAtSelection(ME.markdown.sanitizePastedHtml(data.html), savedSelection);
-          return;
-        }
-
-        if (text) {
-          document.execCommand("insertText", false, text);
-          context.scheduleSyncFromWysiwyg();
-        }
+        return insertClipboardPayload(data, savedSelection);
       });
     }
 
@@ -794,7 +897,7 @@
       }
 
       if (action === "paste") {
-        return pasteFromClipboard(savedSelection);
+        return pasteFromClipboard(savedSelection || captureSelection());
       }
 
       return Promise.resolve();
@@ -1088,6 +1191,8 @@
       applyToolbarAction: applyToolbarAction,
       captureSelection: captureSelection,
       execWysiwyg: execWysiwyg,
+      handleWysiwygPasteEvent: handleWysiwygPasteEvent,
+      insertClipboardPayload: insertClipboardPayload,
       insertHtmlAtSelection: insertHtmlAtSelection,
       insertMarkdownImages: insertMarkdownImages,
       insertTextIntoTextarea: insertTextIntoTextarea,
