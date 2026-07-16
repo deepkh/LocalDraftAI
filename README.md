@@ -89,7 +89,9 @@ JSON and YAML always remain editable and saveable when invalid. Validation is a 
 
 ### Workspace Sidebar
 
-Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans recursively and shows `.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml` files in the left sidebar. Source code, images, binaries, archives, and other unsupported files remain hidden. Explorer rows include `MD`, `TXT`, `{}`, or `YML` indicators.
+Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans local workspaces eagerly and shows `.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml` files in the left sidebar. Explorer keeps only the ancestor folders needed to reach those documents; pre-existing folders whose entire subtree is empty or contains only unsupported files are hidden. Source code, images, binaries, archives, and other unsupported files remain hidden. Explorer rows include `MD`, `TXT`, `{}`, or `YML` indicators.
+
+A folder created through Explorer remains temporarily visible for the current workspace session so you can create a supported file inside it. This exception is kept only in memory and ends when the workspace is closed or replaced. Remote SSH folders follow a different model: they load lazily and may remain visible while their contents are still unknown; Explorer does not recursively scan remote folders merely to decide visibility.
 
 The sidebar can be expanded, hidden, searched, and resized from the workbench, while the View menu also provides Minimize Sidebar. Its mode and width are saved in localStorage. Folders in the Files tree can also be collapsed or expanded; collapsed folder paths are saved per workspace using workspace-relative paths, and the active file's parent folders are revealed automatically. File-name filtering temporarily expands folders with matches without overwriting saved collapse state. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
