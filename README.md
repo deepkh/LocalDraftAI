@@ -130,9 +130,9 @@ Use **Format** to expand or collapse the Markdown formatting row. The choice is 
 
 File, Edit, View, Workspace, AI, and Help menus dispatch to the same local file, editor, workspace, and AI behavior used by shortcuts and compact controls. **View -> Formatting Toolbar** controls the same remembered preference as the topbar **Format** button.
 
-The Activity Bar switches Explorer, Search, and Related without resetting workspace collapse, search, scroll, or selection state. Clicking the active primary view hides the Primary Sidebar and clicking it again restores the same view. AI Assistant opens or focuses the Secondary Sidebar, and Settings opens the existing provider dialog.
+The Activity Bar switches Explorer, Search, and Related without resetting workspace collapse, search, scroll, or selection state. Clicking the active primary view hides the Primary Sidebar and clicking it again restores the same view. AI Assistant opens or focuses the Secondary Sidebar. AI provider settings remain available inside that panel.
 
-Use the moon/sun button above Settings, or `View -> Dark Theme`, to switch appearance without reloading or changing document and workbench state. Light is the default. The supported `light` or `dark` value is stored under `localdraftai.appearance.theme` in localStorage and restored before the stylesheet renders.
+Use the moon/sun button at the bottom of the Activity Bar, or `View -> Dark Theme`, to switch appearance without reloading or changing document and workbench state. Light is the default. The supported `light` or `dark` value is stored under `localdraftai.appearance.theme` in localStorage and restored before the stylesheet renders.
 
 The Status Bar shows the current workspace, unsaved state, document type, editor mode, Soft Wrap, source cursor line and column, word and character counts, JSON/YAML validity, and accessible AI provider status. Lower-priority fields collapse on narrow screens.
 
@@ -800,7 +800,7 @@ Add stricter rules to the prompt, for example:
 | `src/js/app.js` | App startup and high-level wiring |
 | `src/js/command-registry.js` | Application command registration and execution |
 | `src/js/menu-bar.js` | Menu interaction, keyboard behavior, and command dispatch |
-| `src/js/activity-bar.js` | Explorer, Search, Related, AI, and Settings routing |
+| `src/js/activity-bar.js` | Explorer, Search, Related, and AI routing |
 | `src/js/status-bar.js` | Compact workspace, document, editor, and AI status formatting |
 | `src/js/document-session.js` | Per-tab document state |
 | `src/js/document-type.js` | Supported extensions and per-type capabilities |

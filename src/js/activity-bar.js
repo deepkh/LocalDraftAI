@@ -105,12 +105,6 @@
       render();
     }
 
-    function openSettings() {
-      if (aiAssistant && aiAssistant.openSettings) {
-        aiAssistant.openSettings();
-      }
-    }
-
     function handleClick(event) {
       var button = event.target.closest("[data-workbench-view]");
       var view;
@@ -124,8 +118,6 @@
         activatePrimaryView(view);
       } else if (view === "ai") {
         activateAiAssistant();
-      } else if (view === "settings") {
-        openSettings();
       }
     }
 

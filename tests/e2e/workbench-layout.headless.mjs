@@ -178,7 +178,7 @@ async function main() {
     assert.equal(shell.editorOwnsChrome, true);
     assert.equal(shell.activeActivities, 1);
     assert.equal(shell.statusHeight, 24);
-    assert.equal(shell.activityButtons.length, 6);
+    assert.equal(shell.activityButtons.length, 5);
     shell.activityButtons.forEach((button) => {
       assert.equal(button.type, "button");
       assert.ok(button.title);
@@ -367,7 +367,10 @@ async function main() {
     assert.equal(await evaluate(send, `document.querySelector("#darkThemeMenuItem").getAttribute("aria-checked")`), "true");
     await evaluate(send, `document.querySelector("#viewMenuButton").dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }))`);
 
-    await evaluate(send, `document.querySelector('[data-workbench-view="settings"]').click()`);
+    await evaluate(send, `(() => {
+      document.querySelector('[data-workbench-view="ai"]').click();
+      document.querySelector("#aiAssistantPanelSettings").click();
+    })()`);
     const settingsSurface = await evaluate(send, `getComputedStyle(document.querySelector("#aiSettingsDialog")).backgroundColor`);
     await evaluate(send, `document.querySelector("#aiSettingsCancel").click()`);
     await evaluate(send, `(() => {
@@ -444,7 +447,11 @@ async function main() {
     await evaluate(send, `document.querySelector("#aiAssistantPanelClose").click()`);
     assert.equal(await evaluate(send, `document.querySelector("#aiAssistantPanel").hidden`), true);
 
-    await evaluate(send, `document.querySelector('[data-workbench-view="settings"]').click()`);
+    assert.equal(await evaluate(send, `document.querySelector('[data-workbench-view="settings"]')`), null);
+    await evaluate(send, `(() => {
+      document.querySelector('[data-workbench-view="ai"]').click();
+      document.querySelector("#aiAssistantPanelSettings").click();
+    })()`);
     assert.equal(await evaluate(send, `document.querySelector("#aiSettingsOverlay").hidden`), false);
     await evaluate(send, `document.querySelector("#aiSettingsCancel").click()`);
 

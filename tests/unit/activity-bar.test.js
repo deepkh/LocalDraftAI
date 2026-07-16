@@ -113,8 +113,8 @@ runTest("switching primary views restores the sidebar", function () {
   });
 });
 
-runTest("routes primary, AI, and Settings buttons to existing owners", function () {
-  const buttons = ["files", "search", "related", "ai", "settings"].map(createButton);
+runTest("routes primary and AI buttons to existing owners", function () {
+  const buttons = ["files", "search", "related", "ai"].map(createButton);
   const root = createRoot(buttons);
   const calls = [];
   const sidebar = {
@@ -139,9 +139,6 @@ runTest("routes primary, AI, and Settings buttons to existing owners", function 
     openAssistant() {
       calls.push(["ai"]);
       panelOpen = true;
-    },
-    openSettings() {
-      calls.push(["settings"]);
     }
   };
   const view = activityBar.create({ aiAssistant, rootElement: root, workspaceSidebar: sidebar });
@@ -164,7 +161,4 @@ runTest("routes primary, AI, and Settings buttons to existing owners", function 
   root.click(buttons[3]);
   assert.deepEqual(calls[5], ["ai"]);
   assert.equal(buttons[3].classList.contains("is-active"), true);
-
-  root.click(buttons[4]);
-  assert.deepEqual(calls[6], ["settings"]);
 });

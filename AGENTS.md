@@ -221,7 +221,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Escaped Markdown punctuation should render and round-trip as literal text in WYSIWYG mode.
 - LocalDraftAI uses one main editor surface.
 - The application shell uses semantic Menu Bar, Activity Bar, Primary Sidebar, Editor Area, Secondary Sidebar, and Status Bar regions.
-- The Activity Bar is the sole switcher and hide/show control for Explorer, Search, and Related in the existing workspace sidebar; do not add an internal panel header, duplicate those view buttons, or add a hide button inside the sidebar. It also opens the AI Secondary Sidebar without moving review state and opens the existing Settings dialog.
+- The Activity Bar is the sole switcher and hide/show control for Explorer, Search, and Related in the existing workspace sidebar; do not add an internal panel header, duplicate those view buttons, or add a hide button inside the sidebar. It also opens the AI Secondary Sidebar without moving review state. AI provider settings remain available inside the AI Assistant panel.
 - Theme is application-level state with supported `light` and `dark` values stored under `localdraftai.appearance.theme` in localStorage.
 - Apply the persisted theme before the stylesheet renders; switching themes must not modify document, editor, tab, sidebar, workspace, or AI state.
 - Theme-sensitive colors belong in semantic CSS variables with light defaults and dark overrides.
