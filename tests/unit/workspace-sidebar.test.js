@@ -178,6 +178,14 @@ function createSidebar(storage) {
   return { folderChanges, root, scrollChanges, sidebar };
 }
 
+runTest("omits the minimize action from the Explorer panel header", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  assert.doesNotMatch(view.root.innerHTML, /data-workspace-action="minimize"/);
+  assert.match(view.root.innerHTML, /data-workspace-action="hide"/);
+});
+
 runTest("collapses folders and persists relative paths per workspace", function () {
   const storage = createStorage();
   const view = createSidebar(storage);

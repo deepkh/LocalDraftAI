@@ -690,7 +690,6 @@
         "</div>" +
         "</div>" +
         "<div class=\"workspace-sidebar-actions\">" +
-        "<button type=\"button\" class=\"workspace-sidebar-icon\" data-workspace-action=\"minimize\" title=\"Minimize sidebar\" aria-label=\"Minimize sidebar\">-</button>" +
         "<button type=\"button\" class=\"workspace-sidebar-icon\" data-workspace-action=\"hide\" title=\"Hide sidebar\" aria-label=\"Hide sidebar\">x</button>" +
         "</div>" +
         "</div>" +
