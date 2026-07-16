@@ -17,6 +17,7 @@ import (
 	bridgeconfig "localdraftai/bridge/internal/config"
 	"localdraftai/bridge/internal/logbuffer"
 	"localdraftai/bridge/internal/protocol"
+	"localdraftai/bridge/internal/remotefs"
 	"localdraftai/bridge/internal/sshconn"
 )
 
@@ -54,6 +55,7 @@ type Server struct {
 	connectionMu sync.Mutex
 	profileStore *bridgeconfig.Store
 	sshManager   *sshconn.Manager
+	remoteFS     *remotefs.Service
 }
 
 func New(config Config) (*Server, error) {
@@ -112,8 +114,10 @@ func New(config Config) (*Server, error) {
 		Paths:  paths,
 		Events: server.handleSSHEvent,
 	})
+	server.remoteFS = remotefs.NewService(server.sshManager)
 	server.registerBridgeHandlers()
 	protocol.RegisterSSHHandlers(server.router, profileStore, paths, server.sshManager)
+	protocol.RegisterRemoteFilesystemHandlers(server.router, server.remoteFS)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/session", server.handleSession)

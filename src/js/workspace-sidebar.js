@@ -175,6 +175,7 @@
     var storage = context.storage || window.localStorage;
     var onOpenFile = context.onOpenFile || function () {};
     var onOpenFolder = context.onOpenFolder || function () {};
+    var onExpandFolder = context.onExpandFolder || function () {};
     var onRefresh = context.onRefresh || function () {};
     var onClose = context.onClose || function () {};
     var onContextAction = context.onContextAction || function () {};
@@ -200,7 +201,8 @@
         results: []
       },
       related: null,
-      tree: null
+      tree: null,
+      capabilities: {}
     };
     var selectedPath = "";
     var dirtyPaths = {};
@@ -353,8 +355,29 @@
     }
 
     function toggleFolder(path) {
+      var node;
+
       path = normalizeFolderPath(path);
       if (!path) {
+        return;
+      }
+
+      node = ME.workspaceStore && ME.workspaceStore.findTreeNode
+        ? ME.workspaceStore.findTreeNode(state.tree || [], path)
+        : null;
+      if (node && node.kind === "directory" && node.loaded === false && !node.loading) {
+        if (collapsedFolderPaths[path]) {
+          delete collapsedFolderPaths[path];
+          persistCollapsedFolders();
+        }
+        node.loading = true;
+        node.error = "";
+        render();
+        Promise.resolve(onExpandFolder(path)).then(function () {
+          render();
+        }).catch(function () {
+          render();
+        });
         return;
       }
 
@@ -409,7 +432,9 @@
         var isDirty = !isDirectory && dirtyPaths[node.path];
         var label = escapeHtml(node.name || "");
         var folderPath = normalizeFolderPath(node.path);
-        var isCollapsed = isDirectory && !options.forceExpanded && Boolean(collapsedFolderPaths[folderPath]);
+        var isCollapsed = isDirectory && !options.forceExpanded && Boolean(
+          collapsedFolderPaths[folderPath] || node.loaded === false && !node.loading && !node.error
+        );
         var rowClass = "workspace-tree-item" +
           (isDirectory ? " is-directory" : " is-file") +
           (isDirectory && isCollapsed ? " is-collapsed" : "") +
@@ -428,7 +453,18 @@
             (isCollapsed ? "&#9656;" : "&#9662;") + "</span>" +
             "<span class=\"workspace-tree-label\">" + label + "/</span>" +
             "</button>";
-          return button + (isCollapsed ? "" : renderTree(node.children || [], (depth || 0) + 1, options));
+          if (isCollapsed) {
+            return button;
+          }
+          if (node.loading) {
+            return button + "<div class=\"workspace-tree-message\" style=\"--workspace-tree-depth:" +
+              String((depth || 0) + 1) + "\">Loading…</div>";
+          }
+          if (node.error) {
+            return button + "<div class=\"workspace-tree-message is-error\" style=\"--workspace-tree-depth:" +
+              String((depth || 0) + 1) + "\">" + escapeHtml(node.error) + "</div>";
+          }
+          return button + renderTree(node.children || [], (depth || 0) + 1, options);
         }
 
         return "<button type=\"button\" class=\"" + rowClass + "\" data-workspace-path=\"" +
@@ -610,16 +646,16 @@
       actions = contextMenu.kind === "file"
         ? [
           ["open", "Open"],
-          ["rename", "Rename"],
-          ["duplicate", "Duplicate"],
+          state.capabilities.rename ? ["rename", "Rename"] : null,
+          state.capabilities.duplicate ? ["duplicate", "Duplicate"] : null,
           ["copy-path", "Copy Relative Path"],
           ["reveal", "Reveal in Workspace"]
-        ]
+        ].filter(Boolean)
         : [
-          ["new-file", "New File..."],
-          ["new-folder", "New Folder"],
+          state.capabilities.createFile ? ["new-file", "New File..."] : null,
+          state.capabilities.createDirectory ? ["new-folder", "New Folder"] : null,
           ["refresh", "Refresh"]
-        ];
+        ].filter(Boolean);
 
       return "<div class=\"workspace-context-menu\" style=\"left:" + String(contextMenu.x) + "px;top:" +
         String(contextMenu.y) + "px\" role=\"menu\">" +
@@ -718,7 +754,8 @@
         rootName: nextState && nextState.rootName ? nextState.rootName : "",
         search: nextState && nextState.search ? nextState.search : previousSearch,
         related: nextState && nextState.related ? nextState.related : previousRelated,
-        tree: nextState && nextState.tree ? nextState.tree : null
+        tree: nextState && nextState.tree ? nextState.tree : null,
+        capabilities: nextState && nextState.capabilities ? nextState.capabilities : {}
       };
       if (state.rootName !== previousRootName) {
         loadCollapsedFolders(state.rootName);
@@ -755,7 +792,10 @@
           rootName: nextState.workspaceState && nextState.workspaceState.rootName ? nextState.workspaceState.rootName : "",
           search: nextState.workspaceState && nextState.workspaceState.search ? nextState.workspaceState.search : previousSearch,
           related: nextState.workspaceState && nextState.workspaceState.related ? nextState.workspaceState.related : previousRelated,
-          tree: nextState.workspaceState && nextState.workspaceState.tree ? nextState.workspaceState.tree : null
+          tree: nextState.workspaceState && nextState.workspaceState.tree ? nextState.workspaceState.tree : null,
+          capabilities: nextState.workspaceState && nextState.workspaceState.capabilities
+            ? nextState.workspaceState.capabilities
+            : {}
         };
         if (state.rootName !== previousRootName) {
           loadCollapsedFolders(state.rootName);
@@ -818,7 +858,7 @@
         } else if (action === "open") {
           onOpenFolder();
         } else if (action === "refresh") {
-          onRefresh();
+          onRefresh("");
         } else if (action === "close") {
           onClose();
         }

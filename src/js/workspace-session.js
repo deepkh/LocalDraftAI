@@ -289,6 +289,28 @@
     return null;
   }
 
+  function sameRemoteWorkspaceRef(left, right) {
+    return Boolean(
+      left && right &&
+      left.connectionId &&
+      left.remoteRootPath &&
+      left.connectionId === right.connectionId &&
+      left.remoteRootPath === right.remoteRootPath
+    );
+  }
+
+  async function findMatchingRemoteWorkspace(workspaceRef) {
+    var records = await listRecentWorkspaces();
+    var i;
+
+    for (i = 0; i < records.length; i += 1) {
+      if (records[i].providerId === "remote-ssh" && sameRemoteWorkspaceRef(records[i].workspaceRef, workspaceRef)) {
+        return records[i];
+      }
+    }
+    return null;
+  }
+
   async function addRecentWorkspace(workspaceHandle, workspaceName, options) {
     var maxWorkspaces = options && options.maxWorkspaces || DEFAULT_MAX_RECENT_WORKSPACES;
     var existingRecord;
@@ -332,18 +354,23 @@
     var existingRecord;
     var record;
 
-    if (!isSupported() || !normalized.workspaceHandle) {
+    if (!isSupported() || !(
+      normalized.providerId === "local-fsa" && normalized.workspaceHandle ||
+      normalized.providerId === "remote-ssh" && normalized.workspaceRef.connectionId && normalized.workspaceRef.remoteRootPath
+    )) {
       return [];
     }
 
-    existingRecord = await findMatchingRecentWorkspace(normalized.workspaceHandle);
+    existingRecord = normalized.providerId === "remote-ssh"
+      ? await findMatchingRemoteWorkspace(normalized.workspaceRef)
+      : await findMatchingRecentWorkspace(normalized.workspaceHandle);
     record = existingRecord || {};
     record.activePath = normalized.activePath;
     record.collapsedFolders = normalized.collapsedFolders;
     record.openedTabs = normalized.openedTabs;
     record.savedAt = normalized.savedAt;
     record.sidebarScroll = normalized.sidebarScroll;
-    record.workspaceHandle = normalized.workspaceHandle;
+    record.workspaceHandle = normalized.providerId === "local-fsa" ? normalized.workspaceHandle : null;
     record.providerId = normalized.providerId;
     record.workspaceRef = normalized.workspaceRef;
     record.workspaceName = normalized.workspaceName;
@@ -412,6 +439,7 @@
     removeRecentWorkspace: removeRecentWorkspace,
     requestWorkspacePermission: requestWorkspacePermission,
     saveRecentWorkspaceSession: saveRecentWorkspaceSession,
-    saveSession: saveSession
+    saveSession: saveSession,
+    sameRemoteWorkspaceRef: sameRemoteWorkspaceRef
   };
 }());

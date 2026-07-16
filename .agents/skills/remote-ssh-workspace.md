@@ -23,6 +23,13 @@
 - Hash exact file bytes with SHA-256 on read. Conditional writes compare the current hash with the expected revision and return `REVISION_CONFLICT` without changing the target when they differ.
 - Write through a same-directory exclusive temporary file and verified atomic replacement. Do not report success until the final target can be statted and its revision returned.
 
+## Read-only workspace boundary
+
+- `bridge/internal/remotefs/` owns canonical workspace roots, SFTP path validation, directory limits, exact-byte UTF-8 text reads, and SHA-256 revisions. Protocol handlers translate its errors without exposing absolute paths or document contents.
+- `src/js/remote-ssh-provider.js` owns Remote SSH resource creation and bridge filesystem calls. Application code must use its workspace descriptor and resources rather than inspect bridge workspace identifiers in `opaque`.
+- Keep Remote Explorer trees lazy: list the root once, load only an expanded directory, cache loaded children, retain empty directories, filter file types through `document-type.js`, and attach failures to the affected node.
+- Until write, search, Related, restore, and asset phases land, advertise those capabilities as false. Remote Save and asset insertion must fail visibly without invoking File System Access pickers.
+
 ## Credentials and host keys
 
 - SSH private keys, passwords, passphrases, agent protocol data, session cookies, and startup tokens stay in the bridge process and never enter browser storage or logs.
@@ -40,4 +47,5 @@
 - Run frontend regression tests with `for test in tests/unit/*.test.js; do node "$test"; done`.
 - Run bridge checks from `bridge/` with Go 1.25 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
+- Run the read-only SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.

@@ -17,6 +17,7 @@
   var bridgeClient = ME.bridgeClient;
   var remoteStatus = ME.remoteStatus;
   var remoteConnectionUI = ME.remoteConnectionUI;
+  var remoteSSHProviderModule = ME.remoteSSHProvider;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
   var EDITOR_MODES = editorMode.EDITOR_MODES;
@@ -24,6 +25,7 @@
   var tabs = null;
   var recentRecords = [];
   var recentWorkspaceRecords = [];
+  var recentRemoteWorkspaceRecords = [];
   var focusModeEnabled = false;
   var syncTimer = 0;
   var validationTimer = 0;
@@ -166,6 +168,7 @@
   var openWorkspaceFolderButton = document.getElementById("openWorkspaceFolder");
   var restoreWorkspaceButton = document.getElementById("restoreWorkspace");
   var recentWorkspacesSelect = document.getElementById("recentWorkspaces");
+  var recentRemoteWorkspacesSelect = document.getElementById("recentRemoteWorkspaces");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
@@ -196,6 +199,7 @@
   var activityBar;
   var remoteStatusController;
   var remoteConnectionController;
+  var remoteSSHProvider;
   var actions;
   var aiAssistant;
   var workspaceSidebar;
@@ -210,7 +214,8 @@
     files: [],
     tree: null,
     isScanning: false,
-    error: ""
+    error: "",
+    lazy: false
   };
   var workspaceContentSearchState = {
     error: "",
@@ -1160,6 +1165,7 @@
     }
     updateCounts();
     updateModeControls();
+    updateFileControls();
     updateCursorStatus();
     activeSession.history.updateControls();
     updateDocumentTitle();
@@ -1532,11 +1538,38 @@
     var openGroup;
     var removeGroup;
 
+    records = records || [];
+    recentRemoteWorkspaceRecords = records.filter(function (record) {
+      return record.providerId === "remote-ssh";
+    });
+    records = records.filter(function (record) {
+      return record.providerId !== "remote-ssh";
+    });
+    if (recentRemoteWorkspacesSelect) {
+      recentRemoteWorkspacesSelect.innerHTML = "";
+      var remotePlaceholder = document.createElement("option");
+      remotePlaceholder.value = "";
+      remotePlaceholder.textContent = recentRemoteWorkspaceRecords.length
+        ? recentRemoteWorkspaceRecords.length + " recent remote workspace" + (recentRemoteWorkspaceRecords.length === 1 ? "" : "s")
+        : "No recent remote";
+      recentRemoteWorkspacesSelect.appendChild(remotePlaceholder);
+      recentRemoteWorkspaceRecords.forEach(function (record) {
+        var option = document.createElement("option");
+
+        option.value = String(record.id || "");
+        option.textContent = record.workspaceName + " — " + record.workspaceRef.connectionId;
+        recentRemoteWorkspacesSelect.appendChild(option);
+      });
+      recentRemoteWorkspacesSelect.disabled = true;
+      recentRemoteWorkspacesSelect.title = recentRemoteWorkspaceRecords.length
+        ? "Remote workspace restoration is enabled in the restoration phase"
+        : "No recent remote workspaces";
+    }
     if (!recentWorkspacesSelect) {
       return;
     }
 
-    recentWorkspaceRecords = records || [];
+    recentWorkspaceRecords = records;
     recentWorkspacesSelect.innerHTML = "";
     placeholder.value = "";
     placeholder.textContent = recentWorkspaceRecords.length ? "Recent" : "No recent";
@@ -1608,10 +1641,14 @@
     return workspaceState.rootName || "";
   }
 
+  function hasActiveWorkspace() {
+    return Boolean(workspaceState.workspace && workspaceState.id);
+  }
+
   function sessionBelongsToWorkspace(session) {
     return Boolean(
       session &&
-      workspaceState.rootHandle &&
+      hasActiveWorkspace() &&
       session.workspacePath &&
       session.workspaceId === workspaceState.id &&
       session.workspaceRootName === currentWorkspaceRootName()
@@ -1701,8 +1738,13 @@
   }
 
   function renderWorkspaceSidebar() {
+    var workspaceLabel = workspaceState.rootName;
+
+    if (workspaceState.workspace && workspaceState.workspace.authority && workspaceState.workspace.authority.type === "ssh") {
+      workspaceLabel = workspaceState.workspace.authority.label + ": " + workspaceState.workspace.root.displayPath;
+    }
     if (statusBarController) {
-      statusBarController.setWorkspace(workspaceState.rootName);
+      statusBarController.setWorkspace(workspaceLabel);
     }
     if (!workspaceSidebar) {
       return;
@@ -1713,10 +1755,11 @@
       selectedPath: selectedWorkspacePath(),
       workspaceState: {
         directories: workspaceState.directories,
+        capabilities: workspaceState.workspace && workspaceState.workspace.capabilities || {},
         error: workspaceState.error,
         files: workspaceState.files,
         isScanning: workspaceState.isScanning,
-        isSupported: isWorkspaceSupported(),
+        isSupported: hasActiveWorkspace() || isWorkspaceSupported(),
         related: relatedWorkspaceView(),
         restorePrompt: restorableWorkspaceSession ? {
           workspaceName: restorableWorkspaceSession.workspaceName
@@ -1729,7 +1772,7 @@
   }
 
   function updateWorkspaceMenuControls() {
-    var hasWorkspace = Boolean(workspaceState.rootHandle);
+    var hasWorkspace = hasActiveWorkspace();
     var supported = isWorkspaceSupported();
 
     if (openWorkspaceFolderButton) {
@@ -1764,7 +1807,7 @@
   function workspaceSessionTabs() {
     var activeSession = getActiveSession();
 
-    if (!tabs || !workspaceState.rootHandle) {
+    if (!tabs || !hasActiveWorkspace()) {
       return [];
     }
 
@@ -1799,7 +1842,7 @@
   function currentWorkspaceSessionMetadata() {
     var activeSession;
 
-    if (!workspaceState.rootHandle) {
+    if (!hasActiveWorkspace()) {
       return null;
     }
 
@@ -1814,11 +1857,15 @@
       sidebarScroll: workspaceSidebar && typeof workspaceSidebar.getScrollState === "function"
         ? workspaceSidebar.getScrollState()
         : null,
-      workspaceHandle: workspaceState.rootHandle,
+      workspaceHandle: workspaceState.providerId === "local-fsa" ? workspaceState.rootHandle : null,
       workspaceRef: {
-        localHandle: workspaceState.rootHandle,
-        connectionId: "",
-        remoteRootPath: ""
+        localHandle: workspaceState.providerId === "local-fsa" ? workspaceState.rootHandle : null,
+        connectionId: workspaceState.providerId === "remote-ssh"
+          ? workspaceState.workspace.authority.connectionId
+          : "",
+        remoteRootPath: workspaceState.providerId === "remote-ssh"
+          ? workspaceState.workspace.root.displayPath
+          : ""
       },
       workspaceName: workspaceState.rootName
     };
@@ -1928,7 +1975,8 @@
       files: [],
       tree: null,
       isScanning: false,
-      error: ""
+      error: "",
+      lazy: false
     };
     workspaceContentSearchState = {
       error: "",
@@ -1953,7 +2001,8 @@
       files: result.files || [],
       tree: result.tree || [],
       isScanning: false,
-      error: ""
+      error: "",
+      lazy: Boolean(result.lazy)
     };
     renderWorkspaceSidebar();
     updateWorkspaceMenuControls();
@@ -1993,9 +2042,22 @@
     return false;
   }
 
-  async function closePreviousWorkspaceTabsForSwitch(nextRootHandle, options) {
+  async function isSameWorkspace(nextResult) {
+    var current = workspaceState.workspace;
+    var next = nextResult && nextResult.workspace;
+
+    if (!current || !next || current.providerId !== next.providerId) {
+      return false;
+    }
+    if (current.providerId === "remote-ssh") {
+      return current.authority.connectionId === next.authority.connectionId &&
+        current.root.displayPath === next.root.displayPath;
+    }
+    return isSameWorkspaceHandle(workspaceState.rootHandle, nextResult.rootHandle);
+  }
+
+  async function closePreviousWorkspaceTabsForSwitch(nextResult, options) {
     var previousWorkspaceId = workspaceState.id;
-    var previousRootHandle = workspaceState.rootHandle;
     var previousRootName = workspaceState.rootName || "the previous workspace";
     var workspaceSessions;
     var dirtySessions;
@@ -2004,11 +2066,11 @@
     var nextSession;
 
     options = options || {};
-    if (!tabs || !previousWorkspaceId || !previousRootHandle || !nextRootHandle) {
+    if (!tabs || !previousWorkspaceId || !hasActiveWorkspace() || !(nextResult && nextResult.workspace)) {
       return true;
     }
 
-    if (await isSameWorkspaceHandle(previousRootHandle, nextRootHandle)) {
+    if (await isSameWorkspace(nextResult)) {
       return true;
     }
 
@@ -2101,6 +2163,22 @@
     return result;
   }
 
+  async function closeActiveWorkspaceStorage(nextResult) {
+    var provider;
+
+    if (!hasActiveWorkspace() || nextResult && await isSameWorkspace(nextResult)) {
+      return;
+    }
+    provider = activeWorkspaceProvider();
+    if (provider && typeof provider.closeWorkspace === "function") {
+      try {
+        await provider.closeWorkspace(workspaceState.workspace);
+      } catch (error) {
+        // The old workspace is already being replaced; stale remote workspace cleanup is best effort.
+      }
+    }
+  }
+
   async function handleOpenWorkspaceFolder() {
     var result;
 
@@ -2121,9 +2199,10 @@
       result = await workspaceStore.openWorkspace({ provider: localFilesystemProvider });
       await assignWorkspaceIdForScanResult(result);
       restorableWorkspaceSession = null;
-      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle)) {
+      if (!await closePreviousWorkspaceTabsForSwitch(result)) {
         return;
       }
+      await closeActiveWorkspaceStorage(result);
       applyWorkspaceScanResult(result);
       await addRecentWorkspace(result.rootHandle, result.rootName);
     } catch (error) {
@@ -2132,6 +2211,54 @@
       }
       showWorkspaceError("Could not read this workspace. Please open the folder again.");
     }
+  }
+
+  async function handleOpenRemoteWorkspace(selection) {
+    var result;
+
+    if (!remoteSSHProvider || !workspaceStore || !selection) {
+      throw new Error("The Remote SSH storage provider is unavailable.");
+    }
+    if (workspaceSidebar) {
+      workspaceSidebar.setMode("expanded");
+    }
+    try {
+      result = await workspaceStore.openWorkspace({
+        provider: remoteSSHProvider,
+        connectionId: selection.connectionId,
+        connectionLabel: selection.connectionLabel,
+        path: selection.path
+      });
+      if (!await closePreviousWorkspaceTabsForSwitch(result)) {
+        await remoteSSHProvider.closeWorkspace(result.workspace).catch(function () {});
+        throw new Error("The current workspace was kept open.");
+      }
+      await closeActiveWorkspaceStorage(result);
+      restorableWorkspaceSession = null;
+      applyWorkspaceScanResult(result);
+      ME.pendingRemoteWorkspace = null;
+      scheduleWorkspaceSessionSave();
+      return result;
+    } catch (error) {
+      if (workspaceState.workspace !== (result && result.workspace)) {
+        throw error;
+      }
+      showWorkspaceError(error && error.message || "Could not open the remote workspace.");
+      throw error;
+    }
+  }
+
+  async function handleExpandWorkspaceFolder(path) {
+    var result;
+
+    if (!workspaceState.lazy || !workspaceStore || !workspaceStore.loadDirectory) {
+      return;
+    }
+    result = await workspaceStore.loadDirectory(workspaceState.workspace, workspaceState.tree, path);
+    workspaceState.tree = result.tree;
+    workspaceState.files = result.files;
+    workspaceState.directories = result.directories;
+    renderWorkspaceSidebar();
   }
 
   async function restoreWorkspaceTabs(sessionData, options) {
@@ -2262,12 +2389,13 @@
       renderWorkspaceSidebar();
       result = await workspaceStore.scanWorkspace(restoredSession.workspaceHandle);
       await assignWorkspaceIdForScanResult(result);
-      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle)) {
+      if (!await closePreviousWorkspaceTabsForSwitch(result)) {
         workspaceState.isScanning = false;
         renderWorkspaceSidebar();
         updateWorkspaceMenuControls();
         return;
       }
+      await closeActiveWorkspaceStorage(result);
       applyWorkspaceScanResult(result);
       await addRecentWorkspace(result.rootHandle, result.rootName);
       if (workspaceSidebar && typeof workspaceSidebar.setCollapsedFolders === "function") {
@@ -2340,7 +2468,7 @@
       updateWorkspaceMenuControls();
       result = await workspaceStore.scanWorkspace(openedRecord.workspaceHandle);
       await assignWorkspaceIdForScanResult(result);
-      if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle, {
+      if (!await closePreviousWorkspaceTabsForSwitch(result, {
         deferEmptyTab: Boolean(openedRecord.openedTabs && openedRecord.openedTabs.length)
       })) {
         workspaceState.isScanning = false;
@@ -2348,6 +2476,7 @@
         updateWorkspaceMenuControls();
         return;
       }
+      await closeActiveWorkspaceStorage(result);
       restorableWorkspaceSession = null;
       applyWorkspaceScanResult(result);
       await addRecentWorkspace(result.rootHandle, result.rootName);
@@ -2422,11 +2551,11 @@
     await handleRecentWorkspaceOpen(parts[1]);
   }
 
-  async function handleRefreshWorkspace() {
+  async function handleRefreshWorkspace(path) {
     var result;
 
     closeWorkspaceMenu();
-    if (!workspaceState.rootHandle || !workspaceStore) {
+    if (!hasActiveWorkspace() || !workspaceStore) {
       return;
     }
 
@@ -2436,6 +2565,16 @@
     updateWorkspaceMenuControls();
 
     try {
+      if (workspaceState.lazy && path) {
+        result = await workspaceStore.loadDirectory(workspaceState.workspace, workspaceState.tree, path);
+        workspaceState.tree = result.tree;
+        workspaceState.files = result.files;
+        workspaceState.directories = result.directories;
+        workspaceState.isScanning = false;
+        renderWorkspaceSidebar();
+        updateWorkspaceMenuControls();
+        return;
+      }
       result = await workspaceStore.scanWorkspace(workspaceState.workspace || workspaceState.rootHandle, {
         workspaceId: workspaceState.id
       });
@@ -2447,11 +2586,23 @@
 
   async function handleWorkspaceContentSearch(query) {
     var searchQuery = String(query || "");
+    var capabilities = workspaceState.workspace && workspaceState.workspace.capabilities || {};
     var result;
 
-    if (!workspaceSearch || !workspaceState.rootHandle || !searchQuery.trim()) {
+    if (!workspaceSearch || !hasActiveWorkspace() || !searchQuery.trim()) {
       workspaceContentSearchState = {
         error: "",
+        isSearching: false,
+        limited: false,
+        query: searchQuery,
+        results: []
+      };
+      renderWorkspaceSidebar();
+      return;
+    }
+    if (capabilities.search === false) {
+      workspaceContentSearchState = {
+        error: "Remote workspace search is not available yet.",
         isSearching: false,
         limited: false,
         query: searchQuery,
@@ -2656,7 +2807,7 @@
 
   async function handleWorkspaceContextAction(action, target) {
     if (action === "refresh") {
-      await handleRefreshWorkspace();
+      await handleRefreshWorkspace(target && target.kind === "directory" ? target.path : "");
       return;
     }
     if (action === "open" && target && target.path) {
@@ -2688,8 +2839,20 @@
     }
   }
 
-  function handleCloseWorkspace() {
+  async function handleCloseWorkspace() {
+    var provider = activeWorkspaceProvider();
+
     closeWorkspaceMenu();
+    if (hasActiveWorkspace() && provider && typeof provider.closeWorkspace === "function") {
+      try {
+        await provider.closeWorkspace(workspaceState.workspace);
+      } catch (error) {
+        if (workspaceState.providerId === "remote-ssh") {
+          showWorkspaceError(error && error.message || "Could not close the remote workspace.");
+          return;
+        }
+      }
+    }
     resetWorkspaceState();
     restorableWorkspaceSession = null;
     if (workspaceSession && workspaceSession.clearSession) {
@@ -2879,15 +3042,24 @@
 
   function updateFileControls() {
     var supported = isFileAccessSupported();
-    var controls = [openFileButton, saveFileButton, saveAsFileButton];
+    var activeSession = getActiveSession();
+    var remoteReadOnly = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
 
-    controls.forEach(function (control) {
-      control.disabled = !supported;
-    });
+    openFileButton.disabled = !supported;
+    saveFileButton.disabled = !supported || remoteReadOnly;
+    saveAsFileButton.disabled = !supported || remoteReadOnly;
+    saveFileButton.title = remoteReadOnly
+      ? "Remote workspaces are currently read-only"
+      : "Save document (Ctrl/Cmd+S)";
+    saveAsFileButton.title = remoteReadOnly
+      ? "Remote Save As is not available yet"
+      : "Save document as (Ctrl/Cmd+Shift+S)";
 
     if (insertImageButton) {
-      insertImageButton.disabled = !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
-      insertImageButton.title = !activeDocumentAllowsMarkdownCommands()
+      insertImageButton.disabled = remoteReadOnly || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
+      insertImageButton.title = remoteReadOnly
+        ? "Remote image asset storage is not available yet"
+        : !activeDocumentAllowsMarkdownCommands()
         ? "Images can be inserted only in Markdown files"
         : isImagePickerSupported()
         ? "Insert image"
@@ -3025,6 +3197,12 @@
     var images;
 
     if (!session || !activeDocumentAllowsMarkdownCommands() || !files || !files.length) {
+      return;
+    }
+    if (session.storageProviderId === "remote-ssh") {
+      showAssetError(options.action || "Insert image", new Error(
+        "Remote image asset storage is not available yet. No local asset folder was used."
+      ));
       return;
     }
 
@@ -3630,6 +3808,12 @@
     var activeSession = getActiveSession();
 
     closeFileMenu();
+    if (activeSession && activeSession.storageProviderId === "remote-ssh") {
+      if (statusBarController) {
+        statusBarController.showMessage("Remote workspaces are read-only in this phase.", 5000);
+      }
+      return;
+    }
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -3651,6 +3835,12 @@
     var activeSession = getActiveSession();
 
     closeFileMenu();
+    if (activeSession && activeSession.storageProviderId === "remote-ssh") {
+      if (statusBarController) {
+        statusBarController.showMessage("Remote Save As is not available while the workspace is read-only.", 5000);
+      }
+      return;
+    }
     if (!isFileAccessSupported() || !activeSession) {
       return;
     }
@@ -4700,6 +4890,8 @@
           modeLabel: modeLabel.textContent,
           sourceOnly: Boolean(session && session.sourceOnly),
           validationState: session ? session.validationState : null,
+          storageProviderId: session ? session.storageProviderId : "",
+          title: session ? session.title : "",
           markdownHidden: markdownEditor.hidden,
           wysiwygHidden: wysiwygEditor.hidden
         };
@@ -4774,6 +4966,14 @@
     if (storageProviders && localFilesystemProvider && !storageProviders.get(localFilesystemProvider.id)) {
       storageProviders.register(localFilesystemProvider);
     }
+    if (remoteSSHProviderModule && !remoteSSHProvider) {
+      remoteSSHProvider = remoteSSHProviderModule.create({
+        getBridgeClient: function () { return ME.activeBridgeClient || null; }
+      });
+    }
+    if (storageProviders && remoteSSHProvider && !storageProviders.get(remoteSSHProvider.id)) {
+      storageProviders.register(remoteSSHProvider);
+    }
 
     if (ME.statusBar) {
       statusBarController = ME.statusBar.create({
@@ -4845,9 +5045,7 @@
             statusBarController.showMessage(message, kind === "error" ? 8000 : 4000);
           }
         },
-        onRemoteFolderSelected: function (selection) {
-          ME.pendingRemoteWorkspace = selection;
-        },
+        onRemoteFolderSelected: handleOpenRemoteWorkspace,
         profileForm: document.getElementById("remoteConnectionForm"),
         profileFormCancel: document.getElementById("remoteConnectionFormCancel"),
         profileFormSave: document.getElementById("remoteConnectionFormSave"),
@@ -4911,6 +5109,7 @@
         onContextAction: handleWorkspaceContextAction,
         onOpenFile: openWorkspaceFile,
         onOpenFolder: handleOpenWorkspaceFolder,
+        onExpandFolder: handleExpandWorkspaceFolder,
         onRefresh: handleRefreshWorkspace,
         onClose: handleCloseWorkspace,
         onRestoreAction: handleRestoreWorkspaceSession,

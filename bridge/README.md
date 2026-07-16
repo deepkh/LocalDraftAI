@@ -23,8 +23,9 @@ The bridge serves the unchanged static frontend, keeps SSH credentials and host 
 - Profile RPCs list, create, update, and remove saved connections and discover supported aliases from `~/.ssh/config`.
 - Connection RPCs connect, answer one-time host-key or secret prompts, disconnect, reconnect, inspect status, and browse absolute remote directories for folder selection.
 - Successful SSH authentication starts an SFTP client; no remote shell or LocalDraftAI remote agent is used.
+- Workspace RPCs open, close, and inspect a canonical SFTP workspace root. `fs.listDirectory`, `fs.stat`, and `fs.readText` accept only workspace IDs and relative POSIX paths.
 
-The server limits WebSocket JSON messages to 16 MB, concurrent RPC calls to 8, normal calls to 30 seconds, and search calls to 120 seconds. Its structured in-memory log is bounded to 200 entries and never records request bodies, cookies, startup tokens, secrets, or document contents.
+The server limits WebSocket JSON messages to 16 MB, concurrent RPC calls to 8, normal calls to 30 seconds, and search calls to 120 seconds. Directory listings are limited to 5,000 entries and text reads to 10 MB; limit violations return structured errors rather than partial content. Its structured in-memory log is bounded to 200 entries and never records request bodies, cookies, startup tokens, secrets, or document contents.
 
 ## Build and launch
 
@@ -69,4 +70,10 @@ Exact aliases from `~/.ssh/config` may supply `Host`, `HostName`, `User`, `Port`
 
 An unknown host key must be confirmed by fingerprint before it is appended to the bridge-managed `known_hosts`. A changed key is blocked and reports both expected and received fingerprints; it is never replaced automatically.
 
-When loaded from the authenticated bridge origin, LocalDraftAI exposes remote status, connection management, host-key and secret prompts, folder browsing, and the redacted connection log. The same commands remain disabled on the hosted and standalone static app. Remote workspace file operations arrive in the storage-provider phases. The hosted `https://localdraft.ai/` app remains local-only and does not probe a loopback bridge.
+## Read-only remote workspaces
+
+`workspace.open` resolves the selected absolute folder through SFTP and stores its canonical path in bridge memory. Subsequent filesystem calls reject absolute paths, dot components, Windows or UNC paths, and any existing target whose resolved path escapes the workspace through a symlink or root-prefix ambiguity. The bridge uses SFTP APIs only; it never constructs remote shell commands.
+
+Remote Explorer listings contain directories and regular files with metadata. The frontend filters supported document types through its central registry and loads directories lazily. `fs.readText` stats before reading, rejects files over 10 MB, reads bounded exact UTF-8 bytes without changing a BOM, line endings, or final newline, then returns size, modification time, and a SHA-256 hash.
+
+At this stage the remote provider is intentionally read-only. Remote writes, search, restoration, Related integration, and binary assets are documented implementation phases rather than silently falling back to local file access. The hosted `https://localdraft.ai/` app remains local-only and does not probe a loopback bridge.

@@ -1151,6 +1151,18 @@
       white-space: nowrap;
     }
 
+    .workspace-tree-message {
+      min-height: 26px;
+      padding: 4px 8px 4px calc(26px + (var(--workspace-tree-depth) * 14px));
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .workspace-tree-message.is-error {
+      color: var(--status-error-text);
+    }
+
     .workspace-plan-badge {
       flex: 0 0 auto;
       margin-left: auto;

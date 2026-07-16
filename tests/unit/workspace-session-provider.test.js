@@ -31,6 +31,14 @@ assert.equal(remote.providerId, "remote-ssh");
 assert.equal(remote.workspaceHandle, null);
 assert.equal(remote.workspaceRef.connectionId, "home-server");
 assert.equal(remote.workspaceRef.remoteRootPath, "/home/gary/notes");
+assert.equal(sessions.sameRemoteWorkspaceRef(remote.workspaceRef, {
+  connectionId: "home-server",
+  remoteRootPath: "/home/gary/notes"
+}), true);
+assert.equal(sessions.sameRemoteWorkspaceRef(remote.workspaceRef, {
+  connectionId: "home-server",
+  remoteRootPath: "/home/gary/other"
+}), false);
 
 const recent = sessions.normalizeRecentWorkspaceRecord({
   providerId: "local-fsa",

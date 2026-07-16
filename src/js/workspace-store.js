@@ -57,6 +57,81 @@
     return nodes;
   }
 
+  function treeNodeFromEntry(entry, workspace) {
+    var descriptor;
+
+    if (entry.kind === "directory") {
+      return {
+        kind: "directory",
+        name: entry.name,
+        path: entry.path,
+        loaded: Boolean(entry.loaded),
+        loading: Boolean(entry.loading),
+        error: "",
+        children: entry.children || []
+      };
+    }
+    descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(entry.name);
+    return {
+      kind: "file",
+      name: entry.name,
+      path: entry.path,
+      resource: entry.resource || null,
+      revision: entry.revision || entry.resource && entry.resource.revision || null,
+      extension: entry.extension || extensionForName(entry.name),
+      documentType: descriptor ? descriptor.id : entry.documentType || "markdown",
+      isPlan: isMarkdownFile(entry.name) && ME.workspaceRelated && ME.workspaceRelated.isPlanFile
+        ? ME.workspaceRelated.isPlanFile(entry.path)
+        : false,
+      workspaceId: workspace && workspace.id || ""
+    };
+  }
+
+  function treeFromEntries(entries, workspace) {
+    return sortTree((entries || []).map(function (entry) {
+      return treeNodeFromEntry(entry, workspace);
+    }));
+  }
+
+  function findTreeNode(nodes, path) {
+    var i;
+    var found;
+
+    for (i = 0; i < (nodes || []).length; i += 1) {
+      if (nodes[i].path === path) {
+        return nodes[i];
+      }
+      if (nodes[i].kind === "directory") {
+        found = findTreeNode(nodes[i].children || [], path);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  function collectLazyTreeState(nodes, files, directories) {
+    files = files || [];
+    directories = directories || [];
+    (nodes || []).forEach(function (node) {
+      if (node.kind === "directory") {
+        directories.push({
+          kind: "directory",
+          name: node.name,
+          path: node.path,
+          loaded: node.loaded !== false,
+          loading: Boolean(node.loading),
+          error: node.error || ""
+        });
+        collectLazyTreeState(node.children || [], files, directories);
+      } else {
+        files.push(node);
+      }
+    });
+    return { directories: directories, files: files };
+  }
+
   function buildTree(files, directories) {
     var root = [];
     var directoriesByPath = {};
@@ -158,6 +233,7 @@
             kind: "directory",
             loaded: node.loaded !== false,
             loading: Boolean(node.loading),
+            error: node.error || "",
             children: selfMatches ? node.children || [] : childMatches
           });
         }
@@ -250,6 +326,23 @@
         name: workspaceOrHandle && workspaceOrHandle.name
       });
     }
+    if (provider.id === "remote-ssh") {
+      var rootEntries = await provider.listDirectory(workspace, "", {});
+      var lazyTree = treeFromEntries(rootEntries, workspace);
+      var lazyState = collectLazyTreeState(lazyTree);
+
+      return {
+        directories: lazyState.directories,
+        rootHandle: null,
+        rootName: workspace.name || "Remote Workspace",
+        providerId: provider.id,
+        workspace: workspace,
+        workspaceId: workspace.id,
+        files: lazyState.files,
+        tree: lazyTree,
+        lazy: true
+      };
+    }
     files = await scanDirectory(provider, workspace, "", [], directories);
     rootHandle = provider.getLegacyWorkspaceHandle ? provider.getLegacyWorkspaceHandle(workspace) : null;
 
@@ -273,18 +366,62 @@
       throw new Error("Local folder access is not supported in this browser.");
     }
     workspace = await provider.openWorkspace(options || {});
-    return scanWorkspace(workspace);
+    try {
+      return await scanWorkspace(workspace);
+    } catch (error) {
+      if (provider.closeWorkspace) {
+        try {
+          await provider.closeWorkspace(workspace);
+        } catch (closeError) {
+          // Preserve the original open/listing failure.
+        }
+      }
+      throw error;
+    }
+  }
+
+  async function loadDirectory(workspace, tree, relativePath) {
+    var provider = workspace && ME.storageProviders && ME.storageProviders.getForWorkspace(workspace);
+    var node = findTreeNode(tree || [], relativePath);
+    var entries;
+    var state;
+
+    if (!provider || !node || node.kind !== "directory") {
+      throw new Error("The workspace directory is unavailable.");
+    }
+    node.loading = true;
+    node.error = "";
+    try {
+      entries = await provider.listDirectory(workspace, relativePath, {});
+      node.children = treeFromEntries(entries, workspace);
+      node.loaded = true;
+      node.loading = false;
+    } catch (error) {
+      node.loaded = false;
+      node.loading = false;
+      node.error = error && error.message || "Could not load this remote directory.";
+    }
+    state = collectLazyTreeState(tree || []);
+    return {
+      directories: state.directories,
+      error: node.error || "",
+      files: state.files,
+      tree: tree || []
+    };
   }
 
   ME.workspaceStore = {
     buildTree: buildTree,
     extensionForName: extensionForName,
     filterTree: filterTree,
+    findTreeNode: findTreeNode,
     isAbortError: isAbortError,
     isMarkdownFile: isMarkdownFile,
     isSupportedFileName: isSupportedFileName,
     isSupported: isSupported,
     openWorkspace: openWorkspace,
-    scanWorkspace: scanWorkspace
+    scanWorkspace: scanWorkspace,
+    loadDirectory: loadDirectory,
+    treeFromEntries: treeFromEntries
   };
 }());

@@ -37,6 +37,7 @@ src/js/local-filesystem-provider.js Local File System Access provider
 src/js/bridge-client.js       Authenticated same-origin JSON-RPC bridge client and detection
 src/js/remote-status.js       Remote Status Bar state, labels, menu, and command availability
 src/js/remote-connection-ui.js SSH profile, prompt, folder selection, and connection-log dialogs
+src/js/remote-ssh-provider.js Read-only Remote SSH workspace storage provider
 src/js/document-type.js      Central supported-extension and document-capability registry
 src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
@@ -45,7 +46,7 @@ src/js/editor-mode.js        Editor mode, Soft Wrap, and caret/offset helpers
 src/js/editor-actions.js     Editor formatting commands
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
-src/js/workspace-store.js    Local folder workspace scanning and supported text-document tree model
+src/js/workspace-store.js    Eager local and lazy remote supported text-document tree model
 src/js/workspace-sidebar.js  Left workspace sidebar rendering, persisted mode, and resizing
 src/js/workspace-session.js  IndexedDB workspace handle, recent workspaces, and opened-tab session restore
 src/js/workspace-operations.js Safe text-document/folder operations from the workspace sidebar
@@ -53,6 +54,7 @@ src/js/workspace-search.js   Supported workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Local image workspace/assets handling
 bridge/                      Isolated Go loopback bridge module
+bridge/internal/remotefs/    Workspace-confined SFTP directory and text-read service
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         Compatibility facade for configured AI actions
 src/js/ai-action-defaults.js Default AI Actions YAML
@@ -111,11 +113,13 @@ Use these routes:
   - `src/js/bridge-client.js`
   - `src/js/remote-status.js`
   - `src/js/remote-connection-ui.js`
+  - `src/js/remote-ssh-provider.js`
   - `bridge/internal/appserver/`
   - `bridge/internal/protocol/`
   - `bridge/internal/logbuffer/`
   - `bridge/internal/config/`
   - `bridge/internal/sshconn/`
+  - `bridge/internal/remotefs/`
   - `bridge/internal/testssh/`
 - Supported document types and structured validation:
   - `src/js/document-type.js`
@@ -171,6 +175,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - The static app detects a bridge only through same-origin `/api/health`; the hosted site does not probe loopback. Remote command controls remain disabled unless that handshake succeeds.
 - The Remote Status Bar item always identifies local or SSH state. SSH commands are enabled only after an authenticated same-origin bridge handshake; hosted and standalone static origins keep them disabled.
 - Remote connection UI owns profile management, host-key confirmation, prompt-scoped password/passphrase entry, remote folder selection, and the redacted connection log. Clear secret inputs before requests settle, never use browser storage for them, and do not switch workspaces until the selected folder opens successfully.
+- A bridge-served Remote SSH workspace uses `remote-ssh`, opens only after SFTP canonicalizes its absolute root, and passes only workspace-relative POSIX paths after opening. Existing targets must resolve at or below the canonical root; reject absolute, dot, dot-dot, Windows, UNC, root-prefix, and symlink-escape paths.
+- Remote Explorer trees are lazy: open lists only the root, expansion loads one directory through the provider, unsupported files stay hidden through `document-type.js`, empty directories stay visible, and a directory error stays attached to that node. Local workspace trees remain eager.
+- Remote documents are read-only until the write phase. Keep remote Save, Save As, New File, New Folder, Rename, Duplicate, search, and binary asset capabilities disabled, and never fall back to local browser file APIs for remote resources.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.
