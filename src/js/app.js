@@ -5963,6 +5963,7 @@
   function installTestApi() {
     var params;
     var testWorkspaceContents = {};
+    var nextTestWorkspaceFixtureId = 1;
 
     function testFileText(path) {
       return Object.prototype.hasOwnProperty.call(testWorkspaceContents, path)
@@ -6063,6 +6064,102 @@
       return fileItems.map(function (item) {
         return { documentType: item.documentType, name: item.name, path: item.path };
       });
+    }
+
+    async function loadWorkspaceFixtureForTest(fixture) {
+      var directoryPaths = {};
+      var entriesByDirectory = { "": [] };
+      var files;
+      var listCalls = [];
+      var providerId = "e2e-local-fixture-" + nextTestWorkspaceFixtureId++;
+      var provider;
+      var result;
+      var workspaceDescriptor;
+
+      fixture = fixture || {};
+      files = fixture.files || {};
+      testWorkspaceContents = Object.assign({}, files);
+
+      function addDirectoryPath(directoryPath) {
+        var parts = String(directoryPath || "").split("/").filter(Boolean);
+        var currentPath = "";
+
+        parts.forEach(function (part) {
+          currentPath = [currentPath, part].filter(Boolean).join("/");
+          directoryPaths[currentPath] = true;
+        });
+      }
+
+      function addEntry(directoryPath, entry) {
+        entriesByDirectory[directoryPath] = entriesByDirectory[directoryPath] || [];
+        if (!entriesByDirectory[directoryPath].some(function (existing) {
+          return existing.path === entry.path;
+        })) {
+          entriesByDirectory[directoryPath].push(entry);
+        }
+      }
+
+      (fixture.directories || []).forEach(addDirectoryPath);
+      Object.keys(files).forEach(function (filePath) {
+        addDirectoryPath(filePath.split("/").slice(0, -1).join("/"));
+      });
+      Object.keys(directoryPaths).sort(function (left, right) {
+        return left.split("/").length - right.split("/").length;
+      }).forEach(function (directoryPath) {
+        var parts = directoryPath.split("/");
+        var name = parts.pop();
+        var parentPath = parts.join("/");
+
+        entriesByDirectory[directoryPath] = entriesByDirectory[directoryPath] || [];
+        addEntry(parentPath, {
+          kind: "directory",
+          name: name,
+          path: directoryPath
+        });
+      });
+      Object.keys(files).forEach(function (filePath) {
+        var parts = filePath.split("/");
+        var name = parts.pop();
+        var directoryPath = parts.join("/");
+
+        addEntry(directoryPath, {
+          kind: "file",
+          name: name,
+          path: filePath
+        });
+      });
+
+      provider = {
+        id: providerId,
+        async listDirectory(workspace, directoryPath) {
+          listCalls.push(directoryPath || "");
+          return (entriesByDirectory[directoryPath || ""] || []).slice();
+        }
+      };
+      storageProviders.register(provider);
+      workspaceDescriptor = {
+        id: providerId + "-workspace",
+        providerId: providerId,
+        name: fixture.name || "RelevantFoldersTest",
+        capabilities: {
+          createDirectory: true,
+          createFile: true,
+          read: true,
+          write: true
+        }
+      };
+      result = await workspaceStore.scanWorkspace(workspaceDescriptor);
+      applyWorkspaceScanResult(result);
+
+      return {
+        directories: result.directories.map(function (item) {
+          return item.path;
+        }),
+        files: result.files.map(function (item) {
+          return item.path;
+        }),
+        listCalls: listCalls
+      };
     }
 
     function loadDocumentForTest(filename, text) {
@@ -6181,6 +6278,7 @@
       },
       loadDocumentForTest: loadDocumentForTest,
       loadMarkdownForTest: loadDocumentForTest,
+      loadWorkspaceFixtureForTest: loadWorkspaceFixtureForTest,
       loadWorkspaceForTest: loadWorkspaceForTest,
       openWorkspaceFileForTest: function (path, options) {
         return openWorkspaceFile(path, options);

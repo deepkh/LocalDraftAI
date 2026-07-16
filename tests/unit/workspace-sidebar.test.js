@@ -113,6 +113,43 @@ function createFileSearchInput(value) {
   };
 }
 
+function createContextTarget(kind, path) {
+  const targetElement = {
+    getAttribute(name) {
+      if (name === "data-workspace-path" || name === "data-workspace-folder-path") {
+        return path;
+      }
+      return "";
+    }
+  };
+
+  return {
+    closest(selector) {
+      if (kind === "file" && selector === "[data-workspace-path]") {
+        return targetElement;
+      }
+      if (kind === "directory" && selector === "[data-workspace-folder-path]") {
+        return targetElement;
+      }
+      return null;
+    }
+  };
+}
+
+function createContextActionTarget(action) {
+  const actionElement = {
+    getAttribute(name) {
+      return name === "data-workspace-context-action" ? action : "";
+    }
+  };
+
+  return {
+    closest(selector) {
+      return selector === "[data-workspace-context-action]" ? actionElement : null;
+    }
+  };
+}
+
 global.window = {
   innerWidth: 1200,
   addEventListener() {},
@@ -143,17 +180,22 @@ function runTest(name, callback) {
   }
 }
 
-function createSidebar(storage) {
+function createSidebar(storage, options) {
   const root = createElement();
   const workspace = createElement();
+  const contextActions = [];
   const folderChanges = [];
   const scrollChanges = [];
 
+  options = options || {};
   storage.values[workspaceSidebar.MODE_STORAGE_KEY] = "expanded";
   const sidebar = workspaceSidebar.create({
     rootElement: root,
     storage,
     workspaceElement: workspace,
+    onContextAction(action, target) {
+      contextActions.push({ action, target });
+    },
     onFolderStateChange(paths) {
       folderChanges.push(paths);
     },
@@ -166,16 +208,17 @@ function createSidebar(storage) {
   sidebar.update({
     workspaceState: {
       rootName: "Project",
-      tree: workspaceStore.buildTree([
+      tree: options.tree || workspaceStore.buildTree([
         { name: "ai-agent.md", path: "docs/ai-agent.md" },
         { name: "archive.md", path: "docs/archive/archive.md" },
         { name: "plan.md", path: "plans/plan.md" },
         { name: "README.md", path: "README.md" }
-      ])
+      ]),
+      capabilities: options.capabilities || {}
     }
   });
 
-  return { folderChanges, root, scrollChanges, sidebar };
+  return { contextActions, folderChanges, root, scrollChanges, sidebar };
 }
 
 runTest("omits an internal header and duplicate controls from every primary sidebar view", function () {
@@ -389,4 +432,125 @@ runTest("collapse all keeps active file parent folders expanded", function () {
   assert.deepEqual(view.sidebar.getCollapsedFolders(), ["plans"]);
   assert.match(view.root.innerHTML, /archive\.md/);
   assert.doesNotMatch(view.root.innerHTML, /plan\.md/);
+});
+
+runTest("renders only relevant folders, their ancestors, and supported file rows", function () {
+  const storage = createStorage();
+  const completeTree = workspaceStore.buildTree([
+    { name: "launch.json", path: ".vscode/launch.json" },
+    { name: "README.md", path: "docs/README.md" },
+    { name: "design.yaml", path: "notes/architecture/design.yaml" }
+  ], [
+    { name: ".vscode", path: ".vscode" },
+    { name: "docs", path: "docs" },
+    { name: "include", path: "include" },
+    { name: "lib", path: "lib" },
+    { name: "notes", path: "notes" },
+    { name: "architecture", path: "notes/architecture" },
+    { name: "src", path: "src" },
+    { name: "internal", path: "src/internal" },
+    { name: "assets", path: "assets" }
+  ]);
+  const view = createSidebar(storage, {
+    tree: workspaceStore.pruneTreeToRelevantFolders(completeTree)
+  });
+
+  [".vscode/", "docs/", "notes/", "architecture/", "launch.json", "README.md", "design.yaml"].forEach(function (label) {
+    assert.match(view.root.innerHTML, new RegExp(label.replace(".", "\\.")), label);
+  });
+  ["include/", "lib/", "src/", "internal/", "assets/"].forEach(function (label) {
+    assert.doesNotMatch(view.root.innerHTML, new RegExp(label), label);
+  });
+  assert.match(view.root.innerHTML, /data-workspace-path="\.vscode\/launch\.json"/);
+  assert.match(view.root.innerHTML, /data-workspace-path="docs\/README\.md"/);
+  assert.match(view.root.innerHTML, /data-workspace-path="notes\/architecture\/design\.yaml"/);
+});
+
+runTest("renders the supported-files empty message for an empty canonical tree", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage, { tree: [] });
+
+  assert.match(view.root.innerHTML, /No supported text files found in this folder/);
+  assert.match(view.root.innerHTML, /data-workspace-root="true"/);
+});
+
+runTest("file-name filtering retains matching ancestors and restores the relevant tree", function () {
+  const storage = createStorage();
+  const tree = workspaceStore.buildTree([
+    { name: "README.md", path: "docs/README.md" },
+    { name: "design.yaml", path: "notes/architecture/design.yaml" }
+  ]);
+  const view = createSidebar(storage, { tree });
+
+  view.root.dispatch("input", {
+    target: createFileSearchInput("design")
+  });
+
+  assert.match(view.root.innerHTML, /notes\//);
+  assert.match(view.root.innerHTML, /architecture\//);
+  assert.match(view.root.innerHTML, /design\.yaml/);
+  assert.doesNotMatch(view.root.innerHTML, /docs\//);
+  assert.doesNotMatch(view.root.innerHTML, /README\.md/);
+
+  view.root.dispatch("input", {
+    target: createFileSearchInput("")
+  });
+
+  assert.match(view.root.innerHTML, /docs\//);
+  assert.match(view.root.innerHTML, /README\.md/);
+  assert.match(view.root.innerHTML, /notes\//);
+  assert.match(view.root.innerHTML, /design\.yaml/);
+});
+
+runTest("stale collapsed paths do not create nonexistent folder rows", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage, {
+    tree: workspaceStore.buildTree([
+      { name: "README.md", path: "docs/README.md" }
+    ])
+  });
+
+  view.sidebar.setCollapsedFolders(["hidden", "docs"]);
+
+  assert.doesNotMatch(view.root.innerHTML, /data-workspace-folder-path="hidden"/);
+  assert.match(view.root.innerHTML, /data-workspace-folder-path="docs"/);
+  assert.doesNotMatch(view.root.innerHTML, /README\.md/);
+});
+
+runTest("a transient preserved empty folder receives folder context actions", function () {
+  const storage = createStorage();
+  const completeTree = workspaceStore.buildTree([], [
+    { name: "drafts", path: "drafts" },
+    { name: "new", path: "drafts/new" }
+  ]);
+  const view = createSidebar(storage, {
+    capabilities: {
+      createDirectory: true,
+      createFile: true
+    },
+    tree: workspaceStore.pruneTreeToRelevantFolders(completeTree, {
+      preserveDirectoryPaths: ["drafts/new"]
+    })
+  });
+
+  view.root.dispatch("contextmenu", {
+    clientX: 40,
+    clientY: 60,
+    preventDefault() {},
+    target: createContextTarget("directory", "drafts/new")
+  });
+
+  assert.match(view.root.innerHTML, /data-workspace-context-action="new-file"/);
+  assert.match(view.root.innerHTML, /data-workspace-context-action="new-folder"/);
+  view.root.dispatch("click", {
+    target: createContextActionTarget("new-file")
+  });
+  assert.deepEqual(view.contextActions, [{
+    action: "new-file",
+    target: {
+      kind: "directory",
+      name: "new",
+      path: "drafts/new"
+    }
+  }]);
 });
