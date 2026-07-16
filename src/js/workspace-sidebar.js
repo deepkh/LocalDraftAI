@@ -546,6 +546,7 @@
 
     function renderSearchResults() {
       var search = state.search || {};
+      var notice = "";
 
       if (!state.rootName) {
         return "<div class=\"workspace-empty\">Open a workspace to search document content.</div>";
@@ -556,11 +557,19 @@
       if (search.isSearching) {
         return "<div class=\"workspace-empty\">Searching document content...</div>";
       }
+      if (search.warningCount) {
+        notice += "<div class=\"workspace-search-limit\">Skipped " + String(search.warningCount) +
+          " unreadable or oversized file" + (search.warningCount === 1 ? "" : "s") + ".</div>";
+      }
+      if (search.limited) {
+        notice += "<div class=\"workspace-search-limit\">Showing the first " +
+          String(search.maxResults || 100) + " matches; the search limit was reached.</div>";
+      }
       if (!contentSearchQuery.trim()) {
         return "<div class=\"workspace-empty\">Search scans supported text documents in the current workspace.</div>";
       }
       if (!search.results || !search.results.length) {
-        return "<div class=\"workspace-empty\">No matches found.</div>";
+        return "<div class=\"workspace-empty\">No matches found.</div>" + notice;
       }
 
       return "<div class=\"workspace-content-results\">" +
@@ -572,8 +581,7 @@
             "<span class=\"workspace-result-preview\">line " + String(result.line || 1) + ": " +
             escapeHtml(result.preview || "") + "</span>" +
             "</button>";
-        }).join("") +
-        (search.limited ? "<div class=\"workspace-search-limit\">Showing first 100 matches.</div>" : "") +
+        }).join("") + notice +
         "</div>";
     }
 

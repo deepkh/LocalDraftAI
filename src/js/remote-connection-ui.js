@@ -724,6 +724,7 @@
     return {
       bindEvents: bindEvents,
       chooseRemoteFolder: chooseRemoteFolder,
+      connect: connectConnection,
       connectSelected: connectSelected,
       disconnect: disconnect,
       getConnection: function () { return Object.assign({}, connection); },

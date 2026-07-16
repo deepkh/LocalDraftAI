@@ -111,6 +111,26 @@ runTest("normalizes recent workspace records with restore metadata", function ()
   assert.equal(record.workspaceHandle, handle);
 });
 
+runTest("normalizes version-3 remote sessions without document content", function () {
+  const metadata = workspaceSession.normalizeSessionMetadata({
+    activePath: "plans/project.md",
+    openedTabs: [{ path: "plans/project.md", mode: "markdown", selectionStart: 5, selectionEnd: 9 }],
+    providerId: "remote-ssh",
+    workspaceRef: { connectionId: "home-server", remoteRootPath: "/home/gary/notes" },
+    workspaceName: "notes"
+  });
+
+  assert.equal(metadata.providerId, "remote-ssh");
+  assert.equal(metadata.workspaceHandle, null);
+  assert.deepEqual(metadata.workspaceRef, {
+    connectionId: "home-server",
+    localHandle: null,
+    remoteRootPath: "/home/gary/notes"
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(metadata.openedTabs[0], "content"), false);
+  assert.equal(workspaceSession.isRestorableSessionMetadata(metadata), true);
+});
+
 runTest("queries permission state from stored handles", async function () {
   const handle = {
     queryPermission(options) {

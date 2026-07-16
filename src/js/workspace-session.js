@@ -160,6 +160,15 @@
     };
   }
 
+  function isRestorableSessionMetadata(session) {
+    var normalized = normalizeSessionMetadata(session);
+
+    return Boolean(
+      normalized.providerId === "local-fsa" && normalized.workspaceRef.localHandle ||
+      normalized.providerId === "remote-ssh" && normalized.workspaceRef.connectionId && normalized.workspaceRef.remoteRootPath
+    );
+  }
+
   function normalizeRecentWorkspaceRecord(record) {
     var session = normalizeSessionMetadata({
       activePath: record && record.activePath,
@@ -220,10 +229,7 @@
 
   function hasRestorableSession() {
     return loadSession().then(function (session) {
-      return Boolean(session && (
-        session.providerId === "local-fsa" && session.workspaceRef.localHandle ||
-        session.providerId === "remote-ssh" && session.workspaceRef.connectionId && session.workspaceRef.remoteRootPath
-      ));
+      return Boolean(session && isRestorableSessionMetadata(session));
     });
   }
 
@@ -374,7 +380,7 @@
     record.providerId = normalized.providerId;
     record.workspaceRef = normalized.workspaceRef;
     record.workspaceName = normalized.workspaceName;
-    record.lastOpened = record.lastOpened || Date.now();
+    record.lastOpened = Date.now();
 
     await withNamedStore(RECENT_WORKSPACES_STORE_NAME, "readwrite", function (store) {
       return requestToPromise(existingRecord ? store.put(record) : store.add(record));
@@ -405,6 +411,15 @@
     return normalized;
   }
 
+  function openRecentRemoteWorkspace(record) {
+    var normalized = normalizeRecentWorkspaceRecord(record);
+
+    if (normalized.providerId !== "remote-ssh" || !isRestorableSessionMetadata(normalized)) {
+      throw new Error("Recent remote workspace entry was not found.");
+    }
+    return normalized;
+  }
+
   async function queryWorkspacePermission(handle, mode) {
     var provider = ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider;
 
@@ -428,6 +443,7 @@
     addRecentWorkspace: addRecentWorkspace,
     clearSession: clearSession,
     hasRestorableSession: hasRestorableSession,
+    isRestorableSessionMetadata: isRestorableSessionMetadata,
     isSupported: isSupported,
     listRecentWorkspaces: listRecentWorkspaces,
     loadSession: loadSession,
@@ -435,6 +451,7 @@
     normalizeRecentWorkspaceRecord: normalizeRecentWorkspaceRecord,
     normalizeTabMetadata: normalizeTabMetadata,
     openRecentWorkspace: openRecentWorkspace,
+    openRecentRemoteWorkspace: openRecentRemoteWorkspace,
     queryWorkspacePermission: queryWorkspacePermission,
     removeRecentWorkspace: removeRecentWorkspace,
     requestWorkspacePermission: requestWorkspacePermission,

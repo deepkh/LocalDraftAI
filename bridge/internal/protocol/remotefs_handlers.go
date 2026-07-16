@@ -164,6 +164,25 @@ func RegisterRemoteFilesystemHandlers(router *Router, service *remotefs.Service)
 		}
 		return result, nil
 	})
+	router.Register("fs.searchText", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID   string `json:"workspaceId"`
+			Query         string `json:"query"`
+			CaseSensitive bool   `json:"caseSensitive"`
+			MaxResults    int    `json:"maxResults"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Query == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId and query are required")
+		}
+		result, err := service.SearchText(ctx, request.WorkspaceID, request.Query, remotefs.SearchOptions{
+			CaseSensitive: request.CaseSensitive,
+			MaxResults:    request.MaxResults,
+		})
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
 }
 
 func workspaceIDParam(params json.RawMessage) (string, *Error) {

@@ -45,3 +45,22 @@ type Status struct {
 	Available bool      `json:"available"`
 	CheckedAt time.Time `json:"checkedAt"`
 }
+
+type SearchOptions struct {
+	CaseSensitive bool
+	MaxResults    int
+}
+
+type SearchMatch struct {
+	Path    string `json:"path"`
+	Line    int    `json:"line"`
+	Column  int    `json:"column"`
+	Preview string `json:"preview"`
+}
+
+type SearchResult struct {
+	Matches      []SearchMatch `json:"matches"`
+	Truncated    bool          `json:"truncated"`
+	FilesVisited int           `json:"filesVisited"`
+	WarningCount int           `json:"warningCount"`
+}

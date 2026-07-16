@@ -31,6 +31,12 @@ assert.equal(remote.providerId, "remote-ssh");
 assert.equal(remote.workspaceHandle, null);
 assert.equal(remote.workspaceRef.connectionId, "home-server");
 assert.equal(remote.workspaceRef.remoteRootPath, "/home/gary/notes");
+assert.equal(sessions.isRestorableSessionMetadata(remote), true);
+assert.equal(sessions.openRecentRemoteWorkspace({
+  providerId: "remote-ssh",
+  workspaceRef: remote.workspaceRef,
+  workspaceName: "notes"
+}).workspaceRef.remoteRootPath, "/home/gary/notes");
 assert.equal(sessions.sameRemoteWorkspaceRef(remote.workspaceRef, {
   connectionId: "home-server",
   remoteRootPath: "/home/gary/notes"
@@ -48,5 +54,10 @@ const recent = sessions.normalizeRecentWorkspaceRecord({
 });
 assert.equal(recent.providerId, "local-fsa");
 assert.equal(recent.workspaceRef.localHandle, handle);
+
+assert.equal(sessions.isRestorableSessionMetadata({
+  providerId: "remote-ssh",
+  workspaceRef: { connectionId: "", remoteRootPath: "/home/gary/notes" }
+}), false);
 
 console.log("ok - migrates version-2 local workspace metadata to provider-aware sessions");

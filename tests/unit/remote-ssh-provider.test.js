@@ -67,6 +67,14 @@ async function runTest(name, callback) {
       if (method === "fs.duplicate") {
         return { path: params.name, name: params.name, revision: { size: 10, mtimeMs: 8, hash: "duplicate" } };
       }
+      if (method === "fs.searchText") {
+        return {
+          filesVisited: 42,
+          matches: [{ path: "plans/remote.md", line: 18, column: 4, preview: "Remote connection settings" }],
+          truncated: true,
+          warningCount: 2
+        };
+      }
       if (method === "workspace.close") return { closed: true };
       if (method === "workspace.getStatus") return { available: true, workspace: { id: params.workspaceId } };
       return {};
@@ -133,8 +141,19 @@ async function runTest(name, callback) {
     assert.equal(savedAs.path, "plans/copy.md");
   });
 
-  await runTest("keeps remote search and binary assets disabled", async function () {
-    await assert.rejects(provider.searchText(), (error) => error.code === "OPERATION_UNSUPPORTED");
+  await runTest("searches the full remote workspace through the bridge", async function () {
+    const workspace = await provider.openWorkspace({ connectionId: "home-server", path: "/home/gary/notes" });
+    const result = await provider.searchText(workspace, "connection", { maxResults: 500 });
+
+    assert.equal(result.results[0].path, "plans/remote.md");
+    assert.equal(result.results[0].documentType, "markdown");
+    assert.equal(result.limited, true);
+    assert.equal(result.filesVisited, 42);
+    assert.equal(result.warningCount, 2);
+    assert.equal(calls.find((call) => call.method === "fs.searchText").params.maxResults, 500);
+  });
+
+  await runTest("keeps remote binary assets disabled", async function () {
     await assert.rejects(provider.writeBinary(), (error) => error.code === "OPERATION_UNSUPPORTED");
   });
 

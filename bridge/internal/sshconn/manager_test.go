@@ -211,9 +211,10 @@ func TestEncryptedIdentityPassphrasePrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 	answers.mu.Lock()
-	defer answers.mu.Unlock()
-	if len(answers.secretTypes) != 1 || answers.secretTypes[0] != "passphrase" {
-		t.Fatalf("secret prompts = %#v", answers.secretTypes)
+	secretTypes := append([]string(nil), answers.secretTypes...)
+	answers.mu.Unlock()
+	if len(secretTypes) != 1 || secretTypes[0] != "passphrase" {
+		t.Fatalf("secret prompts = %#v", secretTypes)
 	}
 	_ = manager.Disconnect(profile.ID)
 }
@@ -238,9 +239,10 @@ func TestPasswordAuthenticationPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 	answers.mu.Lock()
-	defer answers.mu.Unlock()
-	if len(answers.secretTypes) != 1 || answers.secretTypes[0] != "password" {
-		t.Fatalf("secret prompts = %#v", answers.secretTypes)
+	secretTypes := append([]string(nil), answers.secretTypes...)
+	answers.mu.Unlock()
+	if len(secretTypes) != 1 || secretTypes[0] != "password" {
+		t.Fatalf("secret prompts = %#v", secretTypes)
 	}
 	_ = manager.Disconnect(profile.ID)
 }

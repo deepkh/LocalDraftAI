@@ -43,7 +43,7 @@
         createDirectory: true,
         rename: true,
         duplicate: true,
-        search: false,
+        search: true,
         binaryAssets: false,
         watch: false
       };
@@ -274,6 +274,41 @@
       return { name: resource.displayName, path: resource.path, resource: resource, revision: resource.revision };
     }
 
+    async function searchText(workspace, query, searchOptions) {
+      var result;
+
+      if (!workspace || !workspace.id) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote workspace is unavailable.");
+      }
+      searchOptions = searchOptions || {};
+      result = await bridge().request("fs.searchText", {
+        workspaceId: workspace.id,
+        query: String(query || "").trim(),
+        caseSensitive: Boolean(searchOptions.caseSensitive),
+        maxResults: Math.min(500, Math.max(1, Number(searchOptions.maxResults) || 500))
+      }, { timeoutMs: 120000 });
+
+      return {
+        filesVisited: Number(result.filesVisited) || 0,
+        limited: Boolean(result.truncated),
+        query: String(query || "").trim(),
+        results: (result.matches || []).map(function (match) {
+          var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(match.path);
+
+          return {
+            column: Math.max(0, Number(match.column) || 0),
+            documentType: descriptor ? descriptor.id : "markdown",
+            filename: String(match.path || "").split("/").pop(),
+            line: Math.max(1, Number(match.line) || 1),
+            path: String(match.path || ""),
+            preview: String(match.preview || ""),
+            text: String(match.preview || "")
+          };
+        }),
+        warningCount: Number(result.warningCount) || 0
+      };
+    }
+
     var provider = {
       id: "remote-ssh",
       label: "Remote SSH",
@@ -301,7 +336,7 @@
       createDirectory: createDirectory,
       rename: rename,
       duplicate: duplicate,
-      searchText: function () { return unsupported("Remote Search"); },
+      searchText: searchText,
       readBinary: function () { return unsupported("Remote image loading"); },
       writeBinary: function () { return unsupported("Remote image storage"); },
       resourceFor: resourceFor

@@ -148,6 +148,14 @@ func TestOpenListAndReadRemoteWorkspace(t *testing.T) {
 	}
 }
 
+func TestOpenRemoteWorkspaceRejectsMissingRoot(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	_, err := fixture.service.OpenWorkspace(context.Background(), fixture.profileID, filepath.Join(fixture.root, "missing-root"))
+	if err == nil || errorCode(t, err) != "RESOURCE_NOT_FOUND" {
+		t.Fatalf("missing workspace root error = %v", err)
+	}
+}
+
 func TestRemotePathGuardRejectsUnsafePathsAndSymlinkEscapes(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX symlink path-guard test")
@@ -232,6 +240,72 @@ func TestRemoteReadLimitsMissingInvalidAndPermissionErrors(t *testing.T) {
 	_, err = fixture.service.ReadText(context.Background(), fixture.workspace.ID, "protected.md")
 	if err != nil && errorCode(t, err) != "PERMISSION_DENIED" {
 		t.Fatalf("permission error = %v", err)
+	}
+}
+
+func TestRemoteSearchTraversesSupportedTextWithLimitsAndCancellation(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	if err := os.Mkdir(filepath.Join(fixture.root, "plans"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{
+		"plans/remote.md": []byte("Remote connection settings\nsecond CONNECTION match\n"),
+		"settings.JSON":   []byte("{\"connection\": true}\n"),
+		"ignored.png":     []byte("connection in unsupported file\n"),
+		"invalid.yaml":    {0xff, 0xfe},
+	}
+	for name, payload := range files {
+		filePath := filepath.Join(fixture.root, filepath.FromSlash(name))
+		if err := os.WriteFile(filePath, payload, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oversized, err := os.Create(filepath.Join(fixture.root, "oversized.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := oversized.Truncate(MaximumTextFileSize + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := oversized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := fixture.service.SearchText(context.Background(), fixture.workspace.ID, "connection", SearchOptions{MaxResults: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Matches) != 3 || result.Truncated {
+		t.Fatalf("search result = %#v", result)
+	}
+	paths := map[string]int{}
+	for _, match := range result.Matches {
+		paths[match.Path]++
+		if match.Line < 1 || match.Column < 0 || match.Preview == "" {
+			t.Fatalf("match = %#v", match)
+		}
+	}
+	if paths["plans/remote.md"] != 2 || paths["settings.JSON"] != 1 || paths["ignored.png"] != 0 {
+		t.Fatalf("search paths = %#v", paths)
+	}
+	if result.WarningCount < 2 || result.FilesVisited < 5 {
+		t.Fatalf("search counters = %#v", result)
+	}
+
+	limited, err := fixture.service.SearchText(context.Background(), fixture.workspace.ID, "connection", SearchOptions{MaxResults: 1})
+	if err != nil || len(limited.Matches) != 1 || !limited.Truncated {
+		t.Fatalf("limited result = %#v, error = %v", limited, err)
+	}
+	caseSensitive, err := fixture.service.SearchText(context.Background(), fixture.workspace.ID, "CONNECTION", SearchOptions{CaseSensitive: true, MaxResults: 10})
+	if err != nil || len(caseSensitive.Matches) != 1 || caseSensitive.Matches[0].Line != 2 {
+		t.Fatalf("case-sensitive result = %#v, error = %v", caseSensitive, err)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = fixture.service.SearchText(cancelled, fixture.workspace.ID, "connection", SearchOptions{})
+	if err == nil || errorCode(t, err) != "CONNECTION_LOST" {
+		t.Fatalf("cancelled search error = %v", err)
 	}
 }
 

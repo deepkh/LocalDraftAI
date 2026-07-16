@@ -34,7 +34,10 @@
 - Treat every non-connected SSH state as remote storage unavailable: disable remote reads and writes but keep tabs, editor buffers, history, selections, scroll, modes, and dirty markers. Never fall back to local file access or an offline mirror.
 - After reconnect, verify the workspace root and reread every open resource's authoritative hash. Adopt a new revision only when its hash matches the opened revision; otherwise mark the tab remotely changed and retain the prior expected revision for conflict-safe Save.
 - Automatic reconnect is bridge-owned, limited to three retryable attempts after keepalive loss, and uses approximately 1, 2, and 4 second delays. Explicit Disconnect cancels pending attempts, and authentication or host-key failures must not loop automatically.
-- Keep search, Related, restore, and binary asset capabilities false until their phases land. Asset insertion must fail visibly without a local fallback.
+- Store Remote SSH session metadata with `providerId`, connection ID, canonical root, and lightweight tab/sidebar state only. Restore after a user action, reconnect through the saved profile, reread files, skip missing tabs visibly, and never persist ordinary document content or secrets.
+- Remote Search traverses SFTP in the bridge, checks cancellation, scans only registered text extensions, skips unreadable and oversized files with a warning count, and stops at 500 results or 20,000 visited files. Search results may `stat` and open paths absent from the lazy tree.
+- Keep remote Related rule-based: loaded same-folder nodes, workspace-scoped recent paths, provider `stat` for unresolved Markdown links, and plan rules over loaded nodes only. Never recursively download for Related.
+- Keep binary asset capabilities false until their phase lands. Asset insertion must fail visibly without a local fallback.
 
 ## Credentials and host keys
 
@@ -55,4 +58,5 @@
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
 - Run the SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server for lazy reads and remote mutations.
 - Run conflict and recovery coverage with `node --experimental-websocket tests/e2e/remote-ssh-conflict.headless.mjs` and `node --experimental-websocket tests/e2e/remote-ssh-reconnect.headless.mjs`.
+- Run restore and bridge-side search coverage with `node --experimental-websocket tests/e2e/remote-ssh-restore-search.headless.mjs`.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.
