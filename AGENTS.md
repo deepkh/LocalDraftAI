@@ -34,6 +34,7 @@ src/js/document-session.js   Per-tab document state
 src/js/storage-resource.js   Provider-neutral document resource identity and revision metadata
 src/js/storage-provider-registry.js Storage provider lookup and normalized errors
 src/js/local-filesystem-provider.js Local File System Access provider
+src/js/bridge-client.js       Authenticated same-origin JSON-RPC bridge client and detection
 src/js/document-type.js      Central supported-extension and document-capability registry
 src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
@@ -49,6 +50,7 @@ src/js/workspace-operations.js Safe text-document/folder operations from the wor
 src/js/workspace-search.js   Supported workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Local image workspace/assets handling
+bridge/                      Isolated Go loopback bridge module
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         Compatibility facade for configured AI actions
 src/js/ai-action-defaults.js Default AI Actions YAML
@@ -102,6 +104,12 @@ Use these routes:
   - `src/js/local-filesystem-provider.js`
   - `src/js/file-store.js`
   - `src/js/recent-files.js`
+- Local bridge server, browser bridge client, protocol, startup authentication, and security:
+  - `.agents/skills/remote-ssh-workspace.md`
+  - `src/js/bridge-client.js`
+  - `bridge/internal/appserver/`
+  - `bridge/internal/protocol/`
+  - `bridge/internal/logbuffer/`
 - Supported document types and structured validation:
   - `src/js/document-type.js`
   - `src/js/document-validation.js`
@@ -148,6 +156,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
 - Every document session has a provider ID, normalized storage resource, and revision. Legacy local file and workspace handles remain compatibility fields; provider-neutral application code uses storage resources.
 - Local File System Access picker, read, write, directory traversal, and workspace mutation calls belong in `local-filesystem-provider.js`. Local asset storage may retain narrowly scoped browser file calls in `asset-store.js`.
+- The optional Go bridge binds to loopback by default, serves only `src/` and `assets/`, exchanges a one-time startup token for an HttpOnly strict-same-site cookie, and accepts WebSockets only from its exact authenticated origin.
+- Bridge JSON-RPC protocol version 1 limits messages to 16 MB, concurrent calls to 8, normal operations to 30 seconds, search to 120 seconds, and its redacted in-memory log to 200 structured entries.
+- The static app detects a bridge only through same-origin `/api/health`; the hosted site does not probe loopback. Remote commands and UI stay unavailable until their implementation phases.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.
@@ -240,6 +251,14 @@ Run all tests:
 for test in tests/unit/*.test.js; do
   node "$test"
 done
+```
+
+Run bridge checks with Go 1.24 or newer:
+
+```bash
+cd bridge
+go test ./...
+go vet ./...
 ```
 
 Run the headless browser Soft Wrap and mode-switch smoke test with Chrome available on `PATH`:

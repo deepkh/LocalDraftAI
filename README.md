@@ -151,6 +151,20 @@ Local file and folder behavior is routed through a small storage-provider interf
 
 The current hosted and standalone UI still uses the `local-fsa` provider exclusively. The provider boundary is also the foundation for the optional bridge-served Remote SSH mode; SSH credentials and SSH implementation details do not belong in the static editor modules.
 
+### LocalDraft Bridge foundation
+
+The repository includes an isolated Go bridge module under `bridge/`. It serves the static app from a loopback origin, exchanges a one-time startup token for an HttpOnly strict-same-site session, and exposes an authenticated exact-origin JSON-RPC WebSocket. Browser code detects it only through same-origin `/api/health`, so the hosted site does not probe services on your machine.
+
+```bash
+cd bridge
+go test ./...
+go build -o ../build/localdraft-bridge ./cmd/localdraft-bridge
+cd ..
+./build/localdraft-bridge serve --listen 127.0.0.1:4782 --web-root .
+```
+
+The bridge currently provides its authenticated protocol foundation; Remote SSH connection controls remain hidden until the SSH, SFTP, and remote workspace phases are complete. See [`bridge/README.md`](bridge/README.md) for its security boundary and development flags.
+
 Use the hosted static app:
 
 ```text

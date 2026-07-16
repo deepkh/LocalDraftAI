@@ -14,6 +14,7 @@
   var assetStore = ME.assetStore;
   var storageProviders = ME.storageProviders;
   var localFilesystemProvider = ME.localFilesystemProvider;
+  var bridgeClient = ME.bridgeClient;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
   var EDITOR_MODES = editorMode.EDITOR_MODES;
@@ -5003,6 +5004,13 @@
       menuBarController.bindEvents();
     }
     installTestApi();
+    if (bridgeClient && typeof bridgeClient.detect === "function") {
+      bridgeClient.detect().then(function (client) {
+        ME.activeBridgeClient = client;
+      }).catch(function (error) {
+        ME.bridgeDetectionError = error;
+      });
+    }
     updateFileControls();
     renderWorkspaceSidebar();
     refreshRecentFiles();

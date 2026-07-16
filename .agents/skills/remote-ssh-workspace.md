@@ -10,6 +10,8 @@
 - Serve the frontend and `/api` endpoints from one local origin. Exchange a one-time 32-byte startup token for an HttpOnly, `SameSite=Strict` session cookie and invalidate the token after its first successful use.
 - Require the session cookie and an exact listen-host-and-port `Origin` for `/api/bridge`. Reject missing, public, cross-origin, and unauthenticated WebSocket requests.
 - Use JSON-RPC 2.0, protocol version 1, bounded messages and concurrency, operation timeouts, structured provider errors, and a redacted bounded in-memory log.
+- Serve only the repository `src/` and `assets/` trees. Do not expose the repository root, `.git`, configuration files, or an arbitrary static filesystem.
+- Browser bridge detection stays same-origin: check `/api/health`, then authenticate `/api/bridge` with the session cookie. Do not probe loopback from the hosted site.
 - Never expose an unauthenticated arbitrary-file HTTP endpoint or execute remote shell commands. Use SFTP for every remote filesystem operation.
 
 ## Remote paths and revisions
@@ -32,6 +34,6 @@
 
 - Keep local and remote workspace tests separate. Remote tests use an in-process SSH/SFTP server rooted in a temporary directory; do not depend on a developer's SSH configuration.
 - Run frontend regression tests with `for test in tests/unit/*.test.js; do node "$test"; done`.
-- Run bridge checks from `bridge/` with `go test ./...` and `go vet ./...`.
+- Run bridge checks from `bridge/` with Go 1.24 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.
