@@ -1117,7 +1117,7 @@
     }
 
     .workspace-disclosure,
-    .workspace-file-dot,
+    .workspace-file-type,
     .workspace-dirty {
       flex: 0 0 auto;
       color: var(--muted);
@@ -1128,11 +1128,14 @@
       text-align: center;
     }
 
-    .workspace-file-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--border-strong);
+    .workspace-file-type {
+      width: 24px;
+      overflow: hidden;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
     }
 
     .workspace-tree-label {
@@ -1614,6 +1617,14 @@
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .status-bar-validation[data-status="valid"] {
+      color: var(--status-success-text);
+    }
+
+    .status-bar-validation[data-status="invalid"] {
+      color: var(--status-warning-text);
     }
 
     .status-bar .editor-mode-label {

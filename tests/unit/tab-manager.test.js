@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/tab-manager.js");
 
 let nextId = 1;
@@ -52,6 +53,14 @@ async function runTest(name, callback) {
     assert.equal(manager.createUntitledSession().title, "Untitled-2.md");
     assert.equal(manager.createUntitledSession().title, "Untitled-3.md");
     assert.equal(manager.listSessions().length, 3);
+  });
+
+  await runTest("creates untitled sessions for every document type", function () {
+    const manager = createManager();
+
+    assert.equal(manager.createUntitledSession("text").title, "Untitled.txt");
+    assert.equal(manager.createUntitledSession({ documentType: "json" }).title, "Untitled.json");
+    assert.equal(manager.createUntitledSession({ documentType: "yaml" }).title, "Untitled.yml");
   });
 
   await runTest("switches active session by id", function () {

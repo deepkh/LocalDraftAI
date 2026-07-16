@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-related.js");
 require("../../src/js/workspace-operations.js");
 
@@ -16,17 +17,21 @@ function runTest(name, callback) {
   }
 }
 
-runTest("validates Markdown file names and appends .md", function () {
+runTest("validates supported file names and defaults missing extensions to .md", function () {
   assert.deepEqual(workspaceOperations.validateFileName("notes"), {
     ok: true,
     normalizedName: "notes.md"
   });
   assert.equal(workspaceOperations.validateFileName("").ok, false);
   assert.equal(workspaceOperations.validateFileName("../notes.md").ok, false);
-  assert.equal(workspaceOperations.validateFileName("notes.txt").reason, "nonMarkdownExtension");
+  assert.equal(workspaceOperations.validateFileName("notes.txt").ok, true);
+  assert.equal(workspaceOperations.validateFileName("application.log").ok, true);
+  assert.equal(workspaceOperations.validateFileName("settings.json").ok, true);
+  assert.equal(workspaceOperations.validateFileName("config.yaml").ok, true);
+  assert.equal(workspaceOperations.validateFileName("app.js").reason, "unsupportedExtension");
 });
 
-runTest("allows confirmed non-Markdown extensions", function () {
+runTest("keeps supported non-Markdown extensions unchanged", function () {
   assert.deepEqual(workspaceOperations.validateFileName("notes.txt", {
     allowNonMarkdownExtension: true,
     enforceMarkdownExtension: true
@@ -34,6 +39,17 @@ runTest("allows confirmed non-Markdown extensions", function () {
     ok: true,
     normalizedName: "notes.txt"
   });
+});
+
+runTest("can default a missing name extension to the current document type", function () {
+  assert.equal(
+    workspaceOperations.validateFileName("settings copy", { defaultExtension: ".json" }).normalizedName,
+    "settings copy.json"
+  );
+  assert.equal(
+    workspaceOperations.validateFileName("workflow copy", { defaultExtension: ".yaml" }).normalizedName,
+    "workflow copy.yaml"
+  );
 });
 
 runTest("validates folder names", function () {
@@ -46,4 +62,78 @@ runTest("validates folder names", function () {
 runTest("suggests duplicate names next to the source file", function () {
   assert.equal(workspaceOperations.suggestedDuplicateName("README.md"), "README copy.md");
   assert.equal(workspaceOperations.suggestedDuplicateName("plans/Plan_AI.markdown"), "plans/Plan_AI copy.markdown");
+});
+
+function createMockDirectory() {
+  const files = {};
+
+  function handleFor(name) {
+    return {
+      name,
+      async createWritable() {
+        return {
+          async write(value) { files[name].text = String(value == null ? "" : value); },
+          async close() {}
+        };
+      },
+      async getFile() {
+        return { async text() { return files[name].text; } };
+      }
+    };
+  }
+
+  return {
+    files,
+    async getFileHandle(name, options = {}) {
+      if (files[name]) return files[name].handle;
+      if (!options.create) {
+        const error = new Error("Not found");
+        error.name = "NotFoundError";
+        throw error;
+      }
+      files[name] = { text: "", handle: null };
+      files[name].handle = handleFor(name);
+      return files[name].handle;
+    },
+    async removeEntry(name) {
+      delete files[name];
+    }
+  };
+}
+
+(async function () {
+  const root = createMockDirectory();
+
+  for (const name of ["notes.md", "notes.txt", "application.log", "settings.json", "config.yml", "workflow.yaml"]) {
+    const created = await workspaceOperations.createTextFile({
+      rootHandle: root,
+      name,
+      initialText: name
+    });
+    assert.equal(created.name, name);
+    assert.equal(root.files[name].text, name);
+  }
+
+  const duplicate = await workspaceOperations.duplicateTextFile({
+    rootHandle: root,
+    fileHandle: root.files["settings.json"].handle,
+    name: "settings copy",
+    path: "settings.json"
+  });
+  assert.equal(duplicate.name, "settings copy.json");
+  assert.equal(root.files["settings copy.json"].text, "settings.json");
+
+  const renamed = await workspaceOperations.renameTextFile({
+    rootHandle: root,
+    fileHandle: root.files["workflow.yaml"].handle,
+    name: "workflow-renamed",
+    path: "workflow.yaml"
+  });
+  assert.equal(renamed.name, "workflow-renamed.yaml");
+  assert.equal(root.files["workflow.yaml"], undefined);
+  assert.equal(root.files["workflow-renamed.yaml"].text, "workflow.yaml");
+  console.log("ok - creates duplicates and renames every registered text-document shape");
+}()).catch(function (error) {
+  console.error("not ok - creates duplicates and renames registered documents");
+  throw error;
 });

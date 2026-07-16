@@ -67,16 +67,22 @@
       return getSession(activeSessionId);
     }
 
-    function untitledTitle() {
+    function untitledTitle(typeId) {
       var existingTitles = sessions.map(function (session) {
         return session.title;
       });
       var index = 1;
-      var title = "Untitled.md";
+      var defaultTitle = ME.documentType && ME.documentType.getDefaultFileName
+        ? ME.documentType.getDefaultFileName(typeId || "markdown")
+        : "Untitled.md";
+      var extensionIndex = defaultTitle.lastIndexOf(".");
+      var baseName = extensionIndex === -1 ? defaultTitle : defaultTitle.slice(0, extensionIndex);
+      var extension = extensionIndex === -1 ? "" : defaultTitle.slice(extensionIndex);
+      var title = defaultTitle;
 
       while (existingTitles.indexOf(title) !== -1) {
         index += 1;
-        title = "Untitled-" + index + ".md";
+        title = baseName + "-" + index + extension;
       }
 
       return title;
@@ -90,14 +96,17 @@
         throw new Error("No document session factory is available.");
       }
 
-      sessionOptions = sessionOptions || {};
+      sessionOptions = typeof sessionOptions === "string"
+        ? { documentType: sessionOptions }
+        : sessionOptions || {};
       for (key in sessionOptions) {
         if (Object.prototype.hasOwnProperty.call(sessionOptions, key)) {
           optionsForSession[key] = sessionOptions[key];
         }
       }
 
-      optionsForSession.title = optionsForSession.title || untitledTitle();
+      optionsForSession.documentType = optionsForSession.documentType || "markdown";
+      optionsForSession.title = optionsForSession.title || untitledTitle(optionsForSession.documentType);
       optionsForSession.markdownText = optionsForSession.markdownText || "";
       return addSession(createSession(optionsForSession), {
         activate: optionsForSession.activate

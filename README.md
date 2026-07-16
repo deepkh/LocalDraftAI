@@ -4,9 +4,9 @@
 ![Local First](https://img.shields.io/badge/Local_First-AI_Assisted-8250df?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-2da44e?style=for-the-badge&logo=github)
 
-**Your local AI-powered Markdown editor.**
+**Your local, AI-assisted Markdown-first text editor.**
 
-LocalDraftAI is a local-first Markdown editor that runs in your browser. It gives you WYSIWYG or Markdown editing in one focused editor surface, Soft Wrap for long Markdown lines, local file access, image handling, multi-tab editing, and AI-assisted writing actions.
+LocalDraftAI is a local-first, Markdown-first text editor that runs in your browser. Markdown keeps its WYSIWYG and source modes, while plain text, JSON, and YAML open safely in a source-only editor. The app also provides Soft Wrap, local file access, structured-document validation, image handling, multi-tab editing, and AI-assisted writing actions.
 
 Use it immediately at [https://localdraft.ai/](https://localdraft.ai/), or run the same static app from this repo when you want a fully local/offline copy.
 
@@ -18,16 +18,18 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 
 - **Use instantly online**: open [localdraft.ai](https://localdraft.ai/) and start writing without installing anything.
 - **Local browser app**: open the HTML file directly or serve it from `localhost`.
-- **WYSIWYG + Markdown modes**: edit visually or work directly with Markdown text in one main editor.
-- **Soft Wrap**: wrap long lines visually in WYSIWYG and Markdown modes without inserting real line breaks.
+- **WYSIWYG + Markdown modes**: edit Markdown visually or work directly with its source in one main editor; WYSIWYG is Markdown-only.
+- **Plain-text documents**: open, create, edit, search, restore, and save `.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml` files.
+- **JSON/YAML validation**: see valid or invalid syntax in the Status Bar without blocking edits or saves. Files are never automatically reformatted.
+- **Soft Wrap**: wrap long lines visually in every supported document type without inserting real line breaks.
 - **Day/Night theme**: switch between light and dark workbench themes; the selected appearance is stored locally in the browser.
 - **Safe rich paste**: WYSIWYG keyboard, browser-menu, and right-click paste preserve Markdown-compatible document formatting while removing webpage controls, executable content, embedded documents, media widgets, SVG UI, inline styles, and event handlers.
 - **Right-click clipboard actions**: cut, copy, and paste from the editor context menu; WYSIWYG copy/paste keeps safe rich HTML when the browser clipboard allows it.
 - **Basic Markdown blocks**: render and insert headings, lists, block quotes, code fences, images, links, horizontal rules, and pipe tables.
 - **Escaped Markdown characters**: literal Markdown punctuation such as `\*`, `\#`, `\|`, and `\>` stays literal when editing visually.
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
-- **Local file workflow**: open and save `.md`, `.markdown`, and `.txt` files in browsers that support the File System Access API.
-- **Workspace sidebar**: open a local folder in Chrome or Edge, browse Markdown files with collapsible folders, reopen recent workspaces, restore the previous workspace session, search Markdown content, and open workspace files into tabs.
+- **Local file workflow**: preserve the selected extension, LF/CRLF line endings, UTF-8 BOM, and document text in browsers that support the File System Access API.
+- **Workspace sidebar**: browse supported text documents with type indicators and collapsible folders, reopen recent workspaces, restore tabs, search content, and open results by line.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **Configurable AI Assistant**: edit the local YAML action list to add, disable, remove, import, or export writing actions for local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -55,12 +57,12 @@ LocalDraftAI is useful for writing and editing:
 - Markdown documents with local images
 - rough text that needs grammar or wording cleanup
 
-Typical workflow:
+Typical Markdown workflow:
 
 ```text
 Open LocalDraftAI
-  -> create or open a Markdown file
-  -> optionally open a folder from Workspace to browse local Markdown files
+  -> create or open a supported text document
+  -> optionally open a folder from Workspace to browse supported documents
   -> write in WYSIWYG or Markdown mode
   -> select text
   -> run an AI Assistant action
@@ -72,34 +74,45 @@ Open LocalDraftAI
   -> save back to local disk
 ```
 
+### Supported Documents
+
+| Type | Extensions | Editor behavior | Validation | AI replacement actions |
+| --- | --- | --- | --- | --- |
+| Markdown | `.md`, `.markdown` | WYSIWYG and Markdown source | None | All configured actions |
+| Plain Text | `.txt`, `.log` | Source only | None | General writing actions; Markdown-only actions are hidden |
+| JSON | `.json` | Source only | JSON syntax warning | Disabled initially |
+| YAML | `.yml`, `.yaml` | Source only | YAML syntax warning, including multi-document YAML | Disabled initially |
+
+JSON and YAML always remain editable and saveable when invalid. Validation is a warning, not a save gate. LocalDraftAI does not autoformat structured files and never sends JSON or YAML through Markdown rendering or WYSIWYG conversion.
+
 ### Workspace Sidebar
 
-Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans the folder recursively and shows Markdown files (`.md` and `.markdown`) in the left sidebar. Non-Markdown project files, images, binaries, and app source files are hidden.
+Use `Workspace -> Open Folder` in Chrome or Edge to choose a local folder. LocalDraftAI scans recursively and shows `.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml` files in the left sidebar. Source code, images, binaries, archives, and other unsupported files remain hidden. Explorer rows include `MD`, `TXT`, `{}`, or `YML` indicators.
 
 The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode and width are saved in localStorage. Folders in the Files tree can also be collapsed or expanded; collapsed folder paths are saved per workspace using workspace-relative paths, and the active file's parent folders are revealed automatically. File-name filtering temporarily expands folders with matches without overwriting saved collapse state. Clicking a workspace file opens it in a tab, or switches to the already-open tab for that workspace path. Unsaved workspace files show the same dirty marker pattern used by document tabs.
 
-When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen workspace Markdown tabs, restore the active tab, recover basic mode and scroll state, and restore the previous folder collapse and sidebar scroll position. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
+When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen supported workspace tabs, restore tab order and the active tab, and recover document type, editor mode, selection, scroll, Soft Wrap, dirty metadata, folder collapse, and sidebar scroll. Source-only documents are always restored into source mode. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
 
 The `Workspace` menu also remembers up to 10 recently opened workspaces. Use `Recent Workspaces` to reopen a folder from a date/time ordered list or remove an entry from the list. Reopening a recent workspace may ask for browser permission again before scanning the folder.
 
-When you switch to a different workspace, open Markdown tabs from the previous workspace are removed from the tab bar so the tab strip stays scoped to the active workspace. LocalDraftAI keeps their lightweight restore metadata, so reopening that workspace from `Recent Workspaces` can restore the same Markdown tabs. If any removed tabs have unsaved changes, LocalDraftAI asks before discarding those unsaved edits.
+When you switch to a different workspace, open workspace tabs from the previous workspace are removed from the tab bar so the tab strip stays scoped to the active workspace. LocalDraftAI keeps lightweight restore metadata for reopening them later. If any removed tabs have unsaved changes, LocalDraftAI asks before discarding those edits.
 
 The sidebar has three views:
 
-- `Files`: browse the Markdown tree, collapse or expand folders, filter by file name, and use right-click actions.
-- `Search`: search Markdown file contents case-insensitively and open results by file and line.
-- `Related`: see same-folder Markdown files, Markdown links from the active file, recently opened workspace files, and planning files.
+- `Files`: browse supported text documents, collapse or expand folders, filter by file name, and use right-click actions.
+- `Search`: search all supported document contents case-insensitively and open results by file and line.
+- `Related`: all supported documents show same-folder and recently opened files; Markdown also shows linked Markdown documents and plan files.
 
 Right-click safe operations are available in the Files view:
 
-- Folder: `New Markdown File`, `New Folder`, and `Refresh`.
+- Folder: `New File...`, `New Folder`, and `Refresh`. A missing extension defaults to `.md`; unsupported extensions are rejected.
 - File: `Open`, `Rename`, `Duplicate`, `Copy Relative Path`, and `Reveal in Workspace`.
 
 The `Workspace` menu includes `Expand All Folders` and `Collapse All Folders`. Collapse All keeps parent folders for the active workspace file expanded so the current file does not disappear.
 
 Delete is intentionally not included. Rename is conservative: LocalDraftAI writes the new file first and only removes the old entry when the browser exposes a safe remove operation. If that path is unavailable, use Duplicate and remove the old file manually.
 
-Likely planning files show a small `PLAN` badge. A file is treated as a plan when it is under `plans/`, starts with `Plan_`, ends with `_Plan`, or has `plan` in the Markdown filename.
+Likely Markdown planning files show a small `PLAN` badge. A Markdown file is treated as a plan when it is under `plans/`, starts with `Plan_`, ends with `_Plan`, or has `plan` in the filename. JSON and YAML files never receive this badge.
 
 Workspace features are still focused on Markdown planning and writing. LocalDraftAI does not execute AI agents, terminal commands, Codex CLI, OpenCode, Git operations, rollback snapshots, embeddings, or multi-file AI edits.
 
@@ -111,7 +124,7 @@ The Activity Bar switches Explorer, Search, and Related without resetting worksp
 
 Use the moon/sun button above Settings, or `View -> Dark Theme`, to switch appearance without reloading or changing document and workbench state. Light is the default. The supported `light` or `dark` value is stored under `localdraftai.appearance.theme` in localStorage and restored before the stylesheet renders.
 
-The Status Bar shows the current workspace, unsaved state, editor mode, Soft Wrap, Markdown cursor line and column, word and character counts, and accessible AI provider status. Lower-priority fields collapse on narrow screens.
+The Status Bar shows the current workspace, unsaved state, document type, editor mode, Soft Wrap, source cursor line and column, word and character counts, JSON/YAML validity, and accessible AI provider status. Lower-priority fields collapse on narrow screens.
 
 On wide screens, the Activity Bar, Primary Sidebar, editor, and AI review panel can coexist. The sidebar and AI panel both clamp their saved widths so the editor remains usable. At medium widths the sidebars become overlays instead of squeezing the editor, and at narrow widths the editor remains the full primary surface without page-level horizontal overflow.
 
@@ -138,7 +151,7 @@ Use the hosted static app:
 https://localdraft.ai/
 ```
 
-The hosted site lets you start immediately. Your Markdown editing still happens in the browser, and local file access uses your browser's file picker. AI features remain optional and only call the server you configure in the app settings.
+The hosted site lets you start immediately. Document editing still happens in the browser, and local file access uses your browser's file picker. AI features remain optional and only call the server you configure in the app settings.
 
 Or run the same app from this repo:
 
@@ -174,7 +187,7 @@ Restart Ollama after changing the environment variable.
 
 LocalDraftAI works best in Chromium-based browsers such as Chrome or Edge.
 
-Browsers without the File System Access API can still use the editor, but local open/save controls may be limited or disabled. Local image storage also requires browser file and folder access.
+Browsers without the File System Access API can still use the editor, but local open/save controls may be limited or disabled. Local image storage also requires browser file and folder access. Browser-reported MIME types vary, so LocalDraftAI treats the registered filename extension as authoritative.
 
 Right-click Paste uses the browser Clipboard API, so some browsers may ask for clipboard permission or require the app to be served from `localhost`.
 
@@ -190,7 +203,7 @@ When you paste, drop, or insert the first local image, the app asks for a worksp
 
 ## AI Assistant
 
-The AI Assistant can be opened from the application AI menu or from the editor right-click menu when text is selected.
+The AI Assistant can be opened from the application AI menu or from the editor right-click menu when text is selected. Markdown retains all configured actions. Plain text exposes general writing actions while hiding Markdown-only actions. Replacement-based AI actions are disabled for JSON and YAML in this release.
 
 Selections are sent as Markdown fragments in both editor modes. In WYSIWYG mode, selected lists keep their Markdown list markers in the AI review, while partial text selections inside one list item stay as the selected inline text.
 
@@ -214,7 +227,7 @@ On desktop, drag the thin handle between the editor and the AI Assistant panel t
 
 Regenerate adds a new selectable revision instead of replacing the previous result. The apply mode can replace the selection, insert the result below the selection, or copy the result without changing the document. After a replacement or insert, the panel shows **Restore Original** when the original can be restored safely.
 
-To use a real model, choose an AI provider in settings. Only the selected Markdown text and the configured action prompt are sent to the provider you choose.
+To use a real model, choose an AI provider in settings. Only the selected Markdown or plain text and the configured action prompt are sent to the provider you choose.
 
 ### Configure AI Provider
 
@@ -654,6 +667,8 @@ Add stricter rules to the prompt, for example:
 │       ├── activity-bar.js
 │       ├── command-registry.js
 │       ├── document-session.js
+│       ├── document-type.js
+│       ├── document-validation.js
 │       ├── editor-actions.js
 │       ├── editor-mode.js
 │       ├── file-store.js
@@ -677,6 +692,7 @@ Add stricter rules to the prompt, for example:
 │   ├── e2e/
 │   │   ├── ai-action-config.headless.mjs
 │   │   ├── markdown-table.headless.mjs
+│   │   ├── plain-text-file-support.headless.mjs
 │   │   ├── soft-wrap-mode-switch.headless.mjs
 │   │   ├── workbench-layout.headless.mjs
 │   │   └── wysiwyg-ai-list-capture.headless.mjs
@@ -699,7 +715,11 @@ Add stricter rules to the prompt, for example:
 │       ├── ai-transport-openai-compatible.test.js
 │       ├── activity-bar.test.js
 │       ├── command-registry.test.js
+│       ├── document-session.test.js
+│       ├── document-type.test.js
+│       ├── document-validation.test.js
 │       ├── editor-actions.test.js
+│       ├── file-store.test.js
 │       ├── markdown-ai-guards.test.js
 │       ├── markdown.test.js
 │       ├── status-bar.test.js
@@ -724,13 +744,15 @@ Add stricter rules to the prompt, for example:
 | `src/js/activity-bar.js` | Explorer, Search, Related, AI, and Settings routing |
 | `src/js/status-bar.js` | Compact workspace, document, editor, and AI status formatting |
 | `src/js/document-session.js` | Per-tab document state |
+| `src/js/document-type.js` | Supported extensions and per-type capabilities |
+| `src/js/document-validation.js` | Warning-only JSON and YAML syntax validation |
 | `src/js/tab-manager.js` | Multi-tab behavior |
 | `src/js/markdown.js` | Markdown parsing/rendering helpers |
 | `src/js/editor-mode.js` | Editor mode, Soft Wrap, and caret/offset helpers |
 | `src/js/editor-actions.js` | Editor formatting commands |
 | `src/js/file-store.js` | Local file open/save helpers |
 | `src/js/recent-files.js` | Recent file list storage |
-| `src/js/workspace-store.js` | Local folder workspace scanning and Markdown file tree model |
+| `src/js/workspace-store.js` | Local folder scanning and supported text-document tree model |
 | `src/js/workspace-sidebar.js` | Workspace sidebar rendering, search, persisted state, and resizing |
 | `src/js/asset-store.js` | Local image workspace handling |
 | `src/js/ai-action-defaults.js` | Built-in AI Actions YAML |
@@ -780,6 +802,9 @@ node tests/unit/ai-status.test.js
 node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
 node tests/unit/editor-mode.test.js
+node tests/unit/document-type.test.js
+node tests/unit/document-validation.test.js
+node tests/unit/file-store.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/tab-manager.test.js
@@ -801,6 +826,7 @@ node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
 node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
 node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
 node --experimental-websocket tests/e2e/markdown-table.headless.mjs
+node --experimental-websocket tests/e2e/plain-text-file-support.headless.mjs
 ```
 
 ---

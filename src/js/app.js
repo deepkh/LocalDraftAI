@@ -9,6 +9,8 @@
   var workspaceOperations = ME.workspaceOperations;
   var workspaceSearch = ME.workspaceSearch;
   var workspaceRelated = ME.workspaceRelated;
+  var documentType = ME.documentType;
+  var documentValidation = ME.documentValidation;
   var assetStore = ME.assetStore;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
@@ -19,6 +21,7 @@
   var recentWorkspaceRecords = [];
   var focusModeEnabled = false;
   var syncTimer = 0;
+  var validationTimer = 0;
   var wysiwygNeedsSync = false;
   var isSyncingEditors = false;
   var activeEditSource = null;
@@ -38,6 +41,8 @@
   var modeLabel = document.getElementById("modeLabel");
   var workspaceStatus = document.getElementById("workspaceStatus");
   var documentStatus = document.getElementById("documentStatus");
+  var documentTypeStatus = document.getElementById("documentTypeStatus");
+  var validationStatus = document.getElementById("validationStatus");
   var applicationStatus = document.getElementById("applicationStatus");
   var softWrapStatus = document.getElementById("softWrapStatus");
   var cursorPosition = document.getElementById("cursorPosition");
@@ -171,7 +176,10 @@
   var tabScrollRight = document.getElementById("tabScrollRight");
   var newTabButton = document.getElementById("newTabButton");
   var editorToolbar = document.querySelector(".toolbar");
+  var editorArea = document.getElementById("editorArea");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
+  var viewModeMenuItem = document.querySelector('[data-command="view.toggleEditorMode"]');
+  var copyRenderedHtmlMenuItem = document.querySelector('[data-command="edit.copyRenderedHtml"]');
   var insertImageButton = document.querySelector('[data-action="image"]');
   var undoButton = document.querySelector('[data-action="undo"]');
   var redoButton = document.querySelector('[data-action="redo"]');
@@ -227,9 +235,19 @@
     return session ? session.markdownText : "";
   }
 
+  function activeDocumentAllowsMarkdownCommands() {
+    var session = getActiveSession();
+
+    return Boolean(session && documentType && documentType.allowsMarkdownCommands(session.documentType));
+  }
+
   function getActiveMode() {
     var session = getActiveSession();
-    return editorMode.normalizeEditorMode(session ? session.editorMode || session.activeMode : editorMode.readStoredEditorMode());
+    var mode = session ? session.editorMode || session.activeMode : editorMode.readStoredEditorMode();
+
+    return editorMode.normalizeEditorModeForDocument
+      ? editorMode.normalizeEditorModeForDocument(mode, session && session.documentType || "markdown")
+      : editorMode.normalizeEditorMode(mode);
   }
 
   function getEditorMode() {
@@ -238,7 +256,9 @@
 
   function setActiveEditorSource(source) {
     var session = getActiveSession();
-    var normalized = editorMode.normalizeEditorMode(source);
+    var normalized = editorMode.normalizeEditorModeForDocument
+      ? editorMode.normalizeEditorModeForDocument(source, session && session.documentType || "markdown")
+      : editorMode.normalizeEditorMode(source);
 
     activeEditSource = normalized;
     if (session) {
@@ -247,10 +267,10 @@
       session.activeEditorSource = normalized;
     }
     if (modeLabel) {
-      modeLabel.textContent = normalized === "markdown" ? "Markdown" : "WYSIWYG";
+      modeLabel.textContent = session && session.sourceOnly ? "Source" : normalized === "markdown" ? "Markdown" : "WYSIWYG";
     }
     if (statusBarController) {
-      statusBarController.setMode(normalized);
+      statusBarController.setMode(session && session.sourceOnly ? "source" : normalized);
     }
     if (actions) {
       actions.updateFormatSelect();
@@ -289,6 +309,9 @@
   }
 
   function renderMarkdownForSession(markdownText) {
+    if (!activeDocumentAllowsMarkdownCommands()) {
+      return "";
+    }
     return markdown.renderMarkdown(markdownText, 0, {
       resolveImageUrl: resolveImageUrl
     });
@@ -719,12 +742,13 @@
   function saveActiveEditorState(session) {
     var markdownAnchor;
 
-    if (!session) {
+    if (!session || session !== getActiveSession()) {
       return;
     }
 
     session.wysiwygScrollTop = wysiwygEditor.scrollTop;
     session.markdownScrollTop = markdownEditor.scrollTop;
+    session.softWrapEnabled = softWrapEnabled;
     if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
       markdownAnchor = captureMarkdownAnchor();
       session.markdownSelectionStart = markdownAnchor.markdownOffset;
@@ -766,7 +790,12 @@
 
   function renderWysiwygFromMarkdown(options) {
     var scrollState;
-    var html = renderMarkdownForSession(getMarkdownText());
+    var html;
+
+    if (!activeDocumentAllowsMarkdownCommands()) {
+      return;
+    }
+    html = renderMarkdownForSession(getMarkdownText());
 
     options = options || {};
     if (options.preservePaneScroll) {
@@ -824,6 +853,48 @@
     );
   }
 
+  function updateValidationStatus(session) {
+    session = session || getActiveSession();
+    if (statusBarController && session) {
+      statusBarController.setDocumentType(session.documentType);
+      statusBarController.setValidation(session.documentType, session.validationState);
+    }
+  }
+
+  function validateSession(session, options) {
+    var validationState;
+
+    options = options || {};
+    session = session || getActiveSession();
+    if (!session || !documentValidation) {
+      return null;
+    }
+
+    validationState = documentValidation.validateDocument(session.documentType, session.markdownText);
+    session.validationState = validationState;
+    if (session === getActiveSession()) {
+      updateValidationStatus(session);
+      if (options.announce && statusBarController) {
+        statusBarController.showMessage(
+          validationState.status === "invalid"
+            ? validationState.message || "This document contains a syntax warning."
+            : validationState.status === "valid"
+              ? "Document syntax is valid."
+              : "Validation is not applicable to this document type.",
+          4000
+        );
+      }
+    }
+    return validationState;
+  }
+
+  function scheduleDocumentValidation(session) {
+    window.clearTimeout(validationTimer);
+    validationTimer = window.setTimeout(function () {
+      validateSession(session);
+    }, 350);
+  }
+
   function updateDocumentTitle() {
     var session = getActiveSession();
     var title = session ? session.title : "Untitled.md";
@@ -837,6 +908,9 @@
         dirty: Boolean(session && session.dirty),
         title: title
       });
+      if (session) {
+        updateValidationStatus(session);
+      }
     }
   }
 
@@ -882,12 +956,18 @@
   }
 
   function createSession(options) {
+    options = options || {};
+    if (options.softWrapEnabled == null) {
+      options.softWrapEnabled = softWrapEnabled;
+    }
     var session = ME.documentSession.create(options);
 
     session.history = session.history || createSessionHistory();
     session.history.reset(session.markdownText);
-    session.dirty = Boolean(options && options.dirty);
-    session.editorMode = editorMode.normalizeEditorMode(session.editorMode || (options && options.editorMode) || session.activeMode || editorMode.readStoredEditorMode());
+    session.dirty = Boolean(options.dirty);
+    session.editorMode = editorMode.normalizeEditorModeForDocument
+      ? editorMode.normalizeEditorModeForDocument(session.editorMode || options.editorMode || session.activeMode || editorMode.readStoredEditorMode(), session.documentType)
+      : editorMode.normalizeEditorMode(session.editorMode || options.editorMode || session.activeMode || editorMode.readStoredEditorMode());
     session.activeMode = session.editorMode;
     session.activeEditorSource = session.activeMode;
 
@@ -925,6 +1005,12 @@
   }
 
   function showWysiwygEditor() {
+    var session = getActiveSession();
+
+    if (session && session.sourceOnly) {
+      showMarkdownEditor();
+      return;
+    }
     wysiwygEditor.hidden = false;
     markdownEditor.hidden = true;
     setActiveEditorSource(EDITOR_MODES.WYSIWYG);
@@ -955,20 +1041,50 @@
 
   function updateModeControls() {
     var mode = getEditorMode();
+    var session = getActiveSession();
+    var sourceOnly = Boolean(session && session.sourceOnly);
+    var allowFormatting = Boolean(session && documentType && documentType.allowsFormattingToolbar(session.documentType));
 
     if (toggleEditorMode) {
-      toggleEditorMode.textContent = mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
+      toggleEditorMode.disabled = sourceOnly;
+      toggleEditorMode.textContent = sourceOnly ? "Source" : mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
       toggleEditorMode.setAttribute("aria-pressed", String(mode === EDITOR_MODES.MARKDOWN));
-      toggleEditorMode.title = mode === EDITOR_MODES.MARKDOWN
+      toggleEditorMode.title = sourceOnly
+        ? "WYSIWYG is available only for Markdown files"
+        : mode === EDITOR_MODES.MARKDOWN
         ? "Switch to WYSIWYG editing"
         : "Switch to Markdown editing";
     }
 
+    if (viewModeMenuItem) {
+      viewModeMenuItem.disabled = sourceOnly;
+      viewModeMenuItem.title = sourceOnly ? "WYSIWYG is available only for Markdown files" : "Switch editor mode";
+    }
+    if (copyRenderedHtmlMenuItem) {
+      copyRenderedHtmlMenuItem.disabled = sourceOnly;
+    }
+    if (formatBlock) {
+      formatBlock.disabled = !allowFormatting;
+    }
+    toolbarButtons.forEach(function (button) {
+      var action = button.getAttribute("data-action");
+      if (action !== "undo" && action !== "redo") {
+        button.disabled = !allowFormatting || (action === "image" && !isImagePickerSupported());
+      }
+    });
+    if (editorArea) {
+      editorArea.classList.toggle("is-source-only", sourceOnly);
+    }
+    markdownEditor.classList.toggle("is-source-document", sourceOnly);
+
     if (modeLabel) {
-      modeLabel.textContent = mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
+      modeLabel.textContent = sourceOnly ? "Source" : mode === EDITOR_MODES.MARKDOWN ? "Markdown" : "WYSIWYG";
     }
     if (statusBarController) {
-      statusBarController.setMode(mode);
+      statusBarController.setMode(sourceOnly ? "source" : mode);
+      if (session) {
+        updateValidationStatus(session);
+      }
     }
 
     applySoftWrapState();
@@ -979,6 +1095,9 @@
 
   function toggleSoftWrapState() {
     softWrapEnabled = !softWrapEnabled;
+    if (getActiveSession()) {
+      getActiveSession().softWrapEnabled = softWrapEnabled;
+    }
     editorMode.storeSoftWrap(softWrapEnabled);
     applySoftWrapState();
     scheduleWorkspaceSessionSave();
@@ -995,10 +1114,12 @@
     }
 
     window.clearTimeout(syncTimer);
+    window.clearTimeout(validationTimer);
     previousSession = getActiveSession();
 
     if (previousSession && previousSession !== session) {
       saveActiveEditorState(previousSession);
+      validateSession(previousSession);
     }
     if (previousSession && previousSession !== session && viewport && viewport.capture) {
       previousSession.scrollState = viewport.capture();
@@ -1010,8 +1131,13 @@
     }
 
     lastEditorAnchor = null;
+    softWrapEnabled = activeSession.softWrapEnabled !== false;
     markdownEditor.value = activeSession.markdownText;
-    wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
+    if (activeSession.sourceOnly) {
+      wysiwygEditor.innerHTML = "";
+    } else {
+      wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
+    }
     wysiwygNeedsSync = false;
     activeEditSource = activeSession.activeMode;
     if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
@@ -1024,6 +1150,7 @@
     updateCursorStatus();
     activeSession.history.updateControls();
     updateDocumentTitle();
+    validateSession(activeSession);
     renderTabs();
     scheduleWorkspaceSessionSave();
 
@@ -1063,6 +1190,7 @@
     }
 
     activeSession.markdownText = String(value || "");
+    activeSession.hasFinalNewline = /\n$/.test(activeSession.markdownText);
     if (source !== "textarea" && source !== "markdown" && getEditorMode() === EDITOR_MODES.MARKDOWN) {
       markdownEditor.value = activeSession.markdownText;
     }
@@ -1076,6 +1204,7 @@
 
     updateCounts();
     updateCursorStatus();
+    scheduleDocumentValidation(activeSession);
 
     if (history && options.history !== false) {
       history.record(activeSession.markdownText);
@@ -1098,11 +1227,12 @@
 
   function syncFromWysiwyg() {
     var activeSession = getActiveSession();
-    var converted = markdown.htmlToMarkdown(wysiwygEditor);
+    var converted;
 
-    if (isSyncingEditors) {
+    if (isSyncingEditors || !activeSession || activeSession.sourceOnly) {
       return;
     }
+    converted = markdown.htmlToMarkdown(wysiwygEditor);
 
     activeEditSource = "wysiwyg";
     if (
@@ -1119,7 +1249,7 @@
   }
 
   function scheduleSyncFromWysiwyg() {
-    if (isSyncingEditors) {
+    if (isSyncingEditors || (getActiveSession() && getActiveSession().sourceOnly)) {
       return;
     }
 
@@ -1156,9 +1286,11 @@
 
     activeSession.markdownText = String(value || "");
     markdownEditor.value = activeSession.markdownText;
-    renderWysiwygFromMarkdown({
-      force: true
-    });
+    if (!activeSession.sourceOnly) {
+      renderWysiwygFromMarkdown({
+        force: true
+      });
+    }
     updateCounts();
     updateCursorStatus();
 
@@ -1189,10 +1321,21 @@
   function setEditorMode(nextMode) {
     var activeSession = getActiveSession();
     var currentMode = getEditorMode();
-    var normalized = editorMode.normalizeEditorMode(nextMode);
+    var normalized = editorMode.normalizeEditorModeForDocument
+      ? editorMode.normalizeEditorModeForDocument(nextMode, activeSession && activeSession.documentType || "markdown")
+      : editorMode.normalizeEditorMode(nextMode);
     var anchor;
 
-    if (!activeSession || normalized === currentMode) {
+    if (!activeSession) {
+      return;
+    }
+    if (activeSession.sourceOnly) {
+      showMarkdownEditor();
+      updateModeControls();
+      focusActiveEditor();
+      return;
+    }
+    if (normalized === currentMode) {
       focusActiveEditor();
       return;
     }
@@ -1519,6 +1662,7 @@
 
     return workspaceRelated.getRelatedFiles({
       activePath: session.workspacePath,
+      documentType: session.documentType,
       files: workspaceState.files,
       markdownText: session.markdownText,
       recentPaths: recentlyOpenedWorkspacePaths
@@ -1560,8 +1704,8 @@
     if (openWorkspaceFolderButton) {
       openWorkspaceFolderButton.disabled = !supported;
       openWorkspaceFolderButton.title = supported
-        ? "Open a local folder as a Markdown workspace"
-        : "Folder workspace is supported in Chrome or Edge. You can still open individual Markdown files.";
+        ? "Open a local folder as a text-document workspace"
+        : "Folder workspace is supported in Chrome or Edge. You can still open individual text documents.";
     }
     if (refreshWorkspaceButton) {
       refreshWorkspaceButton.disabled = !hasWorkspace || workspaceState.isScanning;
@@ -1597,16 +1741,23 @@
     return tabs.listSessions().filter(function (session) {
       return session.workspaceId === workspaceState.id && session.workspacePath;
     }).map(function (session) {
-      var mode = editorMode.normalizeEditorMode(session.editorMode || session.activeMode);
+      var mode = editorMode.normalizeEditorModeForDocument
+        ? editorMode.normalizeEditorModeForDocument(session.editorMode || session.activeMode, session.documentType)
+        : editorMode.normalizeEditorMode(session.editorMode || session.activeMode);
 
       return {
+        documentType: session.documentType,
+        dirty: session.dirty,
         mode: mode,
         path: session.workspacePath,
+        selectionEnd: session.markdownSelectionEnd || 0,
+        selectionStart: session.markdownSelectionStart || 0,
         scrollTop: mode === EDITOR_MODES.MARKDOWN
           ? session.markdownScrollTop || 0
           : session.wysiwygScrollTop || 0,
-        softWrap: softWrapEnabled,
-        title: session.title || session.workspacePath
+        softWrap: session.softWrapEnabled !== false,
+        title: session.title || session.workspacePath,
+        wysiwygTextOffset: session.wysiwygTextOffset || 0
       };
     });
   }
@@ -1835,7 +1986,7 @@
     });
 
     if (dirtySessions.length && !window.confirm(
-      "Close " + workspaceSessions.length + " open Markdown tab" + (workspaceSessions.length === 1 ? "" : "s") +
+      "Close " + workspaceSessions.length + " open workspace tab" + (workspaceSessions.length === 1 ? "" : "s") +
       " from " + previousRootName + "?\n\n" +
       dirtySessions.length + " tab" + (dirtySessions.length === 1 ? " has" : "s have") +
       " unsaved changes that will be discarded."
@@ -1911,7 +2062,7 @@
       if (workspaceSidebar) {
         workspaceSidebar.setMode("expanded");
       }
-      showWorkspaceError("Folder workspace is supported in Chrome or Edge. You can still open individual Markdown files.");
+      showWorkspaceError("Folder workspace is supported in Chrome or Edge. You can still open individual text documents.");
       return;
     }
 
@@ -1944,7 +2095,7 @@
     var tabData;
     var fileItem;
     var file;
-    var markdownText;
+    var content;
     var session;
     var activeSession = null;
 
@@ -1971,19 +2122,28 @@
 
       try {
         file = await fileItem.handle.getFile();
-        markdownText = await file.text();
+        content = await fileStore.readTextDocument(file);
         session = createSession({
           activeMode: tabData.mode,
+          documentType: tabData.documentType || fileItem.documentType,
+          dirty: tabData.dirty,
           editorMode: tabData.mode,
           fileHandle: fileItem.handle,
+          hasFinalNewline: content.hasFinalNewline,
+          hasUtf8Bom: content.hasUtf8Bom,
+          markdownSelectionEnd: tabData.selectionEnd,
+          markdownSelectionStart: tabData.selectionStart,
           markdownScrollTop: tabData.mode === EDITOR_MODES.MARKDOWN ? tabData.scrollTop : 0,
-          markdownText: markdownText,
+          markdownText: content.markdownText,
+          preferredLineEnding: content.preferredLineEnding,
+          softWrapEnabled: tabData.softWrap,
           title: fileItem.name,
           workspaceDirHandle: workspaceState.rootHandle,
           workspaceFileHandle: fileItem.handle,
           workspaceId: workspaceState.id,
           workspacePath: fileItem.path,
           workspaceRootName: workspaceState.rootName,
+          wysiwygTextOffset: tabData.wysiwygTextOffset,
           wysiwygScrollTop: tabData.mode === EDITOR_MODES.WYSIWYG ? tabData.scrollTop : 0
         });
         tabs.addSession(session, { activate: false });
@@ -2298,10 +2458,9 @@
     scheduleWorkspaceSessionSave();
   }
 
-  async function handleWorkspaceNewMarkdownFile(target) {
-    var name = window.prompt("New Markdown file name", "Untitled.md");
+  async function handleWorkspaceNewTextFile(target) {
+    var name = window.prompt("New file name", "Untitled.md");
     var validation;
-    var allowNonMarkdown = false;
     var result;
 
     if (name == null || !workspaceOperations) {
@@ -2309,16 +2468,13 @@
     }
 
     validation = workspaceOperations.validateFileName(name, { enforceMarkdownExtension: true });
-    if (!validation.ok && validation.reason === "nonMarkdownExtension") {
-      allowNonMarkdown = window.confirm("This file does not use a Markdown extension. Create it anyway? It will not appear in the Markdown workspace tree.");
-    } else if (!validation.ok) {
+    if (!validation.ok) {
       window.alert(validation.message);
       return;
     }
 
     try {
-      result = await workspaceOperations.createMarkdownFile({
-        allowNonMarkdownExtension: allowNonMarkdown,
+      result = await workspaceOperations.createTextFile({
         directoryPath: target && target.path || "",
         initialText: "",
         name: name,
@@ -2326,7 +2482,7 @@
       });
       await refreshWorkspaceAfterOperation(result.path);
     } catch (error) {
-      showFileError("New Markdown file", error);
+      showFileError("New file", error);
     }
   }
 
@@ -2363,16 +2519,14 @@
       return;
     }
 
-    suggested = workspaceRelated && workspaceRelated.basename
-      ? workspaceRelated.basename(workspaceOperations.suggestedDuplicateName(fileItem.path))
-      : fileItem.name.replace(/(\.[^.]+)$/i, " copy$1");
+    suggested = workspaceRelated.basename(workspaceOperations.suggestedDuplicateName(fileItem.path));
     name = window.prompt("Duplicate as", suggested);
     if (name == null) {
       return;
     }
 
     try {
-      result = await workspaceOperations.duplicateMarkdownFile({
+      result = await workspaceOperations.duplicateTextFile({
         fileHandle: fileItem.handle,
         name: name,
         path: fileItem.path,
@@ -2380,7 +2534,7 @@
       });
       await refreshWorkspaceAfterOperation(result.path);
     } catch (error) {
-      showFileError("Duplicate Markdown file", error);
+      showFileError("Duplicate file", error);
     }
   }
 
@@ -2398,13 +2552,13 @@
       return;
     }
 
-    name = window.prompt("Rename Markdown file", fileItem.name);
+    name = window.prompt("Rename file", fileItem.name);
     if (name == null) {
       return;
     }
 
     try {
-      result = await workspaceOperations.renameMarkdownFile({
+      result = await workspaceOperations.renameTextFile({
         fileHandle: fileItem.handle,
         name: name,
         path: fileItem.path,
@@ -2415,12 +2569,13 @@
         session.workspaceFileHandle = result.fileHandle;
         session.title = result.name;
         session.workspacePath = result.path;
+        fileStore.applyDocumentTypeToSession(session, result.name);
       }
       await refreshWorkspaceAfterOperation(result.path);
       renderTabs();
       updateDocumentTitle();
     } catch (error) {
-      showFileError("Rename Markdown file", error);
+      showFileError("Rename file", error);
     }
   }
 
@@ -2454,7 +2609,7 @@
       return;
     }
     if (action === "new-file") {
-      await handleWorkspaceNewMarkdownFile(target);
+      await handleWorkspaceNewTextFile(target);
       return;
     }
     if (action === "new-folder") {
@@ -2503,7 +2658,7 @@
     }
 
     path = pathParts.join("/");
-    if (!workspaceStore.isMarkdownFile(path)) {
+    if (!workspaceStore.isSupportedFileName(path)) {
       return false;
     }
 
@@ -2554,7 +2709,7 @@
     var fileItem = findWorkspaceFile(path);
     var existingSession;
     var file;
-    var markdownText;
+    var content;
     var session;
 
     options = options || {};
@@ -2590,12 +2745,16 @@
 
     try {
       file = await fileItem.handle.getFile();
-      markdownText = await file.text();
+      content = await fileStore.readTextDocument(file);
       session = createSession({
         activeMode: getActiveMode(),
+        documentType: fileItem.documentType,
         editorMode: getEditorMode(),
         fileHandle: fileItem.handle,
-        markdownText: markdownText,
+        hasFinalNewline: content.hasFinalNewline,
+        hasUtf8Bom: content.hasUtf8Bom,
+        markdownText: content.markdownText,
+        preferredLineEnding: content.preferredLineEnding,
         title: fileItem.name,
         workspaceDirHandle: workspaceState.rootHandle,
         workspaceFileHandle: fileItem.handle,
@@ -2638,8 +2797,10 @@
     });
 
     if (insertImageButton) {
-      insertImageButton.disabled = !isImagePickerSupported();
-      insertImageButton.title = isImagePickerSupported()
+      insertImageButton.disabled = !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
+      insertImageButton.title = !activeDocumentAllowsMarkdownCommands()
+        ? "Images can be inserted only in Markdown files"
+        : isImagePickerSupported()
         ? "Insert image"
         : "Image insertion requires browser file and folder access";
     }
@@ -2774,7 +2935,7 @@
     var selection = options.selection || actions.captureSelection();
     var images;
 
-    if (!session || !files || !files.length) {
+    if (!session || !activeDocumentAllowsMarkdownCommands() || !files || !files.length) {
       return;
     }
 
@@ -3342,7 +3503,7 @@
     flushActiveEditor();
 
     try {
-      fileData = await fileStore.openMarkdownFile();
+      fileData = await fileStore.openTextDocument();
       existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
       if (existingSession) {
         await attachCurrentWorkspacePath(existingSession);
@@ -3354,9 +3515,13 @@
 
       session = createSession({
         activeMode: getActiveMode(),
+        documentType: fileData.documentType,
         editorMode: getEditorMode(),
         fileHandle: fileData.fileHandle,
+        hasFinalNewline: fileData.hasFinalNewline,
+        hasUtf8Bom: fileData.hasUtf8Bom,
         markdownText: fileData.markdownText,
+        preferredLineEnding: fileData.preferredLineEnding,
         title: fileData.title
       });
       await attachCurrentWorkspacePath(session);
@@ -3378,6 +3543,7 @@
     }
 
     flushActiveEditor();
+    validateSession(activeSession);
 
     try {
       await fileStore.saveSession(activeSession);
@@ -3398,6 +3564,7 @@
     }
 
     flushActiveEditor();
+    validateSession(activeSession);
 
     try {
       await fileStore.saveSessionAs(activeSession);
@@ -3405,6 +3572,7 @@
         await handleRefreshWorkspace();
       }
       markSessionClean();
+      setActiveSession(activeSession, { restoreScroll: true });
       await addRecentFile(activeSession.fileHandle, activeSession.title);
       renderWorkspaceSidebar();
     } catch (error) {
@@ -3437,9 +3605,13 @@
 
       session = createSession({
         activeMode: getActiveMode(),
+        documentType: fileData.documentType,
         editorMode: getEditorMode(),
         fileHandle: fileData.fileHandle,
+        hasFinalNewline: fileData.hasFinalNewline,
+        hasUtf8Bom: fileData.hasUtf8Bom,
         markdownText: fileData.markdownText,
+        preferredLineEnding: fileData.preferredLineEnding,
         title: fileData.title
       });
       await attachCurrentWorkspacePath(session);
@@ -3586,7 +3758,7 @@
   }
 
   function handleEditorDragOver(event) {
-    if (!transferHasImages(event.dataTransfer)) {
+    if (!activeDocumentAllowsMarkdownCommands() || !transferHasImages(event.dataTransfer)) {
       return;
     }
 
@@ -3598,7 +3770,7 @@
     var files;
     var selection;
 
-    if (!transferHasImages(event.dataTransfer)) {
+    if (!activeDocumentAllowsMarkdownCommands() || !transferHasImages(event.dataTransfer)) {
       return;
     }
 
@@ -3903,6 +4075,15 @@
     register("file.open", handleOpenFile);
     register("file.save", handleSaveFile);
     register("file.saveAs", handleSaveAsFile);
+    register("document.validate", function () {
+      flushActiveEditor();
+      validateSession(getActiveSession(), { announce: true });
+    });
+    register("document.format", function () {
+      if (statusBarController) {
+        statusBarController.showMessage("Automatic document formatting is not available yet.", 4000);
+      }
+    });
 
     register("edit.undo", function () {
       applyHistoryStep(-1);
@@ -4060,6 +4241,9 @@
     });
 
     formatBlock.addEventListener("change", function () {
+      if (!activeDocumentAllowsMarkdownCommands()) {
+        return;
+      }
       if (getActiveMode() === "markdown") {
         actions.applyMarkdownFormat(formatBlock.value);
         return;
@@ -4159,7 +4343,7 @@
     });
 
     markdownEditor.addEventListener("keydown", function (event) {
-      if (event.key === "Tab") {
+      if (event.key === "Tab" && activeDocumentAllowsMarkdownCommands()) {
         event.preventDefault();
         actions.applyToolbarAction(event.shiftKey ? "outdentList" : "indentList");
       }
@@ -4230,6 +4414,139 @@
 
   function installTestApi() {
     var params;
+    var testWorkspaceContents = {};
+
+    function testFileText(path) {
+      return Object.prototype.hasOwnProperty.call(testWorkspaceContents, path)
+        ? testWorkspaceContents[path]
+        : "";
+    }
+
+    function testFileHandle(path) {
+      var name = String(path || "").split("/").pop();
+
+      return {
+        __localDraftAIId: "e2e:" + path,
+        kind: "file",
+        name: name,
+        async createWritable() {
+          var nextValue = testFileText(path);
+
+          return {
+            async write(value) {
+              if (value instanceof ArrayBuffer) {
+                nextValue = new TextDecoder("utf-8").decode(new Uint8Array(value));
+              } else if (typeof Blob !== "undefined" && value instanceof Blob) {
+                nextValue = await value.text();
+              } else {
+                nextValue = String(value == null ? "" : value);
+              }
+            },
+            async close() {
+              testWorkspaceContents[path] = nextValue;
+            }
+          };
+        },
+        async getFile() {
+          return new File([testFileText(path)], name, { type: "text/plain" });
+        },
+        async isSameEntry(other) {
+          return Boolean(other && other.__localDraftAIId === "e2e:" + path);
+        }
+      };
+    }
+
+    async function loadWorkspaceForTest(files, restoreMetadata) {
+      var fileItems;
+      var rootHandle;
+
+      testWorkspaceContents = Object.assign({}, files || {});
+      fileItems = Object.keys(testWorkspaceContents).filter(function (path) {
+        return documentType.isSupportedFileName(path);
+      }).map(function (path) {
+        var descriptor = documentType.getDocumentTypeForName(path);
+
+        return {
+          documentType: descriptor.id,
+          extension: documentType.extensionForName(path),
+          handle: testFileHandle(path),
+          isPlan: descriptor.id === "markdown" && workspaceRelated.isPlanFile(path),
+          kind: "file",
+          name: path.split("/").pop(),
+          path: path
+        };
+      });
+      rootHandle = {
+        name: "PlainTextTest",
+        async resolve(handle) {
+          var match = fileItems.filter(function (item) {
+            return item.handle.__localDraftAIId === handle.__localDraftAIId;
+          })[0];
+          return match ? match.path.split("/") : null;
+        }
+      };
+      workspaceState = {
+        directories: [],
+        error: "",
+        files: fileItems,
+        id: "workspace-e2e",
+        isScanning: false,
+        rootHandle: rootHandle,
+        rootName: rootHandle.name,
+        tree: workspaceStore.buildTree(fileItems, [])
+      };
+      renderWorkspaceSidebar();
+      if (restoreMetadata) {
+        await restoreWorkspaceTabs(restoreMetadata, { replaceAll: true });
+      }
+      return fileItems.map(function (item) {
+        return { documentType: item.documentType, name: item.name, path: item.path };
+      });
+    }
+
+    function loadDocumentForTest(filename, text) {
+      var session = getActiveSession();
+      var descriptor;
+
+      if (!session) {
+        return;
+      }
+
+      flushActiveEditor();
+      session.title = filename || "Test.md";
+      descriptor = documentType.getDocumentTypeForName(session.title) || documentType.getDocumentTypeById("markdown");
+      session.documentType = descriptor.id;
+      session.extension = documentType.extensionForName(session.title) || descriptor.defaultExtension;
+      session.sourceOnly = !descriptor.allowWysiwyg;
+      session.editorMode = editorMode.normalizeEditorModeForDocument(session.editorMode, session.documentType);
+      session.activeMode = session.editorMode;
+      session.activeEditorSource = session.editorMode;
+      session.markdownText = String(text || "");
+      session.hasFinalNewline = /\n$/.test(session.markdownText);
+      markdownEditor.value = session.markdownText;
+      if (session.sourceOnly) {
+        wysiwygEditor.innerHTML = "";
+        showMarkdownEditor();
+      } else {
+        renderWysiwygFromMarkdown({ force: true });
+        if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
+          showMarkdownEditor();
+        } else {
+          showWysiwygEditor();
+        }
+      }
+      if (session.history) {
+        session.history.reset(session.markdownText);
+      }
+      resetScrollPositions();
+      session.dirty = false;
+      validateSession(session);
+      updateCounts();
+      updateModeControls();
+      updateCursorStatus();
+      updateDocumentTitle();
+      renderTabs();
+    }
 
     try {
       params = new URLSearchParams(window.location.search);
@@ -4245,6 +4562,7 @@
       getEditorStateForTest: function () {
         var session = getActiveSession();
         return {
+          documentType: session ? session.documentType : "markdown",
           editorMode: getEditorMode(),
           softWrapEnabled: softWrapEnabled,
           markdownText: session ? session.markdownText : "",
@@ -4253,37 +4571,61 @@
           markdownScrollTop: markdownEditor.scrollTop,
           wysiwygScrollTop: wysiwygEditor.scrollTop,
           modeLabel: modeLabel.textContent,
+          sourceOnly: Boolean(session && session.sourceOnly),
+          validationState: session ? session.validationState : null,
           markdownHidden: markdownEditor.hidden,
           wysiwygHidden: wysiwygEditor.hidden
         };
       },
-      loadMarkdownForTest: function (filename, markdownText) {
+      closeActiveTabForTest: function () {
         var session = getActiveSession();
-
-        if (!session) {
-          return;
+        return session ? closeTab(session.id) : null;
+      },
+      getOpenTabsForTest: function () {
+        return tabs.listSessions().map(function (session) {
+          return {
+            documentType: session.documentType,
+            editorMode: session.editorMode,
+            path: session.workspacePath,
+            softWrapEnabled: session.softWrapEnabled,
+            sourceOnly: session.sourceOnly,
+            title: session.title
+          };
+        });
+      },
+      getWorkspaceContentsForTest: function () {
+        return Object.assign({}, testWorkspaceContents);
+      },
+      getWorkspaceMetadataForTest: function () {
+        var metadata = currentWorkspaceSessionMetadata();
+        if (!metadata) {
+          return null;
         }
-
+        return {
+          activePath: metadata.activePath,
+          collapsedFolders: metadata.collapsedFolders,
+          openedTabs: metadata.openedTabs,
+          sidebarScroll: metadata.sidebarScroll,
+          workspaceName: metadata.workspaceName
+        };
+      },
+      loadDocumentForTest: loadDocumentForTest,
+      loadMarkdownForTest: loadDocumentForTest,
+      loadWorkspaceForTest: loadWorkspaceForTest,
+      openWorkspaceFileForTest: function (path, options) {
+        return openWorkspaceFile(path, options);
+      },
+      saveActiveDocumentForTest: async function () {
+        var session = getActiveSession();
         flushActiveEditor();
-        session.title = filename || "Test.md";
-        session.markdownText = String(markdownText || "");
-        markdownEditor.value = session.markdownText;
-        renderWysiwygFromMarkdown({ force: true });
-        if (getEditorMode() === EDITOR_MODES.MARKDOWN) {
-          showMarkdownEditor();
-        } else {
-          showWysiwygEditor();
-        }
-        if (session.history) {
-          session.history.reset(session.markdownText);
-        }
-        resetScrollPositions();
-        session.dirty = false;
-        updateCounts();
-        updateModeControls();
-        updateCursorStatus();
-        updateDocumentTitle();
-        renderTabs();
+        validateSession(session);
+        await fileStore.saveSession(session);
+        markSessionClean();
+        return session && session.workspacePath ? testFileText(session.workspacePath) : session.markdownText;
+      },
+      searchWorkspaceForTest: async function (query) {
+        await handleWorkspaceContentSearch(query);
+        return workspaceContentSearchState;
       },
       captureSelectionForTest: function () {
         var selection = actions.captureSelection();
@@ -4308,9 +4650,11 @@
         charCount: charCount,
         cursor: cursorPosition,
         document: documentStatus,
+        documentType: documentTypeStatus,
         message: applicationStatus,
         mode: modeLabel,
         softWrap: softWrapStatus,
+        validation: validationStatus,
         wordCount: wordCount,
         workspace: workspaceStatus
       });
@@ -4327,6 +4671,7 @@
 
     actions = ME.editorActions.create({
       applyHistoryStep: applyHistoryStep,
+      allowsMarkdownCommands: activeDocumentAllowsMarkdownCommands,
       formatBlock: formatBlock,
       getActiveMode: getActiveMode,
       insertClipboardImages: function (files, selection) {
@@ -4405,6 +4750,10 @@
       captureSelection: actions.captureSelection,
       focusActiveEditor: focusActiveEditor,
       getActiveMode: getActiveMode,
+      getDocumentType: function () {
+        var session = getActiveSession();
+        return session ? session.documentType : "markdown";
+      },
       getActiveSessionId: function () {
         var session = getActiveSession();
         return session ? session.id : null;

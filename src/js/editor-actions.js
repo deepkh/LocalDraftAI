@@ -11,6 +11,10 @@
     var markdownEditor = context.markdownEditor;
     var formatBlock = context.formatBlock;
 
+    function allowsMarkdownCommands() {
+      return typeof context.allowsMarkdownCommands !== "function" || context.allowsMarkdownCommands();
+    }
+
     function execWysiwyg(command, value) {
       wysiwygEditor.focus();
       document.execCommand(command, false, value || null);
@@ -94,6 +98,9 @@
     }
 
     function applyMarkdownFormat(value) {
+      if (!allowsMarkdownCommands()) {
+        return false;
+      }
       replaceCurrentLines(function (lines) {
         return lines.split("\n").map(function (line) {
           var text = line.replace(/^#{1,6}\s+/, "");
@@ -248,6 +255,10 @@
       if (action === "undo" || action === "redo") {
         context.applyHistoryStep(action === "undo" ? -1 : 1);
         return;
+      }
+
+      if (!allowsMarkdownCommands()) {
+        return false;
       }
 
       if (context.getActiveMode() === "markdown") {

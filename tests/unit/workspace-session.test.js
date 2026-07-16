@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-session.js");
 
 const workspaceSession = window.MarkdownEditor.workspaceSession;
@@ -35,8 +36,39 @@ runTest("normalizes restorable session metadata", function () {
   assert.equal(metadata.workspaceName, "LocalDraftAI");
   assert.equal(metadata.openedTabs.length, 1);
   assert.equal(metadata.openedTabs[0].title, "README.md");
+  assert.equal(metadata.openedTabs[0].wysiwygTextOffset, 0);
   assert.deepEqual(metadata.collapsedFolders, ["docs", "plans/archive", "notes/drafts"]);
   assert.deepEqual(metadata.sidebarScroll, { panel: "files", scrollLeft: 4, scrollTop: 320 });
+});
+
+runTest("forces restored source-only tabs out of stale WYSIWYG mode", function () {
+  const jsonTab = workspaceSession.normalizeTabMetadata({
+    path: "settings.json",
+    documentType: "json",
+    mode: "wysiwyg",
+    selectionStart: 4,
+    selectionEnd: 9,
+    dirty: true,
+    softWrap: false
+  });
+
+  assert.equal(jsonTab.documentType, "json");
+  assert.equal(jsonTab.mode, "markdown");
+  assert.equal(jsonTab.selectionStart, 4);
+  assert.equal(jsonTab.selectionEnd, 9);
+  assert.equal(jsonTab.dirty, true);
+  assert.equal(jsonTab.softWrap, false);
+});
+
+runTest("uses a restored path extension over stale document type metadata", function () {
+  const tab = workspaceSession.normalizeTabMetadata({
+    path: "workflow.yaml",
+    documentType: "markdown",
+    mode: "wysiwyg"
+  });
+
+  assert.equal(tab.documentType, "yaml");
+  assert.equal(tab.mode, "markdown");
 });
 
 runTest("normalizes recent workspace records", function () {

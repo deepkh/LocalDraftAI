@@ -9,6 +9,9 @@ function element() {
     attributes: {},
     setAttribute(name, value) {
       this.attributes[name] = String(value);
+    },
+    removeAttribute(name) {
+      delete this.attributes[name];
     }
   };
 }
@@ -22,6 +25,7 @@ global.window = {
 };
 
 require("../../src/js/editor-mode.js");
+require("../../src/js/document-type.js");
 require("../../src/js/status-bar.js");
 
 const statusBar = window.MarkdownEditor.statusBar;
@@ -50,9 +54,11 @@ runTest("updates workspace, document, mode, wrap, cursor, and counts", function 
     charCount: element(),
     cursor: element(),
     document: element(),
+    documentType: element(),
     message: element(),
     mode: element(),
     softWrap: element(),
+    validation: element(),
     wordCount: element(),
     workspace: element()
   };
@@ -60,6 +66,7 @@ runTest("updates workspace, document, mode, wrap, cursor, and counts", function 
 
   view.setWorkspace("Docs");
   view.setDocument({ dirty: true, title: "Notes.md" });
+  view.setDocumentType("markdown");
   view.setMode("markdown");
   view.setSoftWrap(false);
   view.setCursor("markdown", "one\ntwo", 6);
@@ -68,6 +75,7 @@ runTest("updates workspace, document, mode, wrap, cursor, and counts", function 
   assert.equal(elements.workspace.textContent, "Docs");
   assert.equal(elements.document.textContent, "Unsaved");
   assert.equal(elements.document.hidden, false);
+  assert.equal(elements.documentType.textContent, "Markdown");
   assert.equal(elements.mode.textContent, "Markdown");
   assert.equal(elements.softWrap.textContent, "No Wrap");
   assert.equal(elements.cursor.textContent, "Ln 2, Col 3");
@@ -81,9 +89,11 @@ runTest("hides cursor outside Markdown mode and renders accessible AI status", f
     charCount: element(),
     cursor: element(),
     document: element(),
+    documentType: element(),
     message: element(),
     mode: element(),
     softWrap: element(),
+    validation: element(),
     wordCount: element(),
     workspace: element()
   };
@@ -100,4 +110,22 @@ runTest("hides cursor outside Markdown mode and renders accessible AI status", f
   assert.equal(elements.cursor.hidden, true);
   assert.equal(elements.aiStatus.textContent, "Local mock · Mock mode");
   assert.match(elements.aiStatus.attributes["aria-label"], /AI status: Mock mode/);
+});
+
+runTest("renders structured document validation and hides non-applicable state", function () {
+  const elements = {
+    aiStatus: element(), charCount: element(), cursor: element(), document: element(),
+    documentType: element(), message: element(), mode: element(), softWrap: element(),
+    validation: element(), wordCount: element(), workspace: element()
+  };
+  const view = statusBar.create(elements);
+
+  view.setDocumentType("json");
+  view.setValidation("json", { status: "invalid", message: "Unexpected token", line: 2, column: 3 });
+  assert.equal(elements.documentType.textContent, "JSON");
+  assert.equal(elements.validation.textContent, "Invalid JSON");
+  assert.match(elements.validation.title, /line 2, column 3/);
+
+  view.setValidation("text", { status: "not-applicable" });
+  assert.equal(elements.validation.hidden, true);
 });

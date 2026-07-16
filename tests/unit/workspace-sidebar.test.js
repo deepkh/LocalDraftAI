@@ -126,6 +126,7 @@ global.document = {
 };
 
 require("../../src/js/utils.js");
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-store.js");
 require("../../src/js/workspace-sidebar.js");
 

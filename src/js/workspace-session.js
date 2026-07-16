@@ -80,12 +80,24 @@
   }
 
   function normalizeTabMetadata(tab) {
+    var descriptor = ME.documentType && (
+      ME.documentType.getDocumentTypeForName(tab && tab.path) ||
+      ME.documentType.getDocumentTypeById(tab && tab.documentType)
+    );
+    var documentType = descriptor ? descriptor.id : String(tab && tab.documentType || "markdown");
+    var sourceOnly = descriptor ? !descriptor.allowWysiwyg : documentType !== "markdown";
+
     return {
-      mode: tab && tab.mode === "markdown" ? "markdown" : "wysiwyg",
+      documentType: documentType,
+      dirty: Boolean(tab && tab.dirty),
+      mode: sourceOnly || tab && tab.mode === "markdown" ? "markdown" : "wysiwyg",
       path: String(tab && tab.path || ""),
+      selectionEnd: Math.max(0, Number(tab && tab.selectionEnd) || 0),
+      selectionStart: Math.max(0, Number(tab && tab.selectionStart) || 0),
       scrollTop: Math.max(0, Number(tab && tab.scrollTop) || 0),
       softWrap: tab ? tab.softWrap !== false : true,
-      title: String(tab && tab.title || tab && tab.path || "")
+      title: String(tab && tab.title || tab && tab.path || ""),
+      wysiwygTextOffset: Math.max(0, Number(tab && tab.wysiwygTextOffset) || 0)
     };
   }
 

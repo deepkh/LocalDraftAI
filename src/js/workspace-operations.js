@@ -8,16 +8,16 @@
   }
 
   function extensionForName(name) {
-    var match = String(name || "").match(/(\.[^.]+)$/);
-
-    return match ? match[1].toLowerCase() : "";
+    return ME.documentType && ME.documentType.extensionForName
+      ? ME.documentType.extensionForName(name)
+      : "";
   }
 
-  function ensureMarkdownExtension(name) {
+  function ensureSupportedExtension(name, defaultExtension) {
     var trimmed = String(name || "").trim();
 
     if (!extensionForName(trimmed)) {
-      return trimmed + ".md";
+      return trimmed + (defaultExtension || ".md");
     }
 
     return trimmed;
@@ -26,7 +26,6 @@
   function validateFileName(name, options) {
     var trimmed = String(name || "").trim();
     var normalized;
-    var extension;
 
     options = options || {};
     if (!trimmed) {
@@ -36,14 +35,15 @@
       return { ok: false, reason: "unsafe", message: "Use a file name without slashes." };
     }
 
-    normalized = options.enforceMarkdownExtension === false ? trimmed : ensureMarkdownExtension(trimmed);
-    extension = extensionForName(normalized);
-    if (extension && !/^\.(md|markdown)$/i.test(extension) && !options.allowNonMarkdownExtension) {
+    normalized = options.enforceMarkdownExtension === false
+      ? trimmed
+      : ensureSupportedExtension(trimmed, options.defaultExtension);
+    if (!(ME.documentType && ME.documentType.isSupportedFileName(normalized))) {
       return {
         ok: false,
         normalizedName: normalized,
-        reason: "nonMarkdownExtension",
-        message: "Use a .md or .markdown file name."
+        reason: "unsupportedExtension",
+        message: "Use a .md, .txt, .log, .json, .yml, or .yaml file name."
       };
     }
 
@@ -104,15 +104,14 @@
   async function writeText(fileHandle, text) {
     var writable = await fileHandle.createWritable();
 
-    await writable.write(String(text || ""));
+    await writable.write(text == null ? "" : text);
     await writable.close();
   }
 
-  async function createMarkdownFile(options) {
+  async function createTextFile(options) {
     var rootHandle = options.rootHandle;
     var directoryPath = options.directoryPath || "";
     var validation = validateFileName(options.name, {
-      allowNonMarkdownExtension: options.allowNonMarkdownExtension,
       enforceMarkdownExtension: true
     });
     var directoryHandle;
@@ -202,7 +201,7 @@
     }
   }
 
-  async function duplicateMarkdownFile(options) {
+  async function duplicateTextFile(options) {
     var sourcePath = options.path;
     var directoryPath = dirname(sourcePath);
     var directoryHandle;
@@ -215,9 +214,9 @@
     await ensureReadWrite(options.rootHandle);
     directoryHandle = await directoryForPath(options.rootHandle, directoryPath);
     sourceFile = await options.fileHandle.getFile();
-    text = await sourceFile.text();
+    text = typeof sourceFile.arrayBuffer === "function" ? await sourceFile.arrayBuffer() : await sourceFile.text();
     nameValidation = validateFileName(options.name || basename(suggestedDuplicateName(sourcePath)), {
-      allowNonMarkdownExtension: false,
+      defaultExtension: extensionForName(sourcePath) || ".md",
       enforceMarkdownExtension: true
     });
     if (!nameValidation.ok) {
@@ -235,12 +234,12 @@
     };
   }
 
-  async function renameMarkdownFile(options) {
+  async function renameTextFile(options) {
     var sourcePath = options.path;
     var directoryPath = dirname(sourcePath);
     var oldName = basename(sourcePath);
     var validation = validateFileName(options.name, {
-      allowNonMarkdownExtension: false,
+      defaultExtension: extensionForName(sourcePath) || ".md",
       enforceMarkdownExtension: true
     });
     var directoryHandle;
@@ -276,7 +275,7 @@
     }
 
     sourceFile = await options.fileHandle.getFile();
-    text = await sourceFile.text();
+    text = typeof sourceFile.arrayBuffer === "function" ? await sourceFile.arrayBuffer() : await sourceFile.text();
     fileHandle = await directoryHandle.getFileHandle(validation.normalizedName, { create: true });
     await writeText(fileHandle, text);
     await fileHandle.getFile();
@@ -303,10 +302,14 @@
   ME.workspaceOperations = {
     copyRelativePath: copyRelativePath,
     createFolder: createFolder,
-    createMarkdownFile: createMarkdownFile,
-    duplicateMarkdownFile: duplicateMarkdownFile,
-    ensureMarkdownExtension: ensureMarkdownExtension,
-    renameMarkdownFile: renameMarkdownFile,
+    createTextFile: createTextFile,
+    createMarkdownFile: createTextFile,
+    duplicateTextFile: duplicateTextFile,
+    duplicateMarkdownFile: duplicateTextFile,
+    ensureSupportedExtension: ensureSupportedExtension,
+    ensureMarkdownExtension: ensureSupportedExtension,
+    renameTextFile: renameTextFile,
+    renameMarkdownFile: renameTextFile,
     suggestedDuplicateName: suggestedDuplicateName,
     validateFileName: validateFileName,
     validateFolderName: validateFolderName

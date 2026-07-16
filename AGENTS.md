@@ -2,7 +2,7 @@
 
 ## Project
 
-LocalDraftAI is a local-first, browser-based Markdown editor with WYSIWYG editing, Markdown source editing, Soft Wrap, local file access, image asset handling, multi-tab sessions, and AI-assisted writing actions.
+LocalDraftAI is a local-first, browser-based Markdown-first text editor with Markdown WYSIWYG/source editing, source-only plain text and structured files, Soft Wrap, local file access, image asset handling, multi-tab sessions, validation warnings, and AI-assisted writing actions.
 
 The app is currently a dependency-free static HTML/CSS/JavaScript project. Preserve that structure unless the user explicitly asks for a build system or new dependencies.
 
@@ -31,17 +31,19 @@ src/js/activity-bar.js       Workbench view and sidebar routing
 src/js/theme.js              Application light/dark theme state, persistence, and control synchronization
 src/js/status-bar.js         Compact workspace, document, editor, and AI status
 src/js/document-session.js   Per-tab document state
+src/js/document-type.js      Central supported-extension and document-capability registry
+src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
 src/js/markdown.js           Markdown conversion/rendering
 src/js/editor-mode.js        Editor mode, Soft Wrap, and caret/offset helpers
 src/js/editor-actions.js     Editor formatting commands
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
-src/js/workspace-store.js    Local folder workspace scanning and Markdown file tree model
+src/js/workspace-store.js    Local folder workspace scanning and supported text-document tree model
 src/js/workspace-sidebar.js  Left workspace sidebar rendering, persisted mode, and resizing
 src/js/workspace-session.js  IndexedDB workspace handle, recent workspaces, and opened-tab session restore
-src/js/workspace-operations.js Safe Markdown file/folder operations from the workspace sidebar
-src/js/workspace-search.js   Markdown workspace content search helpers
+src/js/workspace-operations.js Safe text-document/folder operations from the workspace sidebar
+src/js/workspace-search.js   Supported workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Local image workspace/assets handling
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
@@ -94,7 +96,12 @@ Use these routes:
   - `.agents/skills/file-access.md`
   - `src/js/file-store.js`
   - `src/js/recent-files.js`
-- Workspace sidebar, folder open, Markdown file tree, session restore, Markdown operations, content search, related files, workspace sidebar sizing/state:
+- Supported document types and structured validation:
+  - `src/js/document-type.js`
+  - `src/js/document-validation.js`
+  - `src/js/document-session.js`
+  - `src/js/file-store.js`
+- Workspace sidebar, folder open, supported-document file tree, session restore, file operations, content search, related files, workspace sidebar sizing/state:
   - `.agents/skills/workspace-sidebar.md`
   - `src/js/workspace-store.js`
   - `src/js/workspace-sidebar.js`
@@ -133,13 +140,16 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 ## Behavior Notes
 
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
-- The left workspace sidebar is a Markdown-focused browser for local folders; it lists `.md` and `.markdown` files, keeps non-Markdown files hidden, and opens workspace Markdown files in tabs.
+- The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
+- Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
+- Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.
+- JSON and YAML remain source-only, are never automatically reformatted, and show warning-only validation. Invalid structured documents must remain editable and saveable.
 - The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, supports Files, Search, and Related views, and lets folders in the Files tree collapse or expand with workspace-relative persisted state.
 - Workspace session restore uses IndexedDB for the previous workspace handle, up to 10 recent workspace handles, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. It must restore or reopen workspaces only after explicit user action and must not store full document contents for normal restore.
-- Switching to a different workspace removes Markdown tabs owned by the previous workspace from the tab bar while preserving lightweight restore metadata for that workspace. If any of those tabs are dirty, the user must confirm before the switch completes.
-- Workspace file operations must stay safe: New Markdown File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed; Delete is out of scope.
-- Workspace content search only scans `.md` and `.markdown` files and should cap matches to avoid runaway UI work.
-- Related files are simple rule-based context only: same folder, Markdown links, recently opened workspace files, and plan files. Do not add embeddings or AI context execution here.
+- Switching to a different workspace removes supported workspace tabs owned by the previous workspace from the tab bar while preserving lightweight restore metadata for that workspace. If any of those tabs are dirty, the user must confirm before the switch completes.
+- Workspace file operations must stay safe: New File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed for registered document types; Delete is out of scope.
+- Workspace content search scans all registered text-document types and should cap matches to avoid runaway UI work.
+- Related files are simple rule-based context only: every supported type gets same-folder and recently opened files; Markdown alone gets Markdown links and plan files. Do not add embeddings or AI context execution here.
 - Plan badges use simple filename/path rules and must not imply any agent execution feature.
 - WYSIWYG mode supports safe rich HTML paste through one shared sanitizer for native and context-menu paste. Markdown-compatible formatting is preserved, redundant layout containers around document blocks are unwrapped, and webpage controls, executable or embedded content, media widgets, SVG UI, unsafe attributes, inline styles, and event handlers are removed with blocked subtree content.
 - WYSIWYG H1, H2, and H3 headings use compact 24px, 20px, and 18px document typography at weight 600 so pasted heading hierarchy remains visually consistent.
@@ -155,10 +165,10 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Theme-sensitive colors belong in semantic CSS variables with light defaults and dark overrides.
 - The command registry maps Menu Bar commands to existing app behavior; menu modules must not reimplement file, editor, workspace, or AI operations.
 - The Status Bar displays workspace, unsaved-document, editor mode, Soft Wrap, Markdown cursor, word count, and AI provider state passed from their existing owners.
-- Only one editor mode is visible at a time: WYSIWYG or Markdown.
+- Only one editor mode is visible at a time: WYSIWYG or source. WYSIWYG is available only to Markdown documents.
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
-- Soft Wrap affects visual wrapping only in WYSIWYG and Markdown modes and must not change saved Markdown content.
+- Soft Wrap affects visual wrapping only and must not change saved document content in any supported type.
 - Application actions remain available from the compact Menu Bar, while Markdown/WYSIWYG, Soft Wrap, formatting, and Focus Mode stay in the Editor Area toolbar.
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
 - The AI Assistant review panel is manually resizable on wide desktop layouts, stores its width in localStorage, and should clamp against the workspace sidebar so the editor remains usable.
@@ -171,6 +181,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - AI review should keep generated results as in-memory revisions for the current action; do not persist revision history unless explicitly requested.
 - AI interactive review should keep accept/reject choices in review state and apply only after the final apply click.
 - AI apply mode should support replacing the selection, inserting below the selection, or copying the result without changing the document.
+- Plain text may use general writing AI actions, but Markdown-only actions must be hidden. JSON and YAML replacement-based AI actions remain disabled.
 - AI Restore Original should use exact range or safe text-match restoration and show a clear message instead of guessing when restore is unsafe.
 - AI provider mode should support local mock mode, native Ollama, OpenAI, Gemini, Groq, OpenRouter, Mistral, Claude, Grok, and OpenAI-compatible custom server mode.
 - AI reasoning mode should support Auto, Off, Low, Medium, High, and Extra High, map them to provider-supported reasoning controls, and only show provider-returned summaries when requested.
@@ -203,6 +214,10 @@ node tests/unit/ai-status.test.js
 node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
 node tests/unit/editor-mode.test.js
+node tests/unit/document-session.test.js
+node tests/unit/document-type.test.js
+node tests/unit/document-validation.test.js
+node tests/unit/file-store.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
 node tests/unit/resizer.test.js
@@ -253,6 +268,12 @@ Run the semantic workbench and responsive layout smoke test:
 
 ```bash
 node --experimental-websocket tests/e2e/workbench-layout.headless.mjs
+```
+
+Run the Markdown-first plain-text workspace, source-only editor, validation, search, save, and restore smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/plain-text-file-support.headless.mjs
 ```
 
 ## Documentation

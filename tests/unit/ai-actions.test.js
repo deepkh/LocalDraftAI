@@ -36,6 +36,18 @@ runTest("defines all phase 1 AI actions", function () {
   ]);
 });
 
+runTest("filters AI replacement actions by document type", function () {
+  const textLabels = aiActions.groupsForDocument("text").flatMap((group) => group.actions.map((action) => action.label));
+
+  assert.deepEqual(textLabels, [
+    "Grammar Correction", "Improve Wording", "Make Professional", "Summarize", "Make Shorter"
+  ]);
+  assert.deepEqual(aiActions.groupsForDocument("json"), []);
+  assert.deepEqual(aiActions.groupsForDocument("yaml"), []);
+  assert.equal(aiActions.isActionAllowedForDocument(aiActions.get("beautifyMarkdown"), "text"), false);
+  assert.equal(aiActions.isActionAllowedForDocument(aiActions.get("correctGrammar"), "text"), true);
+});
+
 runTest("builds prompt messages for selected Markdown", function () {
   const messages = aiActions.buildMessages("correctGrammar", "# Teh title");
 

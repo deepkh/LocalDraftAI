@@ -103,7 +103,7 @@
 
     for (i = 0; i < (files || []).length; i += 1) {
       fileItem = files[i];
-      if (!fileItem || !(ME.workspaceStore && ME.workspaceStore.isMarkdownFile(fileItem.path || fileItem.name))) {
+      if (!fileItem || !(ME.workspaceStore && ME.workspaceStore.isSupportedFileName(fileItem.path || fileItem.name))) {
         continue;
       }
 
@@ -115,6 +115,8 @@
       for (j = 0; j < matches.length; j += 1) {
         results.push({
           column: matches[j].column,
+          documentType: fileItem.documentType || ((ME.documentType && ME.documentType.getDocumentTypeForName(fileItem.path || fileItem.name)) || {}).id || "markdown",
+          filename: String(fileItem.name || fileItem.path || "").split("/").pop(),
           line: matches[j].line,
           path: fileItem.path || fileItem.name || "",
           preview: matches[j].preview,

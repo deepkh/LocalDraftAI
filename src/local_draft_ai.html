@@ -48,11 +48,15 @@
             <button type="button" id="newFile" role="menuitem" data-command="file.new"
               title="New document (Ctrl/Cmd+N)">New</button>
             <button type="button" id="openFile" role="menuitem" data-command="file.open"
-              title="Open Markdown file (Ctrl/Cmd+O)">Open File</button>
+              title="Open a supported text document (Ctrl/Cmd+O)">Open File</button>
             <button type="button" id="saveFile" role="menuitem" data-command="file.save"
               title="Save document (Ctrl/Cmd+S)">Save</button>
             <button type="button" id="saveAsFile" role="menuitem" data-command="file.saveAs"
               title="Save document as (Ctrl/Cmd+Shift+S)">Save As</button>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" id="validateDocument" role="menuitem" data-command="document.validate">Validate Document</button>
+            <button type="button" id="formatDocument" role="menuitem" data-command="document.format" disabled
+              title="Automatic formatting is not available yet">Format Document</button>
             <div class="ai-menu-separator" role="separator"></div>
             <label class="menu-select-label" for="recentFiles">Recent Files</label>
             <select id="recentFiles" class="recent-select" title="Open or remove recent files"
@@ -221,9 +225,9 @@
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true"
-            data-placeholder="Open or create a Markdown file to start writing."></div>
+            data-placeholder="Open or create a document to start writing."></div>
           <textarea id="markdownEditor" class="markdown-editor" spellcheck="false"
-            placeholder="Open or create a Markdown file to start writing." hidden></textarea>
+            placeholder="Open or create a document to start writing." hidden></textarea>
         </div>
       </section>
       </main>
@@ -240,7 +244,7 @@
                 aria-label="Close AI Assistant">×</button>
             </div>
             <div class="ai-assistant-welcome-body">
-              <p>Select Markdown in the editor, then choose an action from the AI menu.</p>
+              <p>Select text in a Markdown or plain-text document, then choose an action from the AI menu.</p>
               <button type="button" id="aiAssistantPanelSettings" class="file-button">AI Provider Settings</button>
             </div>
           </section>
@@ -257,6 +261,8 @@
             rel="noreferrer noopener">Feedback</a></span>
       </div>
       <div class="status-bar-right">
+        <span id="documentTypeStatus" class="status-bar-item">Markdown</span>
+        <span id="validationStatus" class="status-bar-item status-bar-validation" hidden></span>
         <span id="modeLabel" class="status-bar-item editor-mode-label">WYSIWYG</span>
         <span id="softWrapStatus" class="status-bar-item" title="Soft Wrap is enabled">Wrap</span>
         <span id="cursorPosition" class="status-bar-item status-bar-cursor" hidden></span>
@@ -274,7 +280,7 @@
           <button type="button" id="aboutClose" class="icon-text about-close" aria-label="Close about dialog">×</button>
         </div>
         <div id="aboutBody" class="about-body">
-          <p>LocalDraftAI is a local, browser-based Markdown editor.</p>
+          <p>LocalDraftAI is a local, browser-based Markdown-first text editor.</p>
           <p>Author: deepkh</p>
           <p>GitHub repository: <a href="https://github.com/deepkh/LocalDraftAI" target="_blank"
               rel="noreferrer noopener">https://github.com/deepkh/LocalDraftAI</a></p>
@@ -535,6 +541,7 @@ SOFTWARE.</pre>
   </div>
 
   <script src="js/utils.js"></script>
+  <script src="js/document-type.js"></script>
   <script src="js/command-registry.js"></script>
   <script src="js/menu-bar.js"></script>
   <script src="js/status-bar.js"></script>
@@ -557,6 +564,7 @@ SOFTWARE.</pre>
   <script src="js/editor-actions.js"></script>
   <script src="js/resizer.js"></script>
   <script src="js/vendor/js-yaml.min.js"></script>
+  <script src="js/document-validation.js"></script>
   <script src="js/ai-action-defaults.js"></script>
   <script src="js/ai-action-config-store.js"></script>
   <script src="js/ai-action-config.js"></script>

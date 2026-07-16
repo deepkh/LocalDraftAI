@@ -56,7 +56,7 @@
       if (!target || isExternalLink(target)) {
         continue;
       }
-      if (!(ME.workspaceStore && ME.workspaceStore.isMarkdownFile(target))) {
+      if (!(ME.workspaceStore && ME.workspaceStore.isSupportedFileName(target))) {
         continue;
       }
       links.push(target);
@@ -81,15 +81,20 @@
   function isPlanFile(path) {
     var normalized = normalizePath(path);
     var name = basename(normalized);
+    var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(name);
+    var extension;
+    var stem;
 
-    if (!/\.(md|markdown)$/i.test(name)) {
+    if (!descriptor || descriptor.id !== "markdown") {
       return false;
     }
+    extension = ME.documentType.extensionForName(name);
+    stem = extension ? name.slice(0, -extension.length) : name;
 
     return /^plans\//i.test(normalized) ||
-      /^Plan_/i.test(name) ||
-      /_Plan\.(md|markdown)$/i.test(name) ||
-      /plan/i.test(name);
+      /^Plan_/i.test(stem) ||
+      /_Plan$/i.test(stem) ||
+      /plan/i.test(stem);
   }
 
   function uniqueByPath(items) {
@@ -147,6 +152,8 @@
     var linked = [];
     var recent = [];
     var plans = [];
+    var activeDocumentType = options && options.documentType || ((ME.documentType && ME.documentType.getDocumentTypeForName(activePath)) || {}).id || "markdown";
+    var allowMarkdownRelationships = activeDocumentType === "markdown";
 
     if (!activePath) {
       return {
@@ -166,12 +173,12 @@
       if (file.path !== activePath && dirname(file.path) === activeDir) {
         sameFolder.push(toRelatedItem(file.path, lookup));
       }
-      if (isPlanFile(file.path) && file.path !== activePath) {
+      if (allowMarkdownRelationships && isPlanFile(file.path) && file.path !== activePath) {
         plans.push(toRelatedItem(file.path, lookup));
       }
     });
 
-    linked = extractMarkdownLinks(markdownText).map(function (target) {
+    linked = (allowMarkdownRelationships ? extractMarkdownLinks(markdownText) : []).map(function (target) {
       var resolved = resolveRelativeMarkdownPath(activePath, target);
 
       return resolved ? toRelatedItem(resolved, lookup) : null;

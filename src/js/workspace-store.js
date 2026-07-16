@@ -2,8 +2,6 @@
   "use strict";
 
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
-  var MARKDOWN_EXTENSION_PATTERN = /\.(md|markdown)$/i;
-
   function isSupported() {
     return typeof window.showDirectoryPicker === "function";
   }
@@ -17,13 +15,19 @@
   }
 
   function extensionForName(name) {
-    var match = String(name || "").match(/(\.[^.]+)$/);
-
-    return match ? match[1].toLowerCase() : "";
+    return ME.documentType && ME.documentType.extensionForName
+      ? ME.documentType.extensionForName(name)
+      : "";
   }
 
   function isMarkdownFile(name) {
-    return MARKDOWN_EXTENSION_PATTERN.test(String(name || ""));
+    var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(name);
+
+    return Boolean(descriptor && descriptor.id === "markdown");
+  }
+
+  function isSupportedFileName(name) {
+    return Boolean(ME.documentType && ME.documentType.isSupportedFileName(name));
   }
 
   function compareNodes(left, right) {
@@ -108,7 +112,8 @@
         handle: file.handle || null,
         kind: "file",
         extension: file.extension || extensionForName(file.name || parts[parts.length - 1]),
-        isPlan: ME.workspaceRelated && ME.workspaceRelated.isPlanFile
+        documentType: ((ME.documentType && ME.documentType.getDocumentTypeForName(file.name || parts[parts.length - 1])) || {}).id || file.documentType || "markdown",
+        isPlan: isMarkdownFile(file.path || parts.join("/")) && ME.workspaceRelated && ME.workspaceRelated.isPlanFile
           ? ME.workspaceRelated.isPlanFile(file.path || parts.join("/"))
           : false
       };
@@ -199,14 +204,16 @@
           return;
         }
 
-        if (handle.kind === "file" && isMarkdownFile(name)) {
+        if (handle.kind === "file" && isSupportedFileName(name)) {
+          var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(name);
           files.push({
             name: name,
             path: normalizePath(pathParts),
             handle: handle,
             kind: "file",
             extension: extensionForName(name),
-            isPlan: ME.workspaceRelated && ME.workspaceRelated.isPlanFile
+            documentType: descriptor ? descriptor.id : "markdown",
+            isPlan: isMarkdownFile(name) && ME.workspaceRelated && ME.workspaceRelated.isPlanFile
               ? ME.workspaceRelated.isPlanFile(normalizePath(pathParts))
               : false
           });
@@ -240,9 +247,11 @@
 
   ME.workspaceStore = {
     buildTree: buildTree,
+    extensionForName: extensionForName,
     filterTree: filterTree,
     isAbortError: isAbortError,
     isMarkdownFile: isMarkdownFile,
+    isSupportedFileName: isSupportedFileName,
     isSupported: isSupported,
     openWorkspace: openWorkspace,
     scanWorkspace: scanWorkspace

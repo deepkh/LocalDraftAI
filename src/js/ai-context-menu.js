@@ -51,15 +51,16 @@
     });
   }
 
-  function renderAiItems(menu, onAction) {
+  function renderAiItems(menu, onAction, groups, emptyMessage) {
     var renderedAny = false;
     var title = document.createElement("div");
+    var emptyItem;
 
     title.className = "ai-menu-title";
     title.textContent = "AI Assistant";
     menu.appendChild(title);
 
-    ME.aiActions.groups().forEach(function (group, groupIndex) {
+    (groups || ME.aiActions.groups()).forEach(function (group, groupIndex) {
       if (groupIndex > 0) {
         appendSeparator(menu);
       }
@@ -77,6 +78,14 @@
         renderedAny = true;
       });
     });
+
+    if (!renderedAny && emptyMessage) {
+      emptyItem = document.createElement("button");
+      emptyItem.type = "button";
+      emptyItem.disabled = true;
+      emptyItem.textContent = emptyMessage;
+      menu.appendChild(emptyItem);
+    }
 
     return renderedAny;
   }
@@ -114,7 +123,7 @@
       if (options.onClipboardAction) {
         appendSeparator(menu);
       }
-      renderedAny = renderAiItems(menu, options.onAiAction);
+      renderedAny = renderAiItems(menu, options.onAiAction, options.aiGroups, options.aiEmptyMessage);
       if (options.onConfigure) {
         renderConfigureItem(menu, options.onConfigure, renderedAny);
       }
@@ -176,6 +185,8 @@
 
       event.preventDefault();
       renderMenuItems(menu, {
+        aiEmptyMessage: options.getAiEmptyMessage ? options.getAiEmptyMessage() : "",
+        aiGroups: options.getAiGroups ? options.getAiGroups() : null,
         canShowAi: canShowAi,
         onAiAction: function (action) {
           var range = currentRange;

@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-store.js");
 require("../../src/js/workspace-related.js");
 
@@ -19,12 +20,13 @@ function runTest(name, callback) {
 runTest("extracts Markdown links while ignoring images and external links", function () {
   const links = workspaceRelated.extractMarkdownLinks([
     "[Workspace](docs/workspace.md)",
+    "[Config](config/settings.json)",
     "![Screenshot](assets/screen.png)",
     "[External](https://example.com)",
     "[Plan](plans/Plan_AI.md#intro)"
   ].join("\n"));
 
-  assert.deepEqual(links, ["docs/workspace.md", "plans/Plan_AI.md"]);
+  assert.deepEqual(links, ["docs/workspace.md", "config/settings.json", "plans/Plan_AI.md"]);
 });
 
 runTest("resolves relative Markdown paths", function () {
@@ -38,6 +40,27 @@ runTest("detects plan files", function () {
   assert.equal(workspaceRelated.isPlanFile("docs/Workspace_Plan.md"), true);
   assert.equal(workspaceRelated.isPlanFile("docs/planning-notes.markdown"), true);
   assert.equal(workspaceRelated.isPlanFile("docs/readme.md"), false);
+  assert.equal(workspaceRelated.isPlanFile("docs/plan.json"), false);
+  assert.equal(workspaceRelated.isPlanFile("docs/plan.yaml"), false);
+});
+
+runTest("limits structured-file relationships to same-folder and recent files", function () {
+  const related = workspaceRelated.getRelatedFiles({
+    activePath: "config/settings.json",
+    documentType: "json",
+    files: [
+      { path: "config/settings.json" },
+      { path: "config/other.yml" },
+      { path: "plans/Plan_AI.md" }
+    ],
+    markdownText: "[Plan](../plans/Plan_AI.md)",
+    recentPaths: ["plans/Plan_AI.md"]
+  });
+
+  assert.deepEqual(related.sameFolder.map((item) => item.path), ["config/other.yml"]);
+  assert.deepEqual(related.recent.map((item) => item.path), ["plans/Plan_AI.md"]);
+  assert.deepEqual(related.linked, []);
+  assert.deepEqual(related.plans, []);
 });
 
 runTest("builds same-folder linked recent and plan sections", function () {

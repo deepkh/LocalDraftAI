@@ -77,10 +77,13 @@ function createTextarea(value) {
   };
 }
 
-function createActions(value) {
+function createActions(value, options = {}) {
   const markdownEditor = createTextarea(value);
   const context = {
     applyHistoryStep() {},
+    allowsMarkdownCommands() {
+      return options.allowMarkdownCommands !== false;
+    },
     formatBlock: { value: "P" },
     getActiveMode() {
       return "markdown";
@@ -167,6 +170,14 @@ runTest("indents Markdown lines for nested lists", function () {
   setup.actions.applyToolbarAction("indentList");
 
   assert.equal(setup.markdownEditor.value, "- Parent\n  - Child");
+});
+
+runTest("does not apply Markdown formatting to source-only documents", function () {
+  const setup = createActions("plain text", { allowMarkdownCommands: false });
+
+  setup.actions.applyToolbarAction("bold");
+  setup.actions.applyMarkdownFormat("H1");
+  assert.equal(setup.markdownEditor.value, "plain text");
 });
 
 runTest("outdents Markdown lines for nested lists", function () {

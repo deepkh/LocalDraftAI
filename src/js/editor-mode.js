@@ -14,6 +14,14 @@
     return mode === EDITOR_MODES.MARKDOWN ? EDITOR_MODES.MARKDOWN : EDITOR_MODES.WYSIWYG;
   }
 
+  function normalizeEditorModeForDocument(mode, documentType) {
+    if (ME.documentType && !ME.documentType.allowsWysiwyg(documentType || "markdown")) {
+      return EDITOR_MODES.MARKDOWN;
+    }
+
+    return normalizeEditorMode(mode);
+  }
+
   function readStoredEditorMode(storage) {
     var stored;
     var oldViewMode;
@@ -133,6 +141,7 @@
     getOffsetFromLineColumn: getOffsetFromLineColumn,
     markdownOffsetToVisibleTextOffset: markdownOffsetToVisibleTextOffset,
     normalizeEditorMode: normalizeEditorMode,
+    normalizeEditorModeForDocument: normalizeEditorModeForDocument,
     readStoredEditorMode: readStoredEditorMode,
     readStoredSoftWrap: readStoredSoftWrap,
     storeEditorMode: storeEditorMode,

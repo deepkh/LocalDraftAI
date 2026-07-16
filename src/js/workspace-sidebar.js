@@ -250,6 +250,16 @@
       return "<span class=\"workspace-plan-badge\">PLAN</span>";
     }
 
+    function typeIndicator(node) {
+      var descriptor = node && ME.documentType && (
+        ME.documentType.getDocumentTypeById(node.documentType) ||
+        ME.documentType.getDocumentTypeForName(node.path || node.name)
+      );
+
+      return "<span class=\"workspace-file-type\" aria-hidden=\"true\">" +
+        escapeHtml(descriptor ? descriptor.indicator : "TXT") + "</span>";
+    }
+
     function sidebarBodyElement() {
       return rootElement.querySelector ? rootElement.querySelector(".workspace-sidebar-body") : null;
     }
@@ -423,7 +433,7 @@
 
         return "<button type=\"button\" class=\"" + rowClass + "\" data-workspace-path=\"" +
           escapeHtml(node.path || "") + "\"" + style + " title=\"" + escapeHtml(node.path || "") + "\">" +
-          "<span class=\"workspace-file-dot\" aria-hidden=\"true\"></span>" +
+          typeIndicator(node) +
           "<span class=\"workspace-tree-label\">" + label + "</span>" +
           planBadge(node) +
           dirty +
@@ -433,11 +443,11 @@
 
     function emptyMessage() {
       if (!state.isSupported) {
-        return "<div class=\"workspace-empty\">Folder workspace is supported in Chrome or Edge.<br>You can still open individual Markdown files.</div>";
+        return "<div class=\"workspace-empty\">Folder workspace is supported in Chrome or Edge.<br>You can still open individual text documents.</div>";
       }
 
       if (state.isScanning) {
-        return "<div class=\"workspace-empty\">Scanning Markdown files...</div>";
+        return "<div class=\"workspace-empty\">Scanning supported text files...</div>";
       }
 
       if (state.error) {
@@ -449,7 +459,7 @@
           "<button type=\"button\" class=\"file-button workspace-open-inline\" data-workspace-action=\"open\">Open Folder</button>";
       }
 
-      return "<div class=\"workspace-empty\">No Markdown files found in this folder.</div>";
+      return "<div class=\"workspace-empty\">No supported text files found in this folder.</div>";
     }
 
     function renderRestorePrompt() {
@@ -492,8 +502,8 @@
         : emptyMessage();
 
       return "<div class=\"workspace-search-wrap\">" +
-        "<input class=\"workspace-search workspace-file-search\" type=\"search\" placeholder=\"Search Markdown files...\" value=\"" +
-        escapeHtml(fileSearchQuery) + "\" aria-label=\"Search Markdown files\">" +
+        "<input class=\"workspace-search workspace-file-search\" type=\"search\" placeholder=\"Search files...\" value=\"" +
+        escapeHtml(fileSearchQuery) + "\" aria-label=\"Search files\">" +
         "</div>" +
         "<div class=\"workspace-sidebar-body\" data-workspace-root=\"true\">" + body + "</div>";
     }
@@ -502,25 +512,26 @@
       var search = state.search || {};
 
       if (!state.rootName) {
-        return "<div class=\"workspace-empty\">Open a workspace to search Markdown content.</div>";
+        return "<div class=\"workspace-empty\">Open a workspace to search document content.</div>";
       }
       if (search.error) {
         return "<div class=\"workspace-error\">" + escapeHtml(search.error) + "</div>";
       }
       if (search.isSearching) {
-        return "<div class=\"workspace-empty\">Searching Markdown content...</div>";
+        return "<div class=\"workspace-empty\">Searching document content...</div>";
       }
       if (!contentSearchQuery.trim()) {
-        return "<div class=\"workspace-empty\">Search only scans .md and .markdown files in the current workspace.</div>";
+        return "<div class=\"workspace-empty\">Search scans supported text documents in the current workspace.</div>";
       }
       if (!search.results || !search.results.length) {
-        return "<div class=\"workspace-empty\">No Markdown matches found.</div>";
+        return "<div class=\"workspace-empty\">No matches found.</div>";
       }
 
       return "<div class=\"workspace-content-results\">" +
         search.results.map(function (result) {
           return "<button type=\"button\" class=\"workspace-content-result\" data-workspace-search-path=\"" +
             escapeHtml(result.path || "") + "\" data-workspace-search-line=\"" + String(result.line || 1) + "\">" +
+            typeIndicator(result) +
             "<span class=\"workspace-result-path\">" + escapeHtml(result.path || "") + "</span>" +
             "<span class=\"workspace-result-preview\">line " + String(result.line || 1) + ": " +
             escapeHtml(result.preview || "") + "</span>" +
@@ -532,8 +543,8 @@
 
     function renderSearchPanel() {
       return "<div class=\"workspace-search-wrap\">" +
-        "<input class=\"workspace-search workspace-content-search\" type=\"search\" placeholder=\"Search Markdown content...\" value=\"" +
-        escapeHtml(contentSearchQuery) + "\" aria-label=\"Search Markdown content\">" +
+        "<input class=\"workspace-search workspace-content-search\" type=\"search\" placeholder=\"Search document content...\" value=\"" +
+        escapeHtml(contentSearchQuery) + "\" aria-label=\"Search document content\">" +
         "</div>" +
         "<div class=\"workspace-sidebar-body\">" + renderSearchResults() + "</div>";
     }
@@ -563,10 +574,10 @@
       var hasRelated;
 
       if (!state.rootName) {
-        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace to see related Markdown files.</div></div>";
+        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace to see related files.</div></div>";
       }
       if (!related.activePath) {
-        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace Markdown file to see related files.</div></div>";
+        return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-empty\">Open a workspace file to see related files.</div></div>";
       }
 
       hasRelated = (related.sameFolder && related.sameFolder.length) ||
@@ -576,7 +587,7 @@
       if (!hasRelated) {
         return "<div class=\"workspace-sidebar-body\"><div class=\"workspace-related-current\"><span>Related to:</span><strong title=\"" +
           escapeHtml(related.activePath || "") + "\">" + escapeHtml(related.activePath || "") + "</strong></div>" +
-          "<div class=\"workspace-empty\">No related Markdown files found.</div></div>";
+          "<div class=\"workspace-empty\">No related files found.</div></div>";
       }
 
       return "<div class=\"workspace-sidebar-body\">" +
@@ -605,7 +616,7 @@
           ["reveal", "Reveal in Workspace"]
         ]
         : [
-          ["new-file", "New Markdown File"],
+          ["new-file", "New File..."],
           ["new-folder", "New Folder"],
           ["refresh", "Refresh"]
         ];

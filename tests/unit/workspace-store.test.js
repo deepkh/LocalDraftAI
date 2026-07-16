@@ -1,13 +1,14 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-store.js");
 
 const workspaceStore = window.MarkdownEditor.workspaceStore;
 
-function runTest(name, callback) {
+async function runTest(name, callback) {
   try {
-    callback();
+    await callback();
     console.log("ok - " + name);
   } catch (error) {
     console.error("not ok - " + name);
@@ -15,7 +16,8 @@ function runTest(name, callback) {
   }
 }
 
-runTest("detects Markdown file names only", function () {
+(async function () {
+await runTest("detects Markdown file names without treating structured files as Markdown", function () {
   assert.equal(workspaceStore.isMarkdownFile("README.md"), true);
   assert.equal(workspaceStore.isMarkdownFile("notes.markdown"), true);
   assert.equal(workspaceStore.isMarkdownFile("notes.MD"), true);
@@ -24,7 +26,16 @@ runTest("detects Markdown file names only", function () {
   assert.equal(workspaceStore.isMarkdownFile("index.html"), false);
 });
 
-runTest("builds a sorted folder-first tree from flat files", function () {
+await runTest("detects every supported workspace file type", function () {
+  ["README.md", "notes.txt", "application.log", "settings.json", "config.yml", "workflow.yaml"].forEach(function (name) {
+    assert.equal(workspaceStore.isSupportedFileName(name), true, name);
+  });
+  ["app.js", "index.html", "image.png", "archive.zip"].forEach(function (name) {
+    assert.equal(workspaceStore.isSupportedFileName(name), false, name);
+  });
+});
+
+await runTest("builds a sorted folder-first tree from flat files", function () {
   const tree = workspaceStore.buildTree([
     { name: "zeta.md", path: "zeta.md" },
     { name: "usage.md", path: "docs/usage.md" },
@@ -37,7 +48,7 @@ runTest("builds a sorted folder-first tree from flat files", function () {
   assert.deepEqual(tree[0].children.map((node) => node.name), ["architecture.md", "usage.md"]);
 });
 
-runTest("filters matching files while preserving parent folders", function () {
+await runTest("filters matching files while preserving parent folders", function () {
   const tree = workspaceStore.buildTree([
     { name: "README.md", path: "README.md" },
     { name: "ai-agent-design.md", path: "docs/ai-agent-design.md" },
@@ -51,10 +62,42 @@ runTest("filters matching files while preserving parent folders", function () {
   assert.deepEqual(filtered[1].children.map((node) => node.path), ["plans/Plan_AI_Agent.md"]);
 });
 
-runTest("empty search returns the original tree", function () {
+await runTest("empty search returns the original tree", function () {
   const tree = workspaceStore.buildTree([
     { name: "README.md", path: "README.md" }
   ]);
 
   assert.equal(workspaceStore.filterTree(tree, ""), tree);
 });
+
+await runTest("workspace scanning includes supported text files and excludes unsupported entries", async function () {
+  const entries = [
+    ["README.md", { kind: "file" }],
+    ["notes.txt", { kind: "file" }],
+    ["application.log", { kind: "file" }],
+    ["settings.json", { kind: "file" }],
+    ["config.yml", { kind: "file" }],
+    ["workflow.yaml", { kind: "file" }],
+    ["ignored.js", { kind: "file" }],
+    ["image.png", { kind: "file" }]
+  ];
+  const rootHandle = {
+    name: "Docs",
+    entries() {
+      let index = 0;
+      return {
+        async next() {
+          return index < entries.length ? { done: false, value: entries[index++] } : { done: true };
+        }
+      };
+    }
+  };
+  const result = await workspaceStore.scanWorkspace(rootHandle);
+
+  assert.deepEqual(result.files.map((file) => file.name).sort(), [
+    "README.md", "application.log", "config.yml", "notes.txt", "settings.json", "workflow.yaml"
+  ]);
+  assert.equal(result.files.find((file) => file.name === "application.log").documentType, "text");
+  assert.equal(result.files.find((file) => file.name === "settings.json").documentType, "json");
+});
+}());

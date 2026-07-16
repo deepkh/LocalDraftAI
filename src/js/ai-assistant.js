@@ -1129,6 +1129,11 @@
     }
 
     function menuGuidanceText(selection) {
+      var typeId = context.getDocumentType ? context.getDocumentType() : "markdown";
+
+      if (typeId === "json" || typeId === "yaml") {
+        return "AI replacement actions are not yet enabled for structured files.";
+      }
       if (guards.hasTextSelection(selection)) {
         return "";
       }
@@ -1241,6 +1246,8 @@
       var emptyItem;
       var configureItem;
       var openItem;
+      var typeId = context.getDocumentType ? context.getDocumentType() : "markdown";
+      var actionGroups = actions.groupsForDocument ? actions.groupsForDocument(typeId) : actions.groups();
 
       menu.innerHTML = "";
       appendStatusSection(menu);
@@ -1256,7 +1263,7 @@
       menu.appendChild(openItem);
       appendSeparator(menu);
 
-      actions.groups().forEach(function (group, groupIndex) {
+      actionGroups.forEach(function (group, groupIndex) {
         if (groupIndex > 0) {
           appendSeparator(menu);
         }
@@ -1279,7 +1286,9 @@
         emptyItem = document.createElement("button");
         emptyItem.type = "button";
         emptyItem.disabled = true;
-        emptyItem.textContent = "No AI actions configured";
+        emptyItem.textContent = typeId === "json" || typeId === "yaml"
+          ? "AI replacement actions are not yet enabled for structured files."
+          : "No AI actions configured";
         menu.appendChild(emptyItem);
       }
 
@@ -1522,11 +1531,12 @@
     }
 
     function unavailableMessage() {
-      return "AI Assistant works on selected text in the WYSIWYG editor or Markdown editor. Select text first.";
+      return "AI Assistant works on selected text in the WYSIWYG or source editor. Select text first.";
     }
 
     async function requestAction(actionId, options) {
       var action = actions.get(actionId);
+      var typeId = context.getDocumentType ? context.getDocumentType() : "markdown";
       var range = options && options.selection ? options.selection : options && options.range ? options.range : selectedRange();
       var selectionMode = range && range.mode ? range.mode : context.getActiveMode();
       var result;
@@ -1539,6 +1549,14 @@
       closeToolbarMenu();
 
       if (!action) {
+        return;
+      }
+
+      if (actions.isActionAllowedForDocument && !actions.isActionAllowedForDocument(action, typeId)) {
+        if (!options || options.source === "toolbar") {
+          window.alert("AI replacement actions are not yet enabled for structured files.");
+        }
+        context.focusActiveEditor();
         return;
       }
 
@@ -1888,7 +1906,7 @@
       }
 
       if (markdownEditor.value.slice(reviewState.start, reviewState.end) !== reviewState.original) {
-        window.alert("The selected Markdown text changed. Please run the AI action again.");
+        window.alert("The selected text changed. Please run the AI action again.");
         closeReview();
         return;
       }
@@ -2107,6 +2125,16 @@
       contextMenu = ME.aiContextMenu.create({
         captureSelection: context.captureSelection,
         getActiveMode: context.getActiveMode,
+        getAiGroups: function () {
+          var typeId = context.getDocumentType ? context.getDocumentType() : "markdown";
+          return actions.groupsForDocument ? actions.groupsForDocument(typeId) : actions.groups();
+        },
+        getAiEmptyMessage: function () {
+          var typeId = context.getDocumentType ? context.getDocumentType() : "markdown";
+          return typeId === "json" || typeId === "yaml"
+            ? "AI replacement actions are not yet enabled for structured files."
+            : "";
+        },
         markdownEditor: markdownEditor,
         wysiwygEditor: context.wysiwygEditor,
         onClipboardAction: context.onClipboardAction,

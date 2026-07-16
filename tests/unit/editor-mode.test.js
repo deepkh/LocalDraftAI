@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/editor-mode.js");
 
 const editorMode = window.MarkdownEditor.editorMode;
@@ -34,6 +35,13 @@ runTest("normalizes editor mode values", function () {
   assert.equal(editorMode.normalizeEditorMode("wysiwyg"), "wysiwyg");
   assert.equal(editorMode.normalizeEditorMode("split"), "wysiwyg");
   assert.equal(editorMode.normalizeEditorMode(null), "wysiwyg");
+});
+
+runTest("forces source-only document types into Markdown source mode", function () {
+  assert.equal(editorMode.normalizeEditorModeForDocument("wysiwyg", "markdown"), "wysiwyg");
+  assert.equal(editorMode.normalizeEditorModeForDocument("wysiwyg", "text"), "markdown");
+  assert.equal(editorMode.normalizeEditorModeForDocument("wysiwyg", "json"), "markdown");
+  assert.equal(editorMode.normalizeEditorModeForDocument("wysiwyg", "yaml"), "markdown");
 });
 
 runTest("migrates legacy markdown-only view mode to Markdown editor mode", function () {

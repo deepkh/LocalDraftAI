@@ -5,16 +5,53 @@
   var nextSessionId = 1;
 
   function createDocumentSession(options) {
-    options = options || {};
+    var descriptor;
+    var documentTypeId;
+    var extension;
+    var sourceOnly;
+    var text;
+    var title;
 
-    var activeMode = options.editorMode === "markdown" || options.activeEditorSource === "markdown" || options.activeMode === "markdown"
+    options = options || {};
+    title = options.title || (options.fileHandle && options.fileHandle.name) || (
+      ME.documentType && ME.documentType.getDefaultFileName(options.documentType || "markdown")
+    ) || "Untitled.md";
+
+    descriptor = ME.documentType && (
+      ME.documentType.getDocumentTypeForName(title) ||
+      ME.documentType.getDocumentTypeById(options.documentType)
+    );
+    descriptor = descriptor || (ME.documentType && ME.documentType.getDocumentTypeById("markdown"));
+    documentTypeId = descriptor ? descriptor.id : options.documentType || "markdown";
+    extension = (ME.documentType && ME.documentType.extensionForName(
+      title
+    )) || options.extension || (descriptor && descriptor.defaultExtension) || ".md";
+    sourceOnly = options.sourceOnly != null
+      ? Boolean(options.sourceOnly)
+      : Boolean(descriptor && !descriptor.allowWysiwyg);
+    text = String(options.markdownText || "");
+
+    var activeMode = sourceOnly || options.editorMode === "markdown" || options.activeEditorSource === "markdown" || options.activeMode === "markdown"
       ? "markdown"
       : "wysiwyg";
 
     return {
       id: options.id || "session-" + nextSessionId++,
-      title: options.title || (options.fileHandle && options.fileHandle.name) || "Untitled.md",
-      markdownText: String(options.markdownText || ""),
+      title: title,
+      // Compatibility field: this stores raw document text for every supported document type.
+      markdownText: text,
+      documentType: documentTypeId,
+      extension: extension.toLowerCase(),
+      sourceOnly: sourceOnly,
+      validationState: options.validationState || {
+        status: "not-applicable",
+        message: "",
+        line: null,
+        column: null
+      },
+      preferredLineEnding: options.preferredLineEnding === "\r\n" ? "\r\n" : "\n",
+      hasUtf8Bom: Boolean(options.hasUtf8Bom),
+      hasFinalNewline: options.hasFinalNewline != null ? Boolean(options.hasFinalNewline) : /\n$/.test(text),
       fileHandle: options.fileHandle || null,
       workspaceFileHandle: options.workspaceFileHandle || options.fileHandle || null,
       workspaceDirHandle: options.workspaceDirHandle || null,
@@ -33,6 +70,7 @@
       markdownSelectionEnd: options.markdownSelectionEnd || 0,
       markdownSelectionStart: options.markdownSelectionStart || 0,
       markdownScrollTop: options.markdownScrollTop || 0,
+      softWrapEnabled: options.softWrapEnabled == null ? true : Boolean(options.softWrapEnabled),
       scrollState: options.scrollState || null,
       wysiwygTextOffset: options.wysiwygTextOffset || 0,
       wysiwygScrollTop: options.wysiwygScrollTop || 0

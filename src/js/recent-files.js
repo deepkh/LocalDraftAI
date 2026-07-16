@@ -160,7 +160,8 @@
 
     async function openRecord(record) {
       var file;
-      var markdownText;
+      var content;
+      var descriptor;
 
       if (!isSupported()) {
         throw new Error("Recent files are not supported in this browser.");
@@ -176,7 +177,11 @@
         }
 
         file = await record.fileHandle.getFile();
-        markdownText = await file.text();
+        descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(file.name || record.fileHandle.name || record.name);
+        if (!descriptor) {
+          throw new Error("This recent file type is not supported.");
+        }
+        content = await ME.fileStore.readTextDocument(file);
         record.name = file.name || record.fileHandle.name || record.name || "Untitled.md";
         record.lastOpened = Date.now();
 
@@ -187,7 +192,13 @@
         return {
           fileHandle: record.fileHandle,
           title: record.name,
-          markdownText: markdownText
+          markdownText: content.markdownText,
+          documentType: descriptor.id,
+          extension: ME.documentType.extensionForName(record.name),
+          sourceOnly: !descriptor.allowWysiwyg,
+          preferredLineEnding: content.preferredLineEnding,
+          hasUtf8Bom: content.hasUtf8Bom,
+          hasFinalNewline: content.hasFinalNewline
         };
       } catch (error) {
         await remove(record.id);

@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.window = {};
+require("../../src/js/document-type.js");
 require("../../src/js/workspace-store.js");
 require("../../src/js/workspace-search.js");
 
@@ -35,19 +36,25 @@ runTest("limits matches per file", function () {
   assert.equal(matches.length, 2);
 });
 
-runTest("searches Markdown files and limits total results", async function () {
+runTest("searches every supported text file and limits total results", async function () {
   const result = await workspaceSearch.searchFiles([
-    { path: "README.md", text: "Agent\nProvider\nagent" },
+    { path: "README.md", text: "Agent" },
+    { path: "notes.txt", text: "agent" },
+    { path: "application.log", text: "agent" },
+    { path: "settings.json", text: "{\"agent\": true}" },
+    { path: "config.yml", text: "agent: true" },
+    { path: "workflow.yaml", text: "name: agent" },
     { path: "src/app.js", text: "agent" },
-    { path: "docs/workspace.markdown", text: "agent" }
   ], "agent", {
     maxMatchesPerFile: 5,
-    maxResults: 2
+    maxResults: 6
   });
 
-  assert.equal(result.results.length, 2);
+  assert.equal(result.results.length, 6);
   assert.equal(result.limited, true);
-  assert.deepEqual(result.results.map((item) => item.path), ["README.md", "README.md"]);
+  assert.deepEqual(result.results.map((item) => item.path), ["README.md", "notes.txt", "application.log", "settings.json", "config.yml", "workflow.yaml"]);
+  assert.equal(result.results[3].documentType, "json");
+  assert.equal(result.results[3].filename, "settings.json");
 });
 
 runTest("creates compact previews around the match", function () {

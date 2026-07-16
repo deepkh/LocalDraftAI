@@ -33,8 +33,46 @@
       context.document.title = dirty ? title + " has unsaved changes" : title;
     }
 
+    function setDocumentType(typeId) {
+      var descriptor = ME.documentType && ME.documentType.getDocumentTypeById(typeId);
+      var label = descriptor ? descriptor.label : "Markdown";
+
+      if (!context.documentType) {
+        return;
+      }
+      context.documentType.textContent = label;
+      context.documentType.title = "Document type: " + label;
+    }
+
+    function setValidation(typeId, state) {
+      var descriptor = ME.documentType && ME.documentType.getDocumentTypeById(typeId);
+      var typeLabel = descriptor ? descriptor.label : "Document";
+      var status = state && state.status;
+      var location = "";
+
+      if (!context.validation) {
+        return;
+      }
+      if (status !== "valid" && status !== "invalid") {
+        context.validation.textContent = "";
+        context.validation.hidden = true;
+        context.validation.removeAttribute && context.validation.removeAttribute("data-status");
+        return;
+      }
+
+      if (state && typeof state.line === "number") {
+        location = " at line " + state.line + (typeof state.column === "number" ? ", column " + state.column : "");
+      }
+      context.validation.hidden = false;
+      context.validation.textContent = (status === "valid" ? "Valid " : "Invalid ") + typeLabel;
+      context.validation.title = status === "valid"
+        ? typeLabel + " syntax is valid"
+        : String(state && state.message || "Invalid " + typeLabel) + location;
+      context.validation.setAttribute("data-status", status);
+    }
+
     function setMode(mode) {
-      context.mode.textContent = mode === "markdown" ? "Markdown" : "WYSIWYG";
+      context.mode.textContent = mode === "source" ? "Source" : mode === "markdown" ? "Markdown" : "WYSIWYG";
       context.mode.title = "Editor mode: " + context.mode.textContent;
     }
 
@@ -105,9 +143,11 @@
       setAiStatus: setAiStatus,
       setCursor: setCursor,
       setDocument: setDocument,
+      setDocumentType: setDocumentType,
       setMode: setMode,
       setSoftWrap: setSoftWrap,
       setWorkspace: setWorkspace,
+      setValidation: setValidation,
       showMessage: showMessage
     };
   }
