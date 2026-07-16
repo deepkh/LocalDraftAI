@@ -111,7 +111,7 @@
     return null;
   }
 
-  function collectLazyTreeState(nodes, files, directories) {
+  function collectTreeState(nodes, files, directories) {
     files = files || [];
     directories = directories || [];
     (nodes || []).forEach(function (node) {
@@ -120,16 +120,64 @@
           kind: "directory",
           name: node.name,
           path: node.path,
+          handle: node.handle || null,
           loaded: node.loaded !== false,
           loading: Boolean(node.loading),
           error: node.error || ""
         });
-        collectLazyTreeState(node.children || [], files, directories);
+        collectTreeState(node.children || [], files, directories);
       } else {
         files.push(node);
       }
     });
     return { directories: directories, files: files };
+  }
+
+  function normalizedDirectoryPaths(paths) {
+    return (paths || []).map(function (path) {
+      return normalizePath(String(path || "").split("/"));
+    }).filter(Boolean);
+  }
+
+  function isPreservedPathOrAncestor(path, preservedPaths) {
+    var normalizedPath = normalizePath(String(path || "").split("/"));
+    var prefix = normalizedPath + "/";
+
+    return Boolean(normalizedPath && preservedPaths.some(function (preservedPath) {
+      return preservedPath === normalizedPath || preservedPath.indexOf(prefix) === 0;
+    }));
+  }
+
+  function pruneTreeToRelevantFolders(nodes, options) {
+    var preservedPaths;
+
+    options = options || {};
+    preservedPaths = normalizedDirectoryPaths(options.preserveDirectoryPaths);
+
+    return (nodes || []).reduce(function (visibleNodes, node) {
+      var visibleChildren;
+      var keepBecausePreserved;
+      var keepBecauseUnknown;
+
+      if (node.kind !== "directory") {
+        visibleNodes.push(node);
+        return visibleNodes;
+      }
+
+      visibleChildren = pruneTreeToRelevantFolders(node.children || [], options);
+      keepBecausePreserved = isPreservedPathOrAncestor(node.path, preservedPaths);
+      keepBecauseUnknown = Boolean(
+        options.keepUnloadedDirectories &&
+        (node.loaded === false || node.loading)
+      );
+
+      if (visibleChildren.length || keepBecausePreserved || keepBecauseUnknown) {
+        visibleNodes.push(Object.assign({}, node, {
+          children: visibleChildren
+        }));
+      }
+      return visibleNodes;
+    }, []);
   }
 
   function mergeCachedDirectories(nextNodes, previousNodes) {
@@ -330,6 +378,8 @@
     var directories = [];
     var files;
     var rootHandle;
+    var state;
+    var tree;
 
     options = options || {};
     workspace = workspaceOrHandle && workspaceOrHandle.providerId ? workspaceOrHandle : null;
@@ -348,7 +398,7 @@
     if (provider.id === "remote-ssh") {
       var rootEntries = await provider.listDirectory(workspace, "", {});
       var lazyTree = treeFromEntries(rootEntries, workspace);
-      var lazyState = collectLazyTreeState(lazyTree);
+      var lazyState = collectTreeState(lazyTree);
 
       return {
         directories: lazyState.directories,
@@ -364,16 +414,20 @@
     }
     files = await scanDirectory(provider, workspace, "", [], directories);
     rootHandle = provider.getLegacyWorkspaceHandle ? provider.getLegacyWorkspaceHandle(workspace) : null;
+    tree = pruneTreeToRelevantFolders(buildTree(files, directories), {
+      preserveDirectoryPaths: options.preserveDirectoryPaths || []
+    });
+    state = collectTreeState(tree);
 
     return {
-      directories: directories,
+      directories: state.directories,
       rootHandle: rootHandle,
       rootName: workspace.name || "Workspace",
       providerId: provider.id,
       workspace: workspace,
       workspaceId: workspace.id,
-      files: files,
-      tree: buildTree(files, directories)
+      files: state.files,
+      tree: tree
     };
   }
 
@@ -420,7 +474,7 @@
       node.loading = false;
       node.error = error && error.message || "Could not load this remote directory.";
     }
-    state = collectLazyTreeState(tree || []);
+    state = collectTreeState(tree || []);
     return {
       directories: state.directories,
       error: node.error || "",
@@ -458,12 +512,12 @@
       if (node) {
         node.loading = false;
         node.error = error && error.message || "Could not refresh this remote directory.";
-        state = collectLazyTreeState(tree || []);
+        state = collectTreeState(tree || []);
         return { directories: state.directories, files: state.files, tree: tree || [] };
       }
       throw error;
     }
-    state = collectLazyTreeState(tree || []);
+    state = collectTreeState(tree || []);
     return { directories: state.directories, files: state.files, tree: tree || [] };
   }
 
@@ -477,6 +531,7 @@
     isSupportedFileName: isSupportedFileName,
     isSupported: isSupported,
     openWorkspace: openWorkspace,
+    pruneTreeToRelevantFolders: pruneTreeToRelevantFolders,
     scanWorkspace: scanWorkspace,
     loadDirectory: loadDirectory,
     refreshDirectory: refreshDirectory,
