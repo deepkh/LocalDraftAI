@@ -14,8 +14,10 @@ import (
 
 	"github.com/coder/websocket"
 
+	bridgeconfig "localdraftai/bridge/internal/config"
 	"localdraftai/bridge/internal/logbuffer"
 	"localdraftai/bridge/internal/protocol"
+	"localdraftai/bridge/internal/sshconn"
 )
 
 const (
@@ -48,8 +50,10 @@ type Server struct {
 	startupToken string
 	origin       string
 	startedAt    time.Time
-	connections  map[*websocket.Conn]struct{}
+	connections  map[*websocket.Conn]*sync.Mutex
 	connectionMu sync.Mutex
+	profileStore *bridgeconfig.Store
+	sshManager   *sshconn.Manager
 }
 
 func New(config Config) (*Server, error) {
@@ -87,6 +91,11 @@ func New(config Config) (*Server, error) {
 		return nil, fmt.Errorf("configure static frontend: %w", err)
 	}
 	origin := "http://" + config.ListenAddress
+	paths, err := bridgeconfig.ResolvePaths(config.ConfigDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve bridge configuration paths: %w", err)
+	}
+	profileStore := bridgeconfig.NewStore(paths)
 	server := &Server{
 		config:       config,
 		logs:         logbuffer.New(200),
@@ -95,9 +104,16 @@ func New(config Config) (*Server, error) {
 		startupToken: startupToken,
 		origin:       origin,
 		startedAt:    time.Now().UTC(),
-		connections:  make(map[*websocket.Conn]struct{}),
+		connections:  make(map[*websocket.Conn]*sync.Mutex),
+		profileStore: profileStore,
 	}
+	server.sshManager = sshconn.NewManager(sshconn.ManagerConfig{
+		Store:  profileStore,
+		Paths:  paths,
+		Events: server.handleSSHEvent,
+	})
 	server.registerBridgeHandlers()
+	protocol.RegisterSSHHandlers(server.router, profileStore, paths, server.sshManager)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/session", server.handleSession)
@@ -163,6 +179,9 @@ func (s *Server) Serve(listener net.Listener) error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.sshManager != nil {
+		s.sshManager.Close()
+	}
 	s.connectionMu.Lock()
 	connections := make([]*websocket.Conn, 0, len(s.connections))
 	for connection := range s.connections {
@@ -174,6 +193,18 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.logs.Append("info", "bridge", "bridge server stopped")
 	return s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) handleSSHEvent(method string, params any) {
+	switch value := params.(type) {
+	case sshconn.Status:
+		s.logs.Append("info", "ssh", fmt.Sprintf("%s: %s", value.Label, value.State))
+	case map[string]any:
+		if code, ok := value["code"].(string); ok && code != "" {
+			s.logs.Append("error", "ssh", fmt.Sprintf("connection error: %s", code))
+		}
+	}
+	s.broadcastNotification(method, params)
 }
 
 func (s *Server) registerBridgeHandlers() {

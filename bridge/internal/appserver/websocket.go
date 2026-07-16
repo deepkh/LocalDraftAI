@@ -12,6 +12,36 @@ import (
 	"localdraftai/bridge/internal/protocol"
 )
 
+type notification struct {
+	JSONRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  any    `json:"params"`
+}
+
+func (s *Server) broadcastNotification(method string, params any) {
+	payload, err := json.Marshal(notification{JSONRPC: protocol.Version, Method: method, Params: params})
+	if err != nil {
+		return
+	}
+	s.connectionMu.Lock()
+	type target struct {
+		connection *websocket.Conn
+		writes     *sync.Mutex
+	}
+	targets := make([]target, 0, len(s.connections))
+	for connection, writes := range s.connections {
+		targets = append(targets, target{connection: connection, writes: writes})
+	}
+	s.connectionMu.Unlock()
+	for _, target := range targets {
+		target.writes.Lock()
+		writeContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = target.connection.Write(writeContext, websocket.MessageText, payload)
+		cancel()
+		target.writes.Unlock()
+	}
+}
+
 func (s *Server) handleWebSocket(response http.ResponseWriter, request *http.Request) {
 	if !s.sessions.validRequest(request) {
 		http.Error(response, "Bridge session required", http.StatusUnauthorized)
@@ -28,8 +58,9 @@ func (s *Server) handleWebSocket(response http.ResponseWriter, request *http.Req
 		return
 	}
 	connection.SetReadLimit(s.config.MaximumMessageSize)
+	writes := &sync.Mutex{}
 	s.connectionMu.Lock()
-	s.connections[connection] = struct{}{}
+	s.connections[connection] = writes
 	s.connectionMu.Unlock()
 	s.logs.Append("info", "websocket", "browser bridge session connected")
 	defer func() {
@@ -39,12 +70,11 @@ func (s *Server) handleWebSocket(response http.ResponseWriter, request *http.Req
 		_ = connection.Close(websocket.StatusNormalClosure, "bridge session closed")
 		s.logs.Append("info", "websocket", "browser bridge session disconnected")
 	}()
-	s.serveWebSocket(request.Context(), connection)
+	s.serveWebSocket(request.Context(), connection, writes)
 }
 
-func (s *Server) serveWebSocket(ctx context.Context, connection *websocket.Conn) {
+func (s *Server) serveWebSocket(ctx context.Context, connection *websocket.Conn, writes *sync.Mutex) {
 	semaphore := make(chan struct{}, s.config.MaximumConcurrent)
-	var writes sync.Mutex
 	var calls sync.WaitGroup
 	defer calls.Wait()
 
@@ -84,6 +114,11 @@ func (s *Server) serveWebSocket(ctx context.Context, connection *websocket.Conn)
 		go func(request protocol.Request) {
 			defer calls.Done()
 			defer func() { <-semaphore }()
+			defer func() {
+				for index := range request.Params {
+					request.Params[index] = 0
+				}
+			}()
 			timeout := s.config.OperationTimeout
 			if request.Method == "fs.searchText" {
 				timeout = s.config.SearchTimeout

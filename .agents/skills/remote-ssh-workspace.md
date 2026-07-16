@@ -27,13 +27,15 @@
 - SSH private keys, passwords, passphrases, agent protocol data, session cookies, and startup tokens stay in the bridge process and never enter browser storage or logs.
 - Profiles may store authentication preferences and an identity-file path, but never secret values or private-key contents. Write bridge configuration atomically with restrictive permissions.
 - Prompt IDs bind session-only passwords and passphrases to one connection attempt; discard the secret immediately after the attempt.
+- Attempt authentication in order: SSH agent, configured identity, passphrase for an encrypted identity, then password when explicitly allowed. Do not prompt for an identity passphrase when the agent has already authenticated successfully.
 - Verify host keys against the bridge-managed `known_hosts`. Unknown keys require an explicit fingerprint confirmation. Changed keys are blocked and are never automatically trusted.
 - Do not modify the user's OpenSSH config or existing `known_hosts` file.
+- Import only exact OpenSSH aliases and the documented `HostName`, `User`, `Port`, `IdentityFile`, `IdentitiesOnly`, and `UserKnownHostsFile` options. Do not claim support for proxy, forwarding, certificate, PKCS#11, `Match`, or connection-sharing directives.
 
 ## Scope and tests
 
 - Keep local and remote workspace tests separate. Remote tests use an in-process SSH/SFTP server rooted in a temporary directory; do not depend on a developer's SSH configuration.
 - Run frontend regression tests with `for test in tests/unit/*.test.js; do node "$test"; done`.
-- Run bridge checks from `bridge/` with Go 1.24 or newer using `go test ./...` and `go vet ./...`.
+- Run bridge checks from `bridge/` with Go 1.25 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.

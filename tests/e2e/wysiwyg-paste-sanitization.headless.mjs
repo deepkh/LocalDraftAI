@@ -305,9 +305,9 @@ async function main() {
     await stopProcess(server);
     fs.rmSync(chrome.userDataDir, {
       force: true,
-      maxRetries: 5,
+      maxRetries: 12,
       recursive: true,
-      retryDelay: 100
+      retryDelay: 250
     });
   }
 }

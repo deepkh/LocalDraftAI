@@ -110,6 +110,9 @@ Use these routes:
   - `bridge/internal/appserver/`
   - `bridge/internal/protocol/`
   - `bridge/internal/logbuffer/`
+  - `bridge/internal/config/`
+  - `bridge/internal/sshconn/`
+  - `bridge/internal/testssh/`
 - Supported document types and structured validation:
   - `src/js/document-type.js`
   - `src/js/document-validation.js`
@@ -158,6 +161,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Local File System Access picker, read, write, directory traversal, and workspace mutation calls belong in `local-filesystem-provider.js`. Local asset storage may retain narrowly scoped browser file calls in `asset-store.js`.
 - The optional Go bridge binds to loopback by default, serves only `src/` and `assets/`, exchanges a one-time startup token for an HttpOnly strict-same-site cookie, and accepts WebSockets only from its exact authenticated origin.
 - Bridge JSON-RPC protocol version 1 limits messages to 16 MB, concurrent calls to 8, normal operations to 30 seconds, search to 120 seconds, and its redacted in-memory log to 200 structured entries.
+- Bridge connection profiles are stored atomically without secrets. SSH authentication tries the agent before a configured identity and uses prompt-scoped passphrases or passwords only in process memory. Unknown host keys require fingerprint confirmation in the bridge-managed `known_hosts`; changed keys are blocked.
+- OpenSSH discovery supports exact host aliases and only `Host`, `HostName`, `User`, `Port`, `IdentityFile`, `IdentitiesOnly`, and `UserKnownHostsFile`. Do not write OpenSSH configuration or user-managed known-host files, and do not imply support for deferred proxy, forwarding, certificate, PKCS#11, or connection-sharing options.
+- Connected SSH sessions own an SFTP client, use a 15-second connection timeout and a 30-second keepalive, and close after three consecutive keepalive failures. Remote shell commands remain out of scope.
 - The static app detects a bridge only through same-origin `/api/health`; the hosted site does not probe loopback. Remote commands and UI stay unavailable until their implementation phases.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
@@ -253,7 +259,7 @@ for test in tests/unit/*.test.js; do
 done
 ```
 
-Run bridge checks with Go 1.24 or newer:
+Run bridge checks with Go 1.25 or newer:
 
 ```bash
 cd bridge

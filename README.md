@@ -163,7 +163,7 @@ cd ..
 ./build/localdraft-bridge serve --listen 127.0.0.1:4782 --web-root .
 ```
 
-The bridge currently provides its authenticated protocol foundation; Remote SSH connection controls remain hidden until the SSH, SFTP, and remote workspace phases are complete. See [`bridge/README.md`](bridge/README.md) for its security boundary and development flags.
+The bridge also stores non-secret SSH profiles, discovers supported exact aliases from OpenSSH config, verifies host keys against its own `known_hosts`, authenticates through an agent, identity file, session-only passphrase, or session-only password, and starts SFTP after connection. Remote connection controls remain hidden until the frontend connection and workspace phases are complete. See [`bridge/README.md`](bridge/README.md) for its security boundary, configuration paths, supported SSH options, and development flags.
 
 Use the hosted static app:
 

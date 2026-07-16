@@ -434,7 +434,7 @@ async function main() {
     await stopProcess(chrome.process);
     await stopProcess(server);
     try {
-      fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 });
+      fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 12, recursive: true, retryDelay: 250 });
     } catch (error) {
       // Chrome can keep profile files busy briefly after exit; the OS can clean this temp directory later.
     }

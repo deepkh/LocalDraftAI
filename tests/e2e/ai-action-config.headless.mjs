@@ -227,7 +227,7 @@ async function main() {
     if (connection) connection.ws.close();
     await stopProcess(chrome.process);
     await stopProcess(server);
-    fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 });
+    fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 12, recursive: true, retryDelay: 250 });
   }
 }
 
