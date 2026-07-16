@@ -337,21 +337,49 @@
       min-width: 0;
       width: 100%;
       min-height: 0;
-      padding: 6px 8px;
+      padding: 4px 6px;
       border-bottom: 1px solid var(--border);
       background: var(--workbench-surface);
     }
 
-    .topbar .tab-strip {
-      order: 0;
+    .compact-document-bar {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 6px;
     }
 
-    .topbar .toolbar {
-      order: 1;
+    .compact-document-bar .tab-strip {
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
-    .toolbar-row,
-    .toolbar {
+    .compact-document-actions {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .compact-action-button {
+      min-width: 32px;
+      min-height: 32px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+
+    .compact-more-button {
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .editor-mode-button {
+      min-width: 76px;
+    }
+
+    .toolbar-row {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -360,6 +388,26 @@
       overflow-x: auto;
       padding-bottom: 1px;
       scrollbar-width: thin;
+    }
+
+    .format-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .format-more-wrap {
+      position: relative;
+      display: inline-flex;
+      flex: 0 0 auto;
+    }
+
+    .format-toolbar > button,
+    .format-toolbar .format-select,
+    .format-toolbar .format-more-button {
+      min-height: 32px;
     }
 
     .file-toolbar {
@@ -394,7 +442,7 @@
       align-items: stretch;
       min-width: 0;
       width: 100%;
-      min-height: 38px;
+      min-height: 34px;
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: 7px;
@@ -448,7 +496,7 @@
       justify-content: flex-start;
       flex: 1 1 auto;
       min-width: 0;
-      min-height: 36px;
+      min-height: 32px;
       gap: 6px;
       padding: 0 8px 0 10px;
       border: 0;
@@ -486,9 +534,9 @@
     .tab-close,
     .tab-scroll-button,
     .tab-new-button {
-      flex: 0 0 36px;
-      min-width: 36px;
-      min-height: 36px;
+      flex: 0 0 32px;
+      min-width: 32px;
+      min-height: 32px;
       padding: 0;
       border: 0;
       border-left: 1px solid var(--border);
@@ -695,6 +743,14 @@
     .more-menu {
       position: fixed;
       width: min(240px, calc(100vw - 16px));
+    }
+
+    .topbar-menu {
+      position: fixed;
+      z-index: 45;
+      width: min(240px, calc(100vw - 16px));
+      max-height: calc(100vh - 16px);
+      overflow: auto;
     }
 
     .menu-select-label {
@@ -1994,28 +2050,8 @@
       display: none;
     }
 
-    body.focus-mode .topbar .file-toolbar,
-    body.focus-mode .topbar .toolbar .group:not(.focus-mode-group) {
+    body.focus-mode .format-toolbar {
       display: none;
-    }
-
-    body.focus-mode .topbar .toolbar {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: auto;
-      padding-bottom: 0;
-      overflow: visible;
-    }
-
-    body.focus-mode .topbar .tab-strip {
-      width: 100%;
-      padding-right: 116px;
-    }
-
-    body.focus-mode .topbar .focus-mode-group {
-      padding-left: 0;
-      border-left: 0;
     }
 
     body.focus-mode .workspace {
@@ -3354,8 +3390,20 @@
       }
 
       .topbar {
-        gap: 8px;
-        padding: 8px;
+        padding: 4px;
+      }
+
+      .compact-document-bar {
+        gap: 4px;
+      }
+
+      .compact-document-actions {
+        gap: 2px;
+      }
+
+      .compact-action-button {
+        padding-right: 6px;
+        padding-left: 6px;
       }
 
       .workspace {

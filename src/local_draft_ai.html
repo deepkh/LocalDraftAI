@@ -170,76 +170,94 @@
         title="Resize workspace sidebar" hidden></div>
 
       <main id="editorArea" class="editor-area" aria-label="Editor area">
-        <header class="topbar">
-      <nav class="toolbar" role="toolbar" aria-label="Editor toolbar">
-        <div class="group editor-mode-toolbar-group" aria-label="Editor mode">
-          <button type="button" id="toggleEditorMode" class="wide-button" aria-pressed="false"
-            title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
-        </div>
-        <div class="group" aria-label="Soft wrap">
-          <button type="button" id="toggleSoftWrap" class="wide-button is-active" aria-pressed="true"
-            title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
-        </div>
-        <div class="group" aria-label="Text style">
-          <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
-            <option value="P">Text</option>
-            <option value="H1">Heading 1</option>
-            <option value="H2">Heading 2</option>
-            <option value="H3">Heading 3</option>
-            <option value="H4">Heading 4</option>
-          </select>
-          <button type="button" class="icon-text" data-action="bold" title="Bold" aria-label="Bold">B</button>
-          <button type="button" class="icon-text" data-action="italic" title="Italic"
-            aria-label="Italic"><em>I</em></button>
-          <button type="button" class="icon-text" data-action="code" title="Inline code"
-            aria-label="Inline code">&lt;/&gt;</button>
-        </div>
-        <div class="group" aria-label="Blocks">
-          <button type="button" class="icon-text" data-action="unorderedList" title="Bulleted list"
-            aria-label="Bulleted list">-</button>
-          <button type="button" class="icon-text" data-action="orderedList" title="Numbered list"
-            aria-label="Numbered list">1.</button>
-          <button type="button" class="icon-text" data-action="outdentList" title="Outdent list item (Shift+Tab)"
-            aria-label="Outdent list item">&lt;&lt;</button>
-          <button type="button" class="icon-text" data-action="indentList" title="Indent list item (Tab)"
-            aria-label="Indent list item">&gt;&gt;</button>
-          <button type="button" class="icon-text" data-action="blockquote" title="Blockquote"
-            aria-label="Blockquote">&gt;</button>
-          <button type="button" class="icon-text" data-action="codeBlock" title="Code block"
-            aria-label="Code block">{}</button>
-          <button type="button" class="icon-text" data-action="horizontalRule" title="Horizontal rule"
-            aria-label="Insert horizontal rule">---</button>
-        </div>
-        <div class="group" aria-label="Insert">
-          <button type="button" class="icon-text" data-action="insertTable" title="Insert table"
-            aria-label="Insert table">Table</button>
-          <button type="button" class="icon-text" data-action="link" title="Link" aria-label="Link">[]</button>
-          <button type="button" class="icon-text" data-action="image" title="Insert image"
-            aria-label="Insert image">Img</button>
-        </div>
-        <div class="group" aria-label="History">
-          <button type="button" class="icon-text" data-action="undo" title="Undo (Ctrl/Cmd+Z)"
-            aria-label="Undo">&lt;-</button>
-          <button type="button" class="icon-text" data-action="redo" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)"
-            aria-label="Redo">-&gt;</button>
-        </div>
-        <div class="group focus-mode-group" aria-label="Focus mode">
-          <button type="button" id="toggleFocusMode" class="wide-button" aria-pressed="false"
-            title="Focus mode (Ctrl/Cmd+Shift+F)">Focus</button>
-        </div>
-      </nav>
-      <div class="tab-strip" aria-label="Open documents">
-        <button type="button" id="tabScrollLeft" class="tab-scroll-button" title="Scroll tabs left"
-          aria-label="Scroll tabs left">&lt;</button>
-        <div id="tabViewport" class="tab-viewport">
-          <div id="tabList" class="tab-list" role="tablist" aria-label="Open documents"></div>
-        </div>
-        <button type="button" id="tabScrollRight" class="tab-scroll-button" title="Scroll tabs right"
-          aria-label="Scroll tabs right">&gt;</button>
-        <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)"
-          aria-label="New tab">+</button>
-      </div>
-      </header>
+        <header id="editorTopbar" class="topbar">
+          <div class="compact-document-bar">
+            <div class="tab-strip" aria-label="Open documents">
+              <button type="button" id="tabScrollLeft" class="tab-scroll-button" title="Scroll tabs left"
+                aria-label="Scroll tabs left">&lt;</button>
+              <div id="tabViewport" class="tab-viewport">
+                <div id="tabList" class="tab-list" role="tablist" aria-label="Open documents"></div>
+              </div>
+              <button type="button" id="tabScrollRight" class="tab-scroll-button" title="Scroll tabs right"
+                aria-label="Scroll tabs right">&gt;</button>
+              <button type="button" id="newTabButton" class="tab-new-button" title="New tab (Ctrl/Cmd+N)"
+                aria-label="New tab">+</button>
+            </div>
+
+            <div class="compact-document-actions" role="toolbar" aria-label="Document actions">
+              <button id="toggleFormatToolbar" type="button" class="compact-action-button"
+                aria-label="Hide formatting toolbar" aria-controls="formatToolbar" aria-expanded="true"
+                title="Hide formatting toolbar">Format</button>
+              <button type="button" id="toggleEditorMode" class="compact-action-button editor-mode-button"
+                aria-pressed="false" aria-label="Switch between WYSIWYG and Markdown editing"
+                title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
+              <button id="compactAiButton" type="button" class="compact-action-button"
+                aria-label="Toggle AI Assistant" title="Toggle AI Assistant">AI</button>
+              <button id="documentMoreButton" type="button" class="compact-action-button compact-more-button"
+                aria-label="More document actions" aria-haspopup="menu" aria-controls="documentMoreMenu"
+                aria-expanded="false" title="More document actions">⋯</button>
+              <div id="documentMoreMenu" class="ai-menu topbar-menu document-more-menu" role="menu" hidden>
+                <button type="button" id="toggleSoftWrap" class="is-active" role="menuitemcheckbox"
+                  aria-checked="true" aria-pressed="true"
+                  title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
+                <button type="button" id="toggleFocusMode" role="menuitemcheckbox" aria-checked="false"
+                  aria-pressed="false" title="Focus mode (Ctrl/Cmd+Shift+F)">Focus Mode</button>
+                <div class="ai-menu-separator" role="separator"></div>
+                <button type="button" role="menuitem" data-command="document.validate">Validate Document</button>
+                <button type="button" role="menuitem" data-command="edit.copyRenderedHtml">Copy Rendered HTML</button>
+              </div>
+            </div>
+          </div>
+
+          <nav id="formatToolbar" class="toolbar format-toolbar" aria-label="Formatting">
+            <div class="group format-priority-essential" aria-label="Text style">
+              <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
+                <option value="P">Text</option>
+                <option value="H1">Heading 1</option>
+                <option value="H2">Heading 2</option>
+                <option value="H3">Heading 3</option>
+                <option value="H4">Heading 4</option>
+              </select>
+            </div>
+            <button type="button" class="icon-text format-priority-essential" data-action="bold" title="Bold"
+              aria-label="Bold">B</button>
+            <button type="button" class="icon-text format-priority-essential" data-action="italic" title="Italic"
+              aria-label="Italic"><em>I</em></button>
+            <button type="button" class="icon-text format-priority-essential" data-action="code" title="Inline code"
+              aria-label="Inline code">&lt;/&gt;</button>
+            <button type="button" class="icon-text format-priority-medium" data-action="unorderedList"
+              title="Bulleted list" aria-label="Bulleted list">•</button>
+            <button type="button" class="icon-text format-priority-medium" data-action="orderedList"
+              title="Numbered list" aria-label="Numbered list">1.</button>
+            <button type="button" class="icon-text format-priority-low" data-action="link" title="Link"
+              aria-label="Link">[]</button>
+            <button type="button" class="icon-text format-priority-low" data-action="image" title="Insert image"
+              aria-label="Insert image">Img</button>
+            <div class="format-more-wrap">
+              <button id="formatMoreButton" type="button"
+                class="compact-action-button format-priority-essential format-more-button"
+                aria-label="More formatting actions" aria-haspopup="menu" aria-controls="formatMoreMenu"
+                aria-expanded="false" title="More formatting actions">More</button>
+              <div id="formatMoreMenu" class="ai-menu topbar-menu format-more-menu" role="menu" hidden>
+                <button type="button" role="menuitem" data-action="unorderedList">Bulleted List</button>
+                <button type="button" role="menuitem" data-action="orderedList">Numbered List</button>
+                <button type="button" role="menuitem" data-action="link">Link</button>
+                <button type="button" role="menuitem" data-action="image">Image</button>
+                <div class="ai-menu-separator" role="separator"></div>
+                <button type="button" role="menuitem" data-action="blockquote">Blockquote</button>
+                <button type="button" role="menuitem" data-action="codeBlock">Code Block</button>
+                <button type="button" role="menuitem" data-action="insertTable">Table</button>
+                <button type="button" role="menuitem" data-action="horizontalRule">Horizontal Rule</button>
+                <div class="ai-menu-separator" role="separator"></div>
+                <button type="button" role="menuitem" data-action="outdentList">Outdent</button>
+                <button type="button" role="menuitem" data-action="indentList">Indent</button>
+                <div class="ai-menu-separator" role="separator"></div>
+                <button type="button" role="menuitem" data-action="undo">Undo</button>
+                <button type="button" role="menuitem" data-action="redo">Redo</button>
+              </div>
+            </div>
+          </nav>
+        </header>
       <section id="editorPane" class="editor-pane" aria-label="Editor">
         <div class="editor-wrap">
           <div id="wysiwygEditor" class="wysiwyg" contenteditable="true" spellcheck="true"
