@@ -44,6 +44,7 @@ src/js/tab-manager.js        Multi-tab behavior
 src/js/markdown.js           Markdown conversion/rendering
 src/js/editor-mode.js        Editor mode, Soft Wrap, and caret/offset helpers
 src/js/editor-actions.js     Editor formatting commands
+src/js/editor-toolbar.js     Compact topbar preference, overflow menus, keyboard behavior, and visibility coordination
 src/js/file-store.js         Local file open/save
 src/js/recent-files.js       Recent files
 src/js/workspace-store.js    Eager local and lazy remote supported text-document tree model
@@ -81,10 +82,13 @@ src/js/markdown-ai-guards.js AI output safety checks for Markdown
 src/js/markdown-repair.js    Markdown cleanup helpers
 src/js/resizer.js            AI Assistant panel resize behavior
 tests/e2e/workbench-layout.headless.mjs Semantic workbench and responsive layout smoke test
+tests/e2e/compact-topbar.headless.mjs Compact topbar, persistence, overflow, source-only, and responsive smoke test
 tests/e2e/wysiwyg-paste-sanitization.headless.mjs Safe rich HTML paste and Markdown round-trip smoke test
+tests/unit/editor-toolbar.test.js Compact topbar controller unit test
 tests/unit/                  Dependency-free unit tests
 tests/e2e/                   Dependency-free browser smoke tests
 .agents/skills/              More detailed subsystem guidance
+.agents/skills/editor-toolbar.md Compact topbar and formatting-row subsystem guidance
 ```
 
 ## Subsystem Routing
@@ -147,6 +151,12 @@ Use these routes:
 - Formatting buttons and editor commands:
   - `.agents/skills/editor-actions.md`
   - `src/js/editor-actions.js`
+- Compact topbar, formatting-row visibility, topbar overflow menus, persistence, and popup accessibility:
+  - `.agents/skills/editor-toolbar.md`
+  - `src/js/editor-toolbar.js`
+  - `src/js/app.js`
+  - `src/local_draft_ai.html`
+  - `src/styles.css`
 - Layout, editor surface, Soft Wrap, focus mode, viewport behavior:
   - `.agents/skills/workbench-layout.md`
   - `.agents/skills/styles.md`
@@ -219,7 +229,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
 - Soft Wrap affects visual wrapping only and must not change saved document content in any supported type.
-- Application actions remain available from the compact Menu Bar, while Markdown/WYSIWYG, Soft Wrap, formatting, and Focus Mode stay in the Editor Area toolbar.
+- Application actions remain available from the compact Menu Bar. The Editor Area topbar keeps tabs, Format, Markdown/WYSIWYG, AI, and document More visible while formatting expands into an optional second row.
+- Formatting-toolbar preference is stored under `localdraftai.ui.formatToolbarVisible`, defaults to collapsed, and is not overwritten when Focus Mode or a source-only document temporarily hides the row.
+- Topbar popup commands execute through the command registry, while formatting `data-action` controls continue through the existing editor-action delegate and must execute exactly once.
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.
 - The AI Assistant review panel is manually resizable on wide desktop layouts, stores its width in localStorage, and should clamp against the workspace sidebar so the editor remains usable.
 - AI actions should operate on selected text and show review UI before applying changes; keep the modal path available as a fallback while the panel experiment stabilizes.
@@ -263,6 +275,7 @@ node tests/unit/ai-settings.test.js
 node tests/unit/ai-status.test.js
 node tests/unit/ai-transport-openai-compatible.test.js
 node tests/unit/editor-actions.test.js
+node tests/unit/editor-toolbar.test.js
 node tests/unit/editor-mode.test.js
 node tests/unit/document-session.test.js
 node tests/unit/document-type.test.js
@@ -326,6 +339,12 @@ Run the semantic workbench and responsive layout smoke test:
 
 ```bash
 node --experimental-websocket tests/e2e/workbench-layout.headless.mjs
+```
+
+Run the compact topbar, overflow menu, persistence, document-type, keyboard, and responsive smoke test:
+
+```bash
+node --experimental-websocket tests/e2e/compact-topbar.headless.mjs
 ```
 
 Run the Markdown-first plain-text workspace, source-only editor, validation, search, save, and restore smoke test:

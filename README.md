@@ -40,6 +40,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **AI status visibility**: see mock mode, connection checks, connected state, server errors, auth errors, and running actions.
 - **Feedback link**: use the editor feedback link to report bugs or ideas on GitHub.
 - **Focus mode**: hide extra controls and keep writing with fewer distractions.
+- **Compact editor topbar**: keep tabs prominent, expand Markdown formatting only when needed, and find lower-frequency actions in accessible More menus.
 - **Workbench layout**: a compact Menu Bar, Activity Bar, Primary Sidebar, Editor Area, AI Secondary Sidebar, and live Status Bar keep navigation separate from writing controls.
 - **AI side workspace**: the right-hand workspace is used as an AI Assistant review panel while keeping the editor visible, and its width can be resized on desktop with editor-width clamping.
 - **No build step required**: static HTML, CSS, and JavaScript.
@@ -121,7 +122,11 @@ Workspace features are still focused on Markdown planning and writing. LocalDraf
 
 ### Layout
 
-The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. Tabs and document formatting controls are contained in the Editor Area. File, Edit, View, Workspace, AI, and Help menus dispatch to the same local file, editor, workspace, and AI behavior used by shortcuts and existing controls.
+The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. The editor topbar starts as one compact row with document tabs, **Format**, the current editor mode, **AI**, and a document **More** menu. Tabs remain the primary content and scroll independently when many files are open.
+
+Use **Format** to expand or collapse the Markdown formatting row. The choice is remembered in the browser. Less-frequent formatting actions remain available from the formatting **More** menu, while Soft Wrap, Focus Mode, validation, and rendered-HTML copying are available from the document **More** menu. Plain text, JSON, and YAML keep the compact document controls but do not expose Markdown formatting. Focus Mode temporarily hides an expanded formatting row and restores it when Focus Mode ends.
+
+File, Edit, View, Workspace, AI, and Help menus dispatch to the same local file, editor, workspace, and AI behavior used by shortcuts and compact controls. **View -> Formatting Toolbar** controls the same remembered preference as the topbar **Format** button.
 
 The Activity Bar switches Explorer, Search, and Related without resetting workspace collapse, search, scroll, or selection state. Clicking the active primary view hides the Primary Sidebar and clicking it again restores the same view. AI Assistant opens or focuses the Secondary Sidebar, and Settings opens the existing provider dialog.
 
@@ -720,6 +725,7 @@ Add stricter rules to the prompt, for example:
 │       ├── document-validation.js
 │       ├── editor-actions.js
 │       ├── editor-mode.js
+│       ├── editor-toolbar.js
 │       ├── file-store.js
 │       ├── history.js
 │       ├── markdown.js
@@ -740,6 +746,7 @@ Add stricter rules to the prompt, for example:
 ├── tests/
 │   ├── e2e/
 │   │   ├── ai-action-config.headless.mjs
+│   │   ├── compact-topbar.headless.mjs
 │   │   ├── markdown-table.headless.mjs
 │   │   ├── plain-text-file-support.headless.mjs
 │   │   ├── soft-wrap-mode-switch.headless.mjs
@@ -768,6 +775,7 @@ Add stricter rules to the prompt, for example:
 │       ├── document-type.test.js
 │       ├── document-validation.test.js
 │       ├── editor-actions.test.js
+│       ├── editor-toolbar.test.js
 │       ├── file-store.test.js
 │       ├── markdown-ai-guards.test.js
 │       ├── markdown.test.js
@@ -799,6 +807,7 @@ Add stricter rules to the prompt, for example:
 | `src/js/markdown.js` | Markdown parsing/rendering helpers |
 | `src/js/editor-mode.js` | Editor mode, Soft Wrap, and caret/offset helpers |
 | `src/js/editor-actions.js` | Editor formatting commands |
+| `src/js/editor-toolbar.js` | Compact topbar preference, popup menus, keyboard navigation, and visibility coordination |
 | `src/js/file-store.js` | Local file open/save helpers |
 | `src/js/storage-resource.js` | Provider-neutral document resource identity and revisions |
 | `src/js/storage-provider-registry.js` | Storage provider registration and normalized errors |
@@ -863,6 +872,7 @@ node tests/unit/document-validation.test.js
 node tests/unit/file-store.test.js
 node tests/unit/markdown-ai-guards.test.js
 node tests/unit/markdown.test.js
+node tests/unit/editor-toolbar.test.js
 node tests/unit/tab-manager.test.js
 node tests/unit/workspace-store.test.js
 ```
@@ -879,6 +889,7 @@ Run the headless browser smoke tests with Chrome available on `PATH`:
 
 ```bash
 node --experimental-websocket tests/e2e/soft-wrap-mode-switch.headless.mjs
+node --experimental-websocket tests/e2e/compact-topbar.headless.mjs
 node --experimental-websocket tests/e2e/wysiwyg-ai-list-capture.headless.mjs
 node --experimental-websocket tests/e2e/ai-action-config.headless.mjs
 node --experimental-websocket tests/e2e/markdown-table.headless.mjs
