@@ -23,6 +23,7 @@ async function runTest(name, callback) {
   const calls = [];
   const closed = [];
   let failRoot = false;
+  let failPlans = false;
   const provider = {
     id: "remote-ssh",
     async closeWorkspace(workspace) {
@@ -35,6 +36,9 @@ async function runTest(name, callback) {
       calls.push(path);
       if (failRoot && path === "") {
         throw new Error("root listing failed");
+      }
+      if (failPlans && path === "plans") {
+        throw new Error("plans refresh failed");
       }
       if (path === "") {
         return [
@@ -83,6 +87,19 @@ async function runTest(name, callback) {
     assert.deepEqual(plans.children.map((node) => node.name), ["archive", "project.json"]);
     assert.deepEqual(expanded.files.map((file) => file.path).sort(), ["README.md", "plans/project.json"]);
     assert.equal(workspaceStore.filterTree(expanded.tree, "project")[0].path, "plans");
+
+    calls.length = 0;
+    const refreshed = await workspaceStore.refreshDirectory(workspace, expanded.tree, "");
+    const refreshedPlans = workspaceStore.findTreeNode(refreshed.tree, "plans");
+    assert.deepEqual(calls, [""]);
+    assert.equal(refreshedPlans.loaded, true);
+    assert.deepEqual(refreshedPlans.children.map((node) => node.path), ["plans/archive", "plans/project.json"]);
+
+    failPlans = true;
+    await workspaceStore.refreshDirectory(workspace, refreshed.tree, "plans");
+    failPlans = false;
+    assert.equal(refreshedPlans.error, "plans refresh failed");
+    assert.deepEqual(refreshedPlans.children.map((node) => node.path), ["plans/archive", "plans/project.json"]);
   });
 
   await runTest("closes a remote workspace when its root cannot be listed", async function () {

@@ -412,6 +412,27 @@
       </div>
     </div>
 
+    <div id="remoteSaveAsOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remoteSaveAsDialog" class="ai-settings-dialog remote-save-as-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="remoteSaveAsTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="remoteSaveAsTitle">Save Remote File As</h2>
+          <button type="button" id="remoteSaveAsClose" class="icon-text ai-settings-close" aria-label="Close remote Save As dialog">×</button>
+        </div>
+        <div class="ai-settings-body">
+          <label class="ai-settings-field">Workspace-relative path
+            <input id="remoteSaveAsPath" type="text" autocomplete="off" spellcheck="false" placeholder="plans/project-copy.md">
+          </label>
+          <p class="ai-settings-note">The file is created inside the active remote workspace. Existing files are not overwritten.</p>
+          <div id="remoteSaveAsStatus" class="ai-settings-status" aria-live="polite"></div>
+        </div>
+        <div class="ai-settings-actions">
+          <button type="button" id="remoteSaveAsCancel" class="file-button">Cancel</button>
+          <button type="button" id="remoteSaveAsSave" class="file-button">Save As</button>
+        </div>
+      </div>
+    </div>
+
     <div id="aboutOverlay" class="about-overlay" hidden>
       <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"
         aria-describedby="aboutBody" tabindex="-1">

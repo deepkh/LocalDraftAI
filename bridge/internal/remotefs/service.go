@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
+	"net"
 	"path"
 	"strings"
 	"sync"
@@ -172,6 +174,9 @@ func mapFilesystemError(err error, fallback string) *Error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return connectionLost(err)
 	}
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || strings.Contains(strings.ToLower(err.Error()), "closed network connection") {
+		return connectionLost(err)
+	}
 	if errors.As(err, &statusError) {
 		switch statusError.FxCode() {
 		case sftp.ErrSSHFxNoSuchFile:
@@ -192,6 +197,9 @@ func mapFilesystemError(err error, fallback string) *Error {
 	}
 	if isPermission(err) {
 		return &Error{Code: "PERMISSION_DENIED", Message: fallback, Cause: err}
+	}
+	if isExist(err) {
+		return &Error{Code: "RESOURCE_ALREADY_EXISTS", Message: fallback, Cause: err}
 	}
 	return &Error{Code: "PROVIDER_UNAVAILABLE", Message: fallback, Cause: err}
 }

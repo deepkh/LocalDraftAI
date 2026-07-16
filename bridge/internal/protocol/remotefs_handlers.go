@@ -86,6 +86,84 @@ func RegisterRemoteFilesystemHandlers(router *Router, service *remotefs.Service)
 		}
 		return file, nil
 	})
+	router.Register("fs.writeText", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID      string            `json:"workspaceId"`
+			Path             string            `json:"path"`
+			Text             string            `json:"text"`
+			ExpectedRevision remotefs.Revision `json:"expectedRevision"`
+			Force            bool              `json:"force"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Path == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId and path are required")
+		}
+		result, err := service.WriteText(ctx, request.WorkspaceID, request.Path, request.Text, request.ExpectedRevision, request.Force)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
+	router.Register("fs.createTextFile", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID   string `json:"workspaceId"`
+			DirectoryPath string `json:"directoryPath"`
+			Name          string `json:"name"`
+			Text          string `json:"text"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Name == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId and name are required")
+		}
+		result, err := service.CreateTextFile(ctx, request.WorkspaceID, request.DirectoryPath, request.Name, request.Text)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
+	router.Register("fs.createDirectory", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID   string `json:"workspaceId"`
+			DirectoryPath string `json:"directoryPath"`
+			Name          string `json:"name"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Name == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId and name are required")
+		}
+		result, err := service.CreateDirectory(ctx, request.WorkspaceID, request.DirectoryPath, request.Name)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
+	router.Register("fs.rename", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID string `json:"workspaceId"`
+			Path        string `json:"path"`
+			NewName     string `json:"newName"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Path == "" || request.NewName == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId, path, and newName are required")
+		}
+		result, err := service.Rename(ctx, request.WorkspaceID, request.Path, request.NewName)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
+	router.Register("fs.duplicate", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID string `json:"workspaceId"`
+			Path        string `json:"path"`
+			Name        string `json:"name"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Path == "" || request.Name == "" {
+			return nil, NewError(InvalidParamsCode, "workspaceId, path, and name are required")
+		}
+		result, err := service.Duplicate(ctx, request.WorkspaceID, request.Path, request.Name)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return result, nil
+	})
 }
 
 func workspaceIDParam(params json.RawMessage) (string, *Error) {

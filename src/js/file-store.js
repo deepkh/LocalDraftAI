@@ -224,10 +224,11 @@
     };
   }
 
-  async function saveSession(session) {
+  async function saveSession(session, options) {
     var provider = providerForSession(session);
     var result;
 
+    options = options || {};
     if (!provider) {
       throw new Error("The storage provider for this document is unavailable.");
     }
@@ -244,6 +245,7 @@
     }
 
     result = await provider.saveDocument(session, {
+      force: Boolean(options.force),
       text: serializeSessionText(session)
     });
     session.storageProviderId = provider.id;
@@ -261,16 +263,18 @@
     };
   }
 
-  async function saveSessionAs(session) {
+  async function saveSessionAs(session, options) {
     var provider = providerForSession(session) || localProvider();
     var result;
     var nextTitle;
     var nextDescriptor;
 
+    options = options || {};
     if (!provider || typeof provider.saveDocumentAs !== "function") {
       throw new Error("The storage provider for this document is unavailable.");
     }
     result = await provider.saveDocumentAs(session, {
+      path: options.path,
       suggestedName: supportedFileName(session.title, session.documentType),
       text: serializeSessionText(session),
       types: supportedTextFileTypes

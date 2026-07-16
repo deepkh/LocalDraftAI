@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,6 +187,13 @@ func TestRemotePathGuardRejectsUnsafePathsAndSymlinkEscapes(t *testing.T) {
 	if err == nil || errorCode(t, err) != "PATH_OUTSIDE_WORKSPACE" {
 		t.Fatalf("root-prefix escape error = %v", err)
 	}
+	if err := os.Symlink(outside, filepath.Join(fixture.root, "escape-dir")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = fixture.service.CreateTextFile(context.Background(), fixture.workspace.ID, "escape-dir", "created.md", "escape")
+	if err == nil || errorCode(t, err) != "PATH_OUTSIDE_WORKSPACE" {
+		t.Fatalf("new-file symlink escape error = %v", err)
+	}
 }
 
 func TestRemoteReadLimitsMissingInvalidAndPermissionErrors(t *testing.T) {
@@ -234,5 +242,184 @@ func TestClosedRemoteWorkspaceCannotBeUsed(t *testing.T) {
 	}
 	if _, err := fixture.service.ListDirectory(context.Background(), fixture.workspace.ID, ""); err == nil || errorCode(t, err) != "RESOURCE_NOT_FOUND" {
 		t.Fatalf("closed workspace error = %v", err)
+	}
+}
+
+func TestWriteTextPreservesExactBytesAndReturnsVerifiedRevision(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	filePath := filepath.Join(fixture.root, "document.md")
+	original := []byte("# Original\n")
+	if err := os.WriteFile(filePath, original, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := fixture.service.ReadText(context.Background(), fixture.workspace.ID, "document.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := "\ufeff# Updated\r\n\r\nFinal\r\n"
+	result, err := fixture.service.WriteText(context.Background(), fixture.workspace.ID, "document.md", updated, opened.Revision, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != updated {
+		t.Fatalf("written bytes = %q", written)
+	}
+	expectedHash := sha256.Sum256(written)
+	if result.Revision.Size != int64(len(written)) || result.Revision.Hash != hex.EncodeToString(expectedHash[:]) {
+		t.Fatalf("revision = %#v", result.Revision)
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o640 {
+		t.Fatalf("mode = %o", info.Mode().Perm())
+	}
+
+	emptyResult, err := fixture.service.WriteText(context.Background(), fixture.workspace.ID, "document.md", "", result.Revision, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if emptyResult.Revision.Size != 0 || emptyResult.Revision.Hash == "" {
+		t.Fatalf("empty revision = %#v", emptyResult.Revision)
+	}
+	if value, err := os.ReadFile(filePath); err != nil || len(value) != 0 {
+		t.Fatalf("empty file = %q, error = %v", value, err)
+	}
+	entries, err := os.ReadDir(fixture.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".localdraft-") || strings.Contains(entry.Name(), ".localdraft-backup-") {
+			t.Fatalf("temporary file was not removed: %s", entry.Name())
+		}
+	}
+}
+
+func TestRemoteWorkspaceMutations(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	folder, err := fixture.service.CreateDirectory(context.Background(), fixture.workspace.ID, "", "plans")
+	if err != nil || folder.Path != "plans" {
+		t.Fatalf("folder = %#v, error = %v", folder, err)
+	}
+	created, err := fixture.service.CreateTextFile(context.Background(), fixture.workspace.ID, "plans", "project.md", "# Project\r\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Path != "plans/project.md" || created.Revision.Hash == "" {
+		t.Fatalf("created = %#v", created)
+	}
+	if _, err := fixture.service.CreateTextFile(context.Background(), fixture.workspace.ID, "plans", "project.md", "overwrite"); err == nil || errorCode(t, err) != "RESOURCE_ALREADY_EXISTS" {
+		t.Fatalf("existing file error = %v", err)
+	}
+	if _, err := fixture.service.CreateDirectory(context.Background(), fixture.workspace.ID, "", "plans"); err == nil || errorCode(t, err) != "RESOURCE_ALREADY_EXISTS" {
+		t.Fatalf("existing folder error = %v", err)
+	}
+	renamed, err := fixture.service.Rename(context.Background(), fixture.workspace.ID, "plans/project.md", "renamed.md")
+	if err != nil || renamed.Path != "plans/renamed.md" {
+		t.Fatalf("renamed = %#v, error = %v", renamed, err)
+	}
+	if _, err := os.Stat(filepath.Join(fixture.root, "plans", "project.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("old file still exists: %v", err)
+	}
+	duplicate, err := fixture.service.Duplicate(context.Background(), fixture.workspace.ID, "plans/renamed.md", "renamed copy.md")
+	if err != nil || duplicate.Path != "plans/renamed copy.md" {
+		t.Fatalf("duplicate = %#v, error = %v", duplicate, err)
+	}
+	duplicate2, err := fixture.service.Duplicate(context.Background(), fixture.workspace.ID, "plans/renamed.md", "renamed copy.md")
+	if err != nil || duplicate2.Path != "plans/renamed copy 2.md" {
+		t.Fatalf("second duplicate = %#v, error = %v", duplicate2, err)
+	}
+	for _, name := range []string{"renamed.md", "renamed copy.md", "renamed copy 2.md"} {
+		value, err := os.ReadFile(filepath.Join(fixture.root, "plans", name))
+		if err != nil || string(value) != "# Project\r\n" {
+			t.Fatalf("%s = %q, error = %v", name, value, err)
+		}
+	}
+}
+
+func TestWriteRejectsStaleRevisionWithoutChangingFile(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	filePath := filepath.Join(fixture.root, "conflict.md")
+	if err := os.WriteFile(filePath, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := fixture.service.ReadText(context.Background(), fixture.workspace.ID, "conflict.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("external"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = fixture.service.WriteText(context.Background(), fixture.workspace.ID, "conflict.md", "editor", opened.Revision, false)
+	if err == nil || errorCode(t, err) != "REVISION_CONFLICT" {
+		t.Fatalf("conflict error = %v", err)
+	}
+	value, readErr := os.ReadFile(filePath)
+	if readErr != nil || string(value) != "external" {
+		t.Fatalf("file changed on conflict: %q, error = %v", value, readErr)
+	}
+	forced, err := fixture.service.WriteText(context.Background(), fixture.workspace.ID, "conflict.md", "editor", opened.Revision, true)
+	if err != nil || forced.Revision.Hash == "" {
+		t.Fatalf("forced result = %#v, error = %v", forced, err)
+	}
+	if value, err := os.ReadFile(filePath); err != nil || string(value) != "editor" {
+		t.Fatalf("forced file = %q, error = %v", value, err)
+	}
+}
+
+func TestWriteReportsConnectionLoss(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	if err := os.WriteFile(filepath.Join(fixture.root, "offline.md"), []byte("online"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := fixture.service.ReadText(context.Background(), fixture.workspace.ID, "offline.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.manager.Disconnect(fixture.profileID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = fixture.service.WriteText(context.Background(), fixture.workspace.ID, "offline.md", "editor", opened.Revision, false)
+	if err == nil || errorCode(t, err) != "CONNECTION_LOST" {
+		t.Fatalf("connection loss error = %v", err)
+	}
+}
+
+func TestWriteRejectsOversizedPayloadBeforeChangingFile(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	filePath := filepath.Join(fixture.root, "limited.md")
+	if err := os.WriteFile(filePath, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := fixture.service.ReadText(context.Background(), fixture.workspace.ID, "limited.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = fixture.service.WriteText(
+		context.Background(),
+		fixture.workspace.ID,
+		"limited.md",
+		strings.Repeat("x", int(MaximumTextFileSize)+1),
+		opened.Revision,
+		false,
+	)
+	if err == nil || errorCode(t, err) != "FILE_TOO_LARGE" {
+		t.Fatalf("oversized write error = %v", err)
+	}
+	if value, err := os.ReadFile(filePath); err != nil || string(value) != "original" {
+		t.Fatalf("limited file = %q, error = %v", value, err)
+	}
+}
+
+func TestFilesystemPermissionErrorsStayStructured(t *testing.T) {
+	err := mapFilesystemError(os.ErrPermission, "Permission denied.")
+	if err.Code != "PERMISSION_DENIED" {
+		t.Fatalf("permission error = %#v", err)
 	}
 }

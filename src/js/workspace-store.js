@@ -132,6 +132,25 @@
     return { directories: directories, files: files };
   }
 
+  function mergeCachedDirectories(nextNodes, previousNodes) {
+    var previousByPath = {};
+
+    (previousNodes || []).forEach(function (node) {
+      previousByPath[node.path] = node;
+    });
+    return (nextNodes || []).map(function (node) {
+      var previous = previousByPath[node.path];
+
+      if (node.kind === "directory" && previous && previous.kind === "directory") {
+        node.loaded = previous.loaded;
+        node.loading = false;
+        node.error = previous.error || "";
+        node.children = previous.children || [];
+      }
+      return node;
+    });
+  }
+
   function buildTree(files, directories) {
     var root = [];
     var directoriesByPath = {};
@@ -410,6 +429,44 @@
     };
   }
 
+  async function refreshDirectory(workspace, tree, relativePath) {
+    var provider = workspace && ME.storageProviders && ME.storageProviders.getForWorkspace(workspace);
+    var node = relativePath ? findTreeNode(tree || [], relativePath) : null;
+    var previousChildren = node ? node.children || [] : tree || [];
+    var entries;
+    var nextChildren;
+    var state;
+
+    if (!provider || relativePath && (!node || node.kind !== "directory")) {
+      throw new Error("The workspace directory is unavailable.");
+    }
+    if (node) {
+      node.loading = true;
+      node.error = "";
+    }
+    try {
+      entries = await provider.listDirectory(workspace, relativePath || "", {});
+      nextChildren = mergeCachedDirectories(treeFromEntries(entries, workspace), previousChildren);
+      if (node) {
+        node.children = nextChildren;
+        node.loaded = true;
+        node.loading = false;
+      } else {
+        tree.splice.apply(tree, [0, tree.length].concat(nextChildren));
+      }
+    } catch (error) {
+      if (node) {
+        node.loading = false;
+        node.error = error && error.message || "Could not refresh this remote directory.";
+        state = collectLazyTreeState(tree || []);
+        return { directories: state.directories, files: state.files, tree: tree || [] };
+      }
+      throw error;
+    }
+    state = collectLazyTreeState(tree || []);
+    return { directories: state.directories, files: state.files, tree: tree || [] };
+  }
+
   ME.workspaceStore = {
     buildTree: buildTree,
     extensionForName: extensionForName,
@@ -422,6 +479,7 @@
     openWorkspace: openWorkspace,
     scanWorkspace: scanWorkspace,
     loadDirectory: loadDirectory,
+    refreshDirectory: refreshDirectory,
     treeFromEntries: treeFromEntries
   };
 }());

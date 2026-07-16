@@ -290,7 +290,67 @@ async function main() {
       if (sourceOnly) assert.equal(state.editorMode, "markdown", filePath);
     }
 
-    assert.equal(await evaluate(send, `document.querySelector("#saveFile").disabled`), true);
+    await evaluate(send, `document.querySelector("[data-workspace-path='README.md']").click()`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().title === "README.md"`);
+    if ((await evaluate(send, `window.MarkdownEditor.__testApi.getEditorStateForTest()`)).editorMode !== "markdown") {
+      await evaluate(send, `document.querySelector("#toggleEditorMode").click()`);
+      await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().editorMode === "markdown"`);
+    }
+    await evaluate(send, `(() => {
+      const editor = document.querySelector("#markdownEditor");
+      editor.value = ${JSON.stringify("# Saved remotely\n")};
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: "x" }));
+    })()`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().dirty === true`);
+    await evaluate(send, `document.querySelector("#saveFile").click()`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().dirty === false`);
+    assert.equal(fs.readFileSync(path.join(remoteRoot, "README.md"), "utf8"), "\ufeff# Saved remotely\r\n");
+
+    await evaluate(send, `document.querySelector("#saveAsFile").click()`);
+    await waitFor(send, `document.querySelector("#remoteSaveAsOverlay").hidden === false`);
+    await evaluate(send, `(() => {
+      document.querySelector("#remoteSaveAsPath").value = "plans/README copy.md";
+      document.querySelector("#remoteSaveAsSave").click();
+    })()`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().title === "README copy.md"`);
+    assert.equal(fs.readFileSync(path.join(remoteRoot, "plans", "README copy.md"), "utf8"), "\ufeff# Saved remotely\r\n");
+
+    await evaluate(send, `(() => {
+      window.__remotePromptValues = ["drafts", "created.md", "renamed.md", "renamed copy.md"];
+      window.prompt = () => window.__remotePromptValues.shift();
+      document.querySelector(".workspace-tree[data-workspace-root='true']").dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 80, clientY: 120 })
+      );
+    })()`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-context-action='new-folder']"))`);
+    await evaluate(send, `document.querySelector("[data-workspace-context-action='new-folder']").click()`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-folder-path='drafts']"))`);
+
+    await evaluate(send, `document.querySelector("[data-workspace-folder-path='drafts']").dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, clientX: 90, clientY: 140 })
+    )`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-context-action='new-file']"))`);
+    await evaluate(send, `document.querySelector("[data-workspace-context-action='new-file']").click()`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-path='drafts/created.md']"))`);
+
+    await evaluate(send, `document.querySelector("[data-workspace-path='drafts/created.md']").dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 160 })
+    )`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-context-action='rename']"))`);
+    await evaluate(send, `document.querySelector("[data-workspace-context-action='rename']").click()`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-path='drafts/renamed.md']"))`);
+
+    await evaluate(send, `document.querySelector("[data-workspace-path='drafts/renamed.md']").dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, clientX: 110, clientY: 180 })
+    )`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-context-action='duplicate']"))`);
+    await evaluate(send, `document.querySelector("[data-workspace-context-action='duplicate']").click()`);
+    await waitFor(send, `Boolean(document.querySelector("[data-workspace-path='drafts/renamed copy.md']"))`);
+    assert.equal(fs.existsSync(path.join(remoteRoot, "drafts", "created.md")), false);
+    assert.equal(fs.readFileSync(path.join(remoteRoot, "drafts", "renamed.md"), "utf8"), "");
+    assert.equal(fs.readFileSync(path.join(remoteRoot, "drafts", "renamed copy.md"), "utf8"), "");
+
+    assert.equal(await evaluate(send, `document.querySelector("#saveFile").disabled`), false);
     assert.equal(await evaluate(send, `window.__localPickerCalls`), 0);
     assert.deepEqual(connection.exceptions, []);
   } finally {
@@ -307,7 +367,7 @@ async function main() {
 }
 
 main().then(() => {
-  console.log("ok - remote SSH workspace opens supported files through lazy SFTP Explorer");
+  console.log("ok - remote SSH workspace reads and mutates files through lazy SFTP Explorer");
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

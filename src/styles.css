@@ -3193,6 +3193,10 @@
       width: min(100%, 640px);
     }
 
+    .remote-save-as-dialog {
+      width: min(100%, 560px);
+    }
+
     .remote-folder-body {
       grid-template-rows: auto minmax(180px, 1fr) auto;
     }

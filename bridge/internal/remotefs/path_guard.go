@@ -58,6 +58,40 @@ func guardExisting(client *sftp.Client, workspace Workspace, relativePath string
 	return normalized, resolved, nil
 }
 
+func guardNewTarget(client *sftp.Client, workspace Workspace, relativePath string) (string, string, string, error) {
+	normalized, err := validateRelativePath(relativePath, false)
+	if err != nil {
+		return "", "", "", err
+	}
+	parentRelative := path.Dir(normalized)
+	if parentRelative == "." {
+		parentRelative = ""
+	}
+	_, resolvedParent, err := guardExisting(client, workspace, parentRelative, true)
+	if err != nil {
+		return "", "", "", err
+	}
+	info, err := client.Stat(resolvedParent)
+	if err != nil {
+		return "", "", "", mapFilesystemError(err, "The remote parent directory was not found.")
+	}
+	if !info.IsDir() {
+		return "", "", "", &Error{Code: "INVALID_PATH", Message: "The remote parent path is not a directory."}
+	}
+	target := path.Join(resolvedParent, path.Base(normalized))
+	if !withinRoot(workspace.RootPath, target) {
+		return "", "", "", &Error{Code: "PATH_OUTSIDE_WORKSPACE", Message: "The remote path resolves outside the workspace."}
+	}
+	return normalized, resolvedParent, target, nil
+}
+
+func validateName(value string) error {
+	if value == "" || value == "." || value == ".." || strings.Contains(value, "/") || strings.Contains(value, `\`) || strings.ContainsRune(value, 0) {
+		return invalidPath("A single remote file or folder name is required.")
+	}
+	return nil
+}
+
 func resolveSymlinks(client *sftp.Client, absolutePath string) (string, error) {
 	const maximumSymlinks = 40
 	remaining := strings.Split(strings.TrimPrefix(path.Clean(absolutePath), "/"), "/")
@@ -113,4 +147,8 @@ func isNotExist(err error) bool {
 
 func isPermission(err error) bool {
 	return errors.Is(err, os.ErrPermission)
+}
+
+func isExist(err error) bool {
+	return errors.Is(err, os.ErrExist)
 }

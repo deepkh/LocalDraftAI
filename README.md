@@ -30,7 +30,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: preserve the selected extension, LF/CRLF line endings, UTF-8 BOM, and document text in browsers that support the File System Access API.
 - **Workspace sidebar**: browse supported text documents with type indicators and collapsible folders, reopen recent workspaces, restore tabs, search content, and open results by line.
-- **Read-only Remote SSH workspaces**: from the authenticated LocalDraft Bridge origin, connect through SSH/SFTP, open a remote folder, expand directories lazily, and read supported text documents without exposing SSH credentials to the browser.
+- **Remote SSH workspaces**: from the authenticated LocalDraft Bridge origin, connect through SSH/SFTP, lazily browse supported documents, and safely read, save, create, rename, or duplicate remote text files without exposing SSH credentials to the browser.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **Configurable AI Assistant**: edit the local YAML action list to add, disable, remove, import, or export writing actions for local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -166,7 +166,9 @@ cd ..
 
 The bridge also stores non-secret SSH profiles, discovers supported exact aliases from OpenSSH config, verifies host keys against its own `known_hosts`, authenticates through an agent, identity file, session-only passphrase, or session-only password, and starts SFTP after connection. When the app is opened from the bridge, the left side of the Status Bar provides SSH connection commands, and the Workspace menu can manage profiles, confirm first-use host keys, collect session-only secrets, browse remote folders, and show the redacted connection log.
 
-After connecting, use `Workspace -> Open Remote Folder…`. The bridge canonicalizes the folder and confines reads to it; the Explorer lists only the root initially and loads a directory when you expand it. Unsupported files stay hidden, empty directories remain visible, and Markdown, plain text, JSON, and YAML keep their existing editor-mode rules. Remote workspaces are read-only at this implementation stage: Save, Save As, mutation commands, search, Related link checks, and remote image assets are not enabled, and the app never falls back to a local browser picker for a remote document. Those remote capabilities are added in later phases. See [`bridge/README.md`](bridge/README.md) for the security boundary, configuration paths, supported SSH options, limits, and development flags.
+After connecting, use `Workspace -> Open Remote Folder…`. The bridge canonicalizes the folder and confines every operation to it; the Explorer lists only the root initially and loads a directory when you expand it. Unsupported files stay hidden, empty directories remain visible, and Markdown, plain text, JSON, and YAML keep their existing editor-mode rules.
+
+`Save` writes the active remote resource with its SHA-256 revision as a precondition. `Save As` uses a workspace-relative remote path dialog and never opens a browser picker. New File, New Folder, Rename, and Duplicate use SFTP and refresh only their affected Explorer directory. Text serialization still preserves a UTF-8 BOM, LF/CRLF, and the final newline. Writes use a same-directory temporary file, preserve the original mode when possible, replace atomically through the POSIX rename extension or a backup-and-rollback fallback, and verify the final bytes before reporting success. A changed remote revision is rejected now; the compare/reload/overwrite conflict UI arrives in the next phase. Remote search, restoration, Related link checks, and image assets remain disabled until their later phases. See [`bridge/README.md`](bridge/README.md) for the security boundary, configuration paths, supported SSH options, limits, and development flags.
 
 Use the hosted static app:
 
@@ -778,7 +780,7 @@ Add stricter rules to the prompt, for example:
 | `src/js/storage-provider-registry.js` | Storage provider registration and normalized errors |
 | `src/js/local-filesystem-provider.js` | Local File System Access storage provider |
 | `src/js/bridge-client.js` | Authenticated same-origin bridge JSON-RPC client |
-| `src/js/remote-ssh-provider.js` | Read-only Remote SSH workspace provider |
+| `src/js/remote-ssh-provider.js` | Remote SSH document and workspace storage provider |
 | `src/js/remote-connection-ui.js` | SSH profiles, prompts, remote folder selection, and logs |
 | `src/js/remote-status.js` | Remote connection Status Bar state |
 | `src/js/recent-files.js` | Recent file list storage |

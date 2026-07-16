@@ -120,4 +120,49 @@ async function runTest(name, callback) {
     assert.equal(session.extension, ".yaml");
     assert.equal(session.title, "config.yaml");
   });
+
+  await runTest("remote saves preserve BOM and CRLF and clear dirty only after success", async function () {
+    let written = null;
+    const resource = window.MarkdownEditor.storageResource.create({
+      providerId: "remote-ssh",
+      workspaceId: "remote-workspace-1",
+      path: "notes.md",
+      displayName: "notes.md",
+      revision: { size: 4, mtimeMs: 1, hash: "old" }
+    });
+    const provider = {
+      id: "remote-ssh",
+      async saveDocument(session, options) {
+        written = options.text;
+        return {
+          resource: window.MarkdownEditor.storageResource.create({
+            ...resource,
+            revision: { size: options.text.length, mtimeMs: 2, hash: "new" }
+          }),
+          revision: { size: options.text.length, mtimeMs: 2, hash: "new" }
+        };
+      },
+      async saveDocumentAs() { throw new Error("not used"); }
+    };
+    window.MarkdownEditor.storageProviders.register(provider);
+    const session = {
+      dirty: true,
+      documentType: "markdown",
+      editorMode: "markdown",
+      hasUtf8Bom: true,
+      markdownText: "first\nsecond\n",
+      preferredLineEnding: "\r\n",
+      storageProviderId: "remote-ssh",
+      storageResource: resource,
+      storageRevision: resource.revision,
+      title: "notes.md",
+      workspaceId: "remote-workspace-1",
+      workspacePath: "notes.md"
+    };
+
+    await fileStore.saveSession(session);
+    assert.equal(written, "\ufefffirst\r\nsecond\r\n");
+    assert.equal(session.storageRevision.hash, "new");
+    assert.equal(session.dirty, false);
+  });
 }());

@@ -18,7 +18,7 @@
   function unsupported(operation) {
     return Promise.reject(storageError(
       "OPERATION_UNSUPPORTED",
-      operation + " is not available while remote workspaces are read-only."
+      operation + " is not available for Remote SSH workspaces yet."
     ));
   }
 
@@ -38,15 +38,30 @@
     function capabilities() {
       return {
         read: true,
-        write: false,
-        createFile: false,
-        createDirectory: false,
-        rename: false,
-        duplicate: false,
+        write: true,
+        createFile: true,
+        createDirectory: true,
+        rename: true,
+        duplicate: true,
         search: false,
         binaryAssets: false,
         watch: false
       };
+    }
+
+    function splitPath(relativePath) {
+      var normalized = ME.storageResource.normalizeRelativePath(relativePath, { allowEmpty: false });
+      var parts = normalized.split("/");
+
+      return {
+        directoryPath: parts.slice(0, -1).join("/"),
+        name: parts[parts.length - 1],
+        path: normalized
+      };
+    }
+
+    function resultResource(workspaceId, result, fallbackPath) {
+      return resourceFor(workspaceId, result.path || fallbackPath, result.revision);
     }
 
     function resourceFor(workspaceId, path, revision) {
@@ -164,6 +179,94 @@
       };
     }
 
+    async function writeText(resource, serializedText, writeOptions) {
+      var result;
+
+      writeOptions = writeOptions || {};
+      if (!resource || resource.providerId !== "remote-ssh" || !resource.workspaceId || !resource.path) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote file resource is unavailable.");
+      }
+      result = await bridge().request("fs.writeText", {
+        workspaceId: resource.workspaceId,
+        path: resource.path,
+        text: String(serializedText == null ? "" : serializedText),
+        expectedRevision: writeOptions.expectedRevision || resource.revision,
+        force: Boolean(writeOptions.force)
+      });
+      resource = resultResource(resource.workspaceId, result, resource.path);
+      return { resource: resource, revision: resource.revision };
+    }
+
+    async function saveDocument(session, saveOptions) {
+      var result = await writeText(session && session.storageResource, saveOptions && saveOptions.text, {
+        expectedRevision: session && session.storageRevision,
+        force: Boolean(saveOptions && saveOptions.force)
+      });
+
+      return result;
+    }
+
+    async function createTextFile(workspace, directoryPath, name, text) {
+      var resource;
+      var result = await bridge().request("fs.createTextFile", {
+        workspaceId: workspace.id,
+        directoryPath: String(directoryPath || ""),
+        name: name,
+        text: String(text == null ? "" : text)
+      });
+      resource = resultResource(workspace.id, result, [directoryPath, name].filter(Boolean).join("/"));
+
+      return { name: resource.displayName, path: resource.path, resource: resource, revision: resource.revision };
+    }
+
+    async function saveDocumentAs(session, saveOptions) {
+      var target = splitPath(saveOptions && saveOptions.path);
+      var workspace = { id: session && session.workspaceId || session && session.storageResource && session.storageResource.workspaceId };
+
+      if (!workspace.id) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote workspace is unavailable.");
+      }
+      return createTextFile(workspace, target.directoryPath, target.name, saveOptions && saveOptions.text);
+    }
+
+    async function createDirectory(workspace, directoryPath, name) {
+      return bridge().request("fs.createDirectory", {
+        workspaceId: workspace.id,
+        directoryPath: String(directoryPath || ""),
+        name: name
+      });
+    }
+
+    async function rename(workspace, relativePath, newName) {
+      var resource;
+      var result = await bridge().request("fs.rename", {
+        workspaceId: workspace.id,
+        path: relativePath,
+        newName: newName
+      });
+      resource = resultResource(workspace.id, result, relativePath);
+
+      return {
+        name: resource.displayName,
+        path: resource.path,
+        resource: resource,
+        revision: resource.revision,
+        unchanged: Boolean(result.unchanged)
+      };
+    }
+
+    async function duplicate(workspace, relativePath, requestedName) {
+      var resource;
+      var result = await bridge().request("fs.duplicate", {
+        workspaceId: workspace.id,
+        path: relativePath,
+        name: requestedName
+      });
+      resource = resultResource(workspace.id, result, relativePath);
+
+      return { name: resource.displayName, path: resource.path, resource: resource, revision: resource.revision };
+    }
+
     var provider = {
       id: "remote-ssh",
       label: "Remote SSH",
@@ -178,18 +281,18 @@
       isWorkspaceAvailable: function () { return provider.isAvailable(); },
       getCapabilities: capabilities,
       openDocument: function () { return unsupported("Opening a standalone remote document"); },
-      saveDocument: function () { return unsupported("Remote Save"); },
-      saveDocumentAs: function () { return unsupported("Remote Save As"); },
+      saveDocument: saveDocument,
+      saveDocumentAs: saveDocumentAs,
       openWorkspace: openWorkspace,
       closeWorkspace: closeWorkspace,
       listDirectory: listDirectory,
       stat: stat,
       readText: readText,
-      writeText: function () { return unsupported("Remote Save"); },
-      createTextFile: function () { return unsupported("Remote New File"); },
-      createDirectory: function () { return unsupported("Remote New Folder"); },
-      rename: function () { return unsupported("Remote Rename"); },
-      duplicate: function () { return unsupported("Remote Duplicate"); },
+      writeText: writeText,
+      createTextFile: createTextFile,
+      createDirectory: createDirectory,
+      rename: rename,
+      duplicate: duplicate,
       searchText: function () { return unsupported("Remote Search"); },
       readBinary: function () { return unsupported("Remote image loading"); },
       writeBinary: function () { return unsupported("Remote image storage"); },

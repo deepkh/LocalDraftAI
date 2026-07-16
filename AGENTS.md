@@ -37,7 +37,7 @@ src/js/local-filesystem-provider.js Local File System Access provider
 src/js/bridge-client.js       Authenticated same-origin JSON-RPC bridge client and detection
 src/js/remote-status.js       Remote Status Bar state, labels, menu, and command availability
 src/js/remote-connection-ui.js SSH profile, prompt, folder selection, and connection-log dialogs
-src/js/remote-ssh-provider.js Read-only Remote SSH workspace storage provider
+src/js/remote-ssh-provider.js Remote SSH document and workspace storage provider
 src/js/document-type.js      Central supported-extension and document-capability registry
 src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
@@ -177,7 +177,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Remote connection UI owns profile management, host-key confirmation, prompt-scoped password/passphrase entry, remote folder selection, and the redacted connection log. Clear secret inputs before requests settle, never use browser storage for them, and do not switch workspaces until the selected folder opens successfully.
 - A bridge-served Remote SSH workspace uses `remote-ssh`, opens only after SFTP canonicalizes its absolute root, and passes only workspace-relative POSIX paths after opening. Existing targets must resolve at or below the canonical root; reject absolute, dot, dot-dot, Windows, UNC, root-prefix, and symlink-escape paths.
 - Remote Explorer trees are lazy: open lists only the root, expansion loads one directory through the provider, unsupported files stay hidden through `document-type.js`, empty directories stay visible, and a directory error stays attached to that node. Local workspace trees remain eager.
-- Remote documents are read-only until the write phase. Keep remote Save, Save As, New File, New Folder, Rename, Duplicate, search, and binary asset capabilities disabled, and never fall back to local browser file APIs for remote resources.
+- Remote text writes carry the opened SHA-256 revision, replace through a same-directory temporary file, preserve the prior mode when possible, and verify the final bytes before success. A mismatched revision returns `REVISION_CONFLICT` without modifying the target.
+- Remote Save As, New File, New Folder, Rename, and Duplicate stay inside the active workspace provider and refresh only their affected lazy Explorer directory. They must never invoke local browser file APIs. Delete remains out of scope.
+- Remote search and binary asset capabilities remain disabled until their phases; do not provide a partial loaded-files search or a local asset fallback.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.

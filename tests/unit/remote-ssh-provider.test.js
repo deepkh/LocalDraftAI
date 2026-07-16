@@ -48,13 +48,32 @@ async function runTest(name, callback) {
           revision: { size: 10, mtimeMs: 4, hash: "abc" }
         };
       }
+      if (method === "fs.writeText") {
+        return { path: params.path, revision: { size: params.text.length, mtimeMs: 5, hash: "written" } };
+      }
+      if (method === "fs.createTextFile") {
+        return {
+          path: [params.directoryPath, params.name].filter(Boolean).join("/"),
+          name: params.name,
+          revision: { size: params.text.length, mtimeMs: 6, hash: "created" }
+        };
+      }
+      if (method === "fs.createDirectory") {
+        return { path: [params.directoryPath, params.name].filter(Boolean).join("/"), name: params.name };
+      }
+      if (method === "fs.rename") {
+        return { path: "renamed.md", name: params.newName, revision: { size: 10, mtimeMs: 7, hash: "renamed" } };
+      }
+      if (method === "fs.duplicate") {
+        return { path: params.name, name: params.name, revision: { size: 10, mtimeMs: 8, hash: "duplicate" } };
+      }
       if (method === "workspace.close") return { closed: true };
       return {};
     }
   };
   const provider = remoteSSHProvider.create({ getBridgeClient() { return bridge; } });
 
-  await runTest("opens read-only remote workspace descriptors", async function () {
+  await runTest("opens writable remote workspace descriptors", async function () {
     const workspace = await provider.openWorkspace({
       connectionId: "home-server",
       connectionLabel: "Home Server",
@@ -65,7 +84,8 @@ async function runTest(name, callback) {
     assert.equal(workspace.root.displayPath, "/home/gary/notes");
     assert.equal(workspace.authority.label, "Home Server");
     assert.equal(workspace.capabilities.read, true);
-    assert.equal(workspace.capabilities.write, false);
+    assert.equal(workspace.capabilities.write, true);
+    assert.equal(workspace.capabilities.createFile, true);
   });
 
   await runTest("filters unsupported files and creates credential-free resources", async function () {
@@ -85,13 +105,35 @@ async function runTest(name, callback) {
     assert.equal(read.revision.hash, "abc");
   });
 
-  await runTest("keeps remote writes disabled in the read-only phase", async function () {
-    await assert.rejects(provider.saveDocument({}), function (error) {
-      return error.code === "OPERATION_UNSUPPORTED";
+  await runTest("writes with expected revisions and supports workspace mutations", async function () {
+    const workspace = await provider.openWorkspace({ connectionId: "home-server", path: "/home/gary/notes" });
+    const resource = provider.resourceFor(workspace.id, "README.md", { size: 10, mtimeMs: 4, hash: "abc" });
+    const saved = await provider.saveDocument({
+      storageResource: resource,
+      storageRevision: resource.revision
+    }, { text: "# Updated\n" });
+
+    assert.equal(saved.revision.hash, "written");
+    assert.deepEqual(calls.find((call) => call.method === "fs.writeText").params.expectedRevision, resource.revision);
+    assert.equal(calls.find((call) => call.method === "fs.writeText").params.force, false);
+
+    const created = await provider.createTextFile(workspace, "plans", "new.md", "new");
+    assert.equal(created.path, "plans/new.md");
+    assert.equal(created.resource.revision.hash, "created");
+    assert.equal((await provider.createDirectory(workspace, "", "drafts")).path, "drafts");
+    assert.equal((await provider.rename(workspace, "README.md", "renamed.md")).path, "renamed.md");
+    assert.equal((await provider.duplicate(workspace, "README.md", "README copy.md")).path, "README copy.md");
+
+    const savedAs = await provider.saveDocumentAs({ workspaceId: workspace.id }, {
+      path: "plans/copy.md",
+      text: "copy"
     });
-    await assert.rejects(provider.createTextFile(), function (error) {
-      return error.code === "OPERATION_UNSUPPORTED";
-    });
+    assert.equal(savedAs.path, "plans/copy.md");
+  });
+
+  await runTest("keeps remote search and binary assets disabled", async function () {
+    await assert.rejects(provider.searchText(), (error) => error.code === "OPERATION_UNSUPPORTED");
+    await assert.rejects(provider.writeBinary(), (error) => error.code === "OPERATION_UNSUPPORTED");
   });
 
   await runTest("reports bridge unavailability", function () {

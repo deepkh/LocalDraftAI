@@ -169,6 +169,13 @@
   var restoreWorkspaceButton = document.getElementById("restoreWorkspace");
   var recentWorkspacesSelect = document.getElementById("recentWorkspaces");
   var recentRemoteWorkspacesSelect = document.getElementById("recentRemoteWorkspaces");
+  var remoteSaveAsOverlay = document.getElementById("remoteSaveAsOverlay");
+  var remoteSaveAsDialog = document.getElementById("remoteSaveAsDialog");
+  var remoteSaveAsPath = document.getElementById("remoteSaveAsPath");
+  var remoteSaveAsStatus = document.getElementById("remoteSaveAsStatus");
+  var remoteSaveAsCancel = document.getElementById("remoteSaveAsCancel");
+  var remoteSaveAsClose = document.getElementById("remoteSaveAsClose");
+  var remoteSaveAsSave = document.getElementById("remoteSaveAsSave");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
@@ -2565,8 +2572,8 @@
     updateWorkspaceMenuControls();
 
     try {
-      if (workspaceState.lazy && path) {
-        result = await workspaceStore.loadDirectory(workspaceState.workspace, workspaceState.tree, path);
+      if (workspaceState.lazy && workspaceStore.refreshDirectory) {
+        result = await workspaceStore.refreshDirectory(workspaceState.workspace, workspaceState.tree, path || "");
         workspaceState.tree = result.tree;
         workspaceState.files = result.files;
         workspaceState.directories = result.directories;
@@ -2657,8 +2664,12 @@
     return findSessionByWorkspacePath(path);
   }
 
-  async function refreshWorkspaceAfterOperation(openPath) {
-    await handleRefreshWorkspace();
+  async function refreshWorkspaceAfterOperation(openPath, affectedPath) {
+    var refreshPath = workspaceState.lazy
+      ? workspaceRelated.dirname(affectedPath || openPath || "")
+      : "";
+
+    await handleRefreshWorkspace(refreshPath);
     if (openPath) {
       await openWorkspaceFile(openPath);
     }
@@ -2709,7 +2720,7 @@
         provider: activeWorkspaceProvider(),
         workspace: workspaceState.workspace
       });
-      await refreshWorkspaceAfterOperation();
+      await refreshWorkspaceAfterOperation("", result.path);
       if (workspaceSidebar && result.path) {
         workspaceSidebar.revealFile(result.path);
       }
@@ -3043,21 +3054,28 @@
   function updateFileControls() {
     var supported = isFileAccessSupported();
     var activeSession = getActiveSession();
-    var remoteReadOnly = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
+    var remoteSession = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
+    var remoteWritable = Boolean(
+      remoteSession &&
+      workspaceState.workspace &&
+      workspaceState.workspace.capabilities &&
+      workspaceState.workspace.capabilities.write &&
+      remoteSSHProvider && remoteSSHProvider.isAvailable()
+    );
 
     openFileButton.disabled = !supported;
-    saveFileButton.disabled = !supported || remoteReadOnly;
-    saveAsFileButton.disabled = !supported || remoteReadOnly;
-    saveFileButton.title = remoteReadOnly
-      ? "Remote workspaces are currently read-only"
+    saveFileButton.disabled = remoteSession ? !remoteWritable : !supported;
+    saveAsFileButton.disabled = remoteSession ? !remoteWritable : !supported;
+    saveFileButton.title = remoteSession
+      ? "Save document to the remote workspace"
       : "Save document (Ctrl/Cmd+S)";
-    saveAsFileButton.title = remoteReadOnly
-      ? "Remote Save As is not available yet"
+    saveAsFileButton.title = remoteSession
+      ? "Save a copy inside the remote workspace"
       : "Save document as (Ctrl/Cmd+Shift+S)";
 
     if (insertImageButton) {
-      insertImageButton.disabled = remoteReadOnly || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
-      insertImageButton.title = remoteReadOnly
+      insertImageButton.disabled = remoteSession || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
+      insertImageButton.title = remoteSession
         ? "Remote image asset storage is not available yet"
         : !activeDocumentAllowsMarkdownCommands()
         ? "Images can be inserted only in Markdown files"
@@ -3806,15 +3824,11 @@
 
   async function handleSaveFile() {
     var activeSession = getActiveSession();
+    var remoteSession = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
+    var fileItem;
 
     closeFileMenu();
-    if (activeSession && activeSession.storageProviderId === "remote-ssh") {
-      if (statusBarController) {
-        statusBarController.showMessage("Remote workspaces are read-only in this phase.", 5000);
-      }
-      return;
-    }
-    if (!isFileAccessSupported() || !activeSession) {
+    if (!activeSession || !remoteSession && !isFileAccessSupported()) {
       return;
     }
 
@@ -3824,24 +3838,98 @@
     try {
       await fileStore.saveSession(activeSession);
       markSessionClean();
-      await addRecentFile(activeSession.fileHandle, activeSession.title);
+      if (!remoteSession) {
+        await addRecentFile(activeSession.fileHandle, activeSession.title);
+      }
+      if (remoteSession) {
+        fileItem = findWorkspaceFile(activeSession.workspacePath);
+        if (fileItem) {
+          fileItem.resource = activeSession.storageResource;
+          fileItem.revision = activeSession.storageRevision;
+        }
+      }
       renderWorkspaceSidebar();
     } catch (error) {
       showFileError("Save", error);
     }
   }
 
+  function normalizeRemoteSaveAsPath(value, session) {
+    var normalized = ME.storageResource.normalizeRelativePath(String(value || "").trim(), { allowEmpty: false });
+    var parts = normalized.split("/");
+
+    parts[parts.length - 1] = fileStore.supportedFileName(parts[parts.length - 1], session.documentType);
+    if (!documentType.isSupportedFileName(parts[parts.length - 1])) {
+      throw new Error("Use a supported .md, .txt, .log, .json, .yml, or .yaml file name.");
+    }
+    return parts.join("/");
+  }
+
+  function requestRemoteSaveAsPath(session) {
+    return new Promise(function (resolve) {
+      var suggested = workspaceOperations && session.workspacePath
+        ? workspaceOperations.suggestedDuplicateName(session.workspacePath)
+        : fileStore.supportedFileName(session.title, session.documentType);
+
+      function finish(value) {
+        remoteSaveAsOverlay.hidden = true;
+        remoteSaveAsCancel.removeEventListener("click", cancel);
+        remoteSaveAsClose.removeEventListener("click", cancel);
+        remoteSaveAsSave.removeEventListener("click", save);
+        remoteSaveAsDialog.removeEventListener("keydown", keydown);
+        resolve(value);
+      }
+
+      function cancel() {
+        finish(null);
+      }
+
+      function save() {
+        var path;
+
+        try {
+          path = normalizeRemoteSaveAsPath(remoteSaveAsPath.value, session);
+        } catch (error) {
+          remoteSaveAsStatus.textContent = error && error.message || "Enter a valid workspace-relative path.";
+          remoteSaveAsStatus.dataset.status = "error";
+          remoteSaveAsPath.focus();
+          return;
+        }
+        finish(path);
+      }
+
+      function keydown(event) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          cancel();
+        } else if (event.key === "Enter" && event.target === remoteSaveAsPath) {
+          event.preventDefault();
+          save();
+        }
+      }
+
+      remoteSaveAsPath.value = suggested;
+      remoteSaveAsStatus.textContent = "";
+      remoteSaveAsStatus.dataset.status = "";
+      remoteSaveAsOverlay.hidden = false;
+      remoteSaveAsCancel.addEventListener("click", cancel);
+      remoteSaveAsClose.addEventListener("click", cancel);
+      remoteSaveAsSave.addEventListener("click", save);
+      remoteSaveAsDialog.addEventListener("keydown", keydown);
+      window.requestAnimationFrame(function () {
+        remoteSaveAsPath.focus();
+        remoteSaveAsPath.select();
+      });
+    });
+  }
+
   async function handleSaveAsFile() {
     var activeSession = getActiveSession();
+    var remoteSession = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
+    var remotePath;
 
     closeFileMenu();
-    if (activeSession && activeSession.storageProviderId === "remote-ssh") {
-      if (statusBarController) {
-        statusBarController.showMessage("Remote Save As is not available while the workspace is read-only.", 5000);
-      }
-      return;
-    }
-    if (!isFileAccessSupported() || !activeSession) {
+    if (!activeSession || !remoteSession && !isFileAccessSupported()) {
       return;
     }
 
@@ -3849,13 +3937,28 @@
     validateSession(activeSession);
 
     try {
-      await fileStore.saveSessionAs(activeSession);
-      if (await attachCurrentWorkspacePath(activeSession)) {
+      if (remoteSession) {
+        remotePath = await requestRemoteSaveAsPath(activeSession);
+        if (!remotePath) {
+          return;
+        }
+      }
+      await fileStore.saveSessionAs(activeSession, { path: remotePath });
+      if (remoteSession) {
+        activeSession.workspaceDirHandle = null;
+        activeSession.workspaceFileHandle = null;
+        activeSession.workspaceId = workspaceState.id;
+        activeSession.workspacePath = activeSession.storageResource.path;
+        activeSession.workspaceRootName = workspaceState.rootName;
+        await refreshWorkspaceAfterOperation("", activeSession.workspacePath);
+      } else if (await attachCurrentWorkspacePath(activeSession)) {
         await handleRefreshWorkspace();
       }
       markSessionClean();
       setActiveSession(activeSession, { restoreScroll: true });
-      await addRecentFile(activeSession.fileHandle, activeSession.title);
+      if (!remoteSession) {
+        await addRecentFile(activeSession.fileHandle, activeSession.title);
+      }
       renderWorkspaceSidebar();
     } catch (error) {
       showFileError("Save As", error);
@@ -4880,6 +4983,7 @@
         var session = getActiveSession();
         return {
           documentType: session ? session.documentType : "markdown",
+          dirty: Boolean(session && session.dirty),
           editorMode: getEditorMode(),
           softWrapEnabled: softWrapEnabled,
           markdownText: session ? session.markdownText : "",

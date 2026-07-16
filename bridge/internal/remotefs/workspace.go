@@ -28,6 +28,18 @@ type TextFile struct {
 	Revision Revision `json:"revision"`
 }
 
+type WriteResult struct {
+	Path      string   `json:"path"`
+	Name      string   `json:"name,omitempty"`
+	Revision  Revision `json:"revision"`
+	Unchanged bool     `json:"unchanged,omitempty"`
+}
+
+type DirectoryResult struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
 type Status struct {
 	Workspace Workspace `json:"workspace"`
 	Available bool      `json:"available"`

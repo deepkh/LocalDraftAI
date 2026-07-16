@@ -23,12 +23,14 @@
 - Hash exact file bytes with SHA-256 on read. Conditional writes compare the current hash with the expected revision and return `REVISION_CONFLICT` without changing the target when they differ.
 - Write through a same-directory exclusive temporary file and verified atomic replacement. Do not report success until the final target can be statted and its revision returned.
 
-## Read-only workspace boundary
+## Remote workspace provider boundary
 
 - `bridge/internal/remotefs/` owns canonical workspace roots, SFTP path validation, directory limits, exact-byte UTF-8 text reads, and SHA-256 revisions. Protocol handlers translate its errors without exposing absolute paths or document contents.
 - `src/js/remote-ssh-provider.js` owns Remote SSH resource creation and bridge filesystem calls. Application code must use its workspace descriptor and resources rather than inspect bridge workspace identifiers in `opaque`.
 - Keep Remote Explorer trees lazy: list the root once, load only an expanded directory, cache loaded children, retain empty directories, filter file types through `document-type.js`, and attach failures to the affected node.
-- Until write, search, Related, restore, and asset phases land, advertise those capabilities as false. Remote Save and asset insertion must fail visibly without invoking File System Access pickers.
+- Remote text writes must send the session revision, preserve shared text serialization, clear dirty state only after a verified bridge result, and never invoke File System Access pickers. Save As accepts a validated workspace-relative path.
+- New File, New Folder, Rename, and Duplicate dispatch through the active provider. Refresh only the affected lazy directory and update an open tab's resource and workspace path after rename or Save As.
+- Keep search, Related, restore, and binary asset capabilities false until their phases land. Asset insertion must fail visibly without a local fallback.
 
 ## Credentials and host keys
 
@@ -47,5 +49,5 @@
 - Run frontend regression tests with `for test in tests/unit/*.test.js; do node "$test"; done`.
 - Run bridge checks from `bridge/` with Go 1.25 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
-- Run the read-only SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server.
+- Run the SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server for lazy reads and remote mutations.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.
