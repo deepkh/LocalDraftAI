@@ -1,6 +1,9 @@
 const assert = require("node:assert/strict");
 
-global.window = {};
+global.window = {
+  atob: global.atob,
+  btoa: global.btoa
+};
 require("../../src/js/document-type.js");
 require("../../src/js/storage-resource.js");
 require("../../src/js/storage-provider-registry.js");
@@ -20,6 +23,7 @@ async function runTest(name, callback) {
 
 (async function () {
   const calls = [];
+  const binaryPayload = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
   const bridge = {
     getState() { return "connected"; },
     async request(method, params) {
@@ -75,6 +79,31 @@ async function runTest(name, callback) {
           warningCount: 2
         };
       }
+      if (method === "fs.readBinary") {
+        const end = Math.min(params.offset + params.maxBytes, binaryPayload.length);
+        return {
+          path: params.path,
+          mimeType: "image/png",
+          bytes: Buffer.from(binaryPayload.subarray(params.offset, end)).toString("base64"),
+          offset: params.offset,
+          nextOffset: end,
+          size: binaryPayload.length,
+          complete: end === binaryPayload.length,
+          revision: { size: binaryPayload.length, mtimeMs: 9, hash: "image" }
+        };
+      }
+      if (method === "fs.writeBinary") {
+        if (!params.complete) {
+          return { uploadId: params.uploadId || "upload-1", nextOffset: params.offset + Buffer.from(params.bytes, "base64").length, complete: false };
+        }
+        return {
+          path: params.path,
+          mimeType: params.mimeType,
+          complete: true,
+          nextOffset: params.totalSize,
+          revision: { size: params.totalSize, mtimeMs: 10, hash: "binary-written" }
+        };
+      }
       if (method === "workspace.close") return { closed: true };
       if (method === "workspace.getStatus") return { available: true, workspace: { id: params.workspaceId } };
       return {};
@@ -95,6 +124,7 @@ async function runTest(name, callback) {
     assert.equal(workspace.capabilities.read, true);
     assert.equal(workspace.capabilities.write, true);
     assert.equal(workspace.capabilities.createFile, true);
+    assert.equal(workspace.capabilities.binaryAssets, true);
     assert.equal((await provider.getWorkspaceStatus(workspace)).available, true);
   });
 
@@ -153,8 +183,19 @@ async function runTest(name, callback) {
     assert.equal(calls.find((call) => call.method === "fs.searchText").params.maxResults, 500);
   });
 
-  await runTest("keeps remote binary assets disabled", async function () {
-    await assert.rejects(provider.writeBinary(), (error) => error.code === "OPERATION_UNSUPPORTED");
+  await runTest("reads and writes authenticated remote binary assets", async function () {
+    const workspace = await provider.openWorkspace({ connectionId: "home-server", path: "/home/gary/notes" });
+    const resource = provider.resourceFor(workspace.id, "assets/pixel.png");
+    const read = await provider.readBinary(resource);
+
+    assert.equal(read.mimeType, "image/png");
+    assert.deepEqual(Array.from(read.bytes), Array.from(binaryPayload));
+    const written = await provider.writeBinary(workspace, "assets/pasted.png", binaryPayload, { mimeType: "image/png" });
+    assert.equal(written.path, "assets/pasted.png");
+    assert.equal(written.revision.hash, "binary-written");
+    const request = calls.find((call) => call.method === "fs.writeBinary");
+    assert.deepEqual(Array.from(Buffer.from(request.params.bytes, "base64")), Array.from(binaryPayload));
+    assert.equal(request.params.totalSize, binaryPayload.length);
   });
 
   await runTest("reports bridge unavailability", function () {

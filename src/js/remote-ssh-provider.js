@@ -2,6 +2,8 @@
   "use strict";
 
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
+  var BINARY_CHUNK_SIZE = 4 * 1024 * 1024;
+  var MAXIMUM_BINARY_SIZE = 25 * 1024 * 1024;
 
   function storageError(code, message, options) {
     if (ME.storageProviderErrors) {
@@ -44,7 +46,7 @@
         rename: true,
         duplicate: true,
         search: true,
-        binaryAssets: false,
+        binaryAssets: true,
         watch: false
       };
     }
@@ -309,6 +311,147 @@
       };
     }
 
+    function base64ToBytes(value) {
+      var binary = window.atob(String(value || ""));
+      var bytes = new Uint8Array(binary.length);
+      var index;
+
+      for (index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return bytes;
+    }
+
+    function bytesToBase64(bytes) {
+      var parts = [];
+      var index;
+      var end;
+
+      for (index = 0; index < bytes.length; index += 32768) {
+        end = Math.min(index + 32768, bytes.length);
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(index, end)));
+      }
+      return window.btoa(parts.join(""));
+    }
+
+    async function binaryBytes(value) {
+      var buffer;
+
+      if (value instanceof Uint8Array) {
+        return value;
+      }
+      if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) {
+        return new Uint8Array(value);
+      }
+      if (value && typeof value.arrayBuffer === "function") {
+        buffer = await value.arrayBuffer();
+        return new Uint8Array(buffer);
+      }
+      throw storageError("OPERATION_UNSUPPORTED", "Binary image data is unavailable.");
+    }
+
+    async function readBinary(resource) {
+      var offset = 0;
+      var output = null;
+      var mimeType = "";
+      var revision = null;
+      var result;
+      var chunk;
+      var size;
+
+      if (!resource || resource.providerId !== "remote-ssh" || !resource.workspaceId || !resource.path) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote image resource is unavailable.");
+      }
+      do {
+        result = await bridge().request("fs.readBinary", {
+          workspaceId: resource.workspaceId,
+          path: resource.path,
+          offset: offset,
+          maxBytes: BINARY_CHUNK_SIZE
+        });
+        size = Number(result.size);
+        if (!Number.isSafeInteger(size) || size < 0 || size > MAXIMUM_BINARY_SIZE) {
+          throw storageError("FILE_TOO_LARGE", "The remote image is larger than 25 MB.");
+        }
+        if (!output) {
+          output = new Uint8Array(size);
+          mimeType = String(result.mimeType || "");
+          revision = result.revision || null;
+        }
+        if (
+          size !== output.length ||
+          String(result.mimeType || "") !== mimeType ||
+          Number(result.offset) !== offset ||
+          revision && result.revision && revision.hash !== result.revision.hash
+        ) {
+          throw storageError("PROVIDER_UNAVAILABLE", "The remote image changed while it was loading.", { retryable: true });
+        }
+        chunk = base64ToBytes(result.bytes);
+        if (offset + chunk.length > output.length || Number(result.nextOffset) !== offset + chunk.length) {
+          throw storageError("PROVIDER_UNAVAILABLE", "The remote image response is invalid.");
+        }
+        output.set(chunk, offset);
+        offset += chunk.length;
+        if (!result.complete && chunk.length === 0) {
+          throw storageError("PROVIDER_UNAVAILABLE", "The remote image response did not make progress.");
+        }
+      } while (!result.complete);
+
+      if (offset !== output.length) {
+        throw storageError("PROVIDER_UNAVAILABLE", "The remote image response is incomplete.");
+      }
+      return {
+        bytes: output,
+        mimeType: mimeType,
+        path: String(result.path || resource.path),
+        revision: revision
+      };
+    }
+
+    async function writeBinary(workspace, relativePath, value, writeOptions) {
+      var bytes = await binaryBytes(value);
+      var normalizedPath = ME.storageResource.normalizeRelativePath(relativePath, { allowEmpty: false });
+      var uploadId = "";
+      var offset = 0;
+      var end;
+      var result;
+
+      writeOptions = writeOptions || {};
+      if (!workspace || !workspace.id) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote workspace is unavailable.");
+      }
+      if (bytes.length > MAXIMUM_BINARY_SIZE) {
+        throw storageError("FILE_TOO_LARGE", "The remote image is larger than 25 MB.");
+      }
+      do {
+        end = Math.min(offset + BINARY_CHUNK_SIZE, bytes.length);
+        result = await bridge().request("fs.writeBinary", {
+          workspaceId: workspace.id,
+          path: normalizedPath,
+          mimeType: String(writeOptions.mimeType || ""),
+          uploadId: uploadId,
+          offset: offset,
+          totalSize: bytes.length,
+          bytes: bytesToBase64(bytes.subarray(offset, end)),
+          complete: end === bytes.length
+        });
+        if (!result.complete && !result.uploadId) {
+          throw storageError("PROVIDER_UNAVAILABLE", "The remote image upload response is invalid.");
+        }
+        uploadId = String(result.uploadId || uploadId);
+        if (Number(result.nextOffset) !== end) {
+          throw storageError("PROVIDER_UNAVAILABLE", "The remote image upload did not advance.");
+        }
+        offset = end;
+      } while (offset < bytes.length);
+
+      return {
+        mimeType: String(result.mimeType || writeOptions.mimeType || ""),
+        path: String(result.path || normalizedPath),
+        revision: result.revision || null
+      };
+    }
+
     var provider = {
       id: "remote-ssh",
       label: "Remote SSH",
@@ -337,8 +480,8 @@
       rename: rename,
       duplicate: duplicate,
       searchText: searchText,
-      readBinary: function () { return unsupported("Remote image loading"); },
-      writeBinary: function () { return unsupported("Remote image storage"); },
+      readBinary: readBinary,
+      writeBinary: writeBinary,
       resourceFor: resourceFor
     };
 

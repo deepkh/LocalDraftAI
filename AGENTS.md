@@ -52,9 +52,9 @@ src/js/workspace-session.js  IndexedDB workspace handle, recent workspaces, and 
 src/js/workspace-operations.js Safe text-document/folder operations from the workspace sidebar
 src/js/workspace-search.js   Supported workspace content search helpers
 src/js/workspace-related.js  Related file and plan-file detection helpers
-src/js/asset-store.js        Local image workspace/assets handling
+src/js/asset-store.js        Provider-aware local and remote image workspace/assets handling
 bridge/                      Isolated Go loopback bridge module
-bridge/internal/remotefs/    Workspace-confined SFTP directory and text-read service
+bridge/internal/remotefs/    Workspace-confined SFTP text, search, and binary-asset service
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         Compatibility facade for configured AI actions
 src/js/ai-action-defaults.js Default AI Actions YAML
@@ -185,7 +185,8 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Remote session metadata uses IndexedDB version 3 with a connection ID and canonical root but no document content or secrets. Restore only after explicit user action, reconnect through the saved profile, reread tabs, preserve lightweight editor/sidebar state, and report missing profiles, roots, and files visibly.
 - Remote Search is a bridge-side SFTP traversal over registered text extensions, not a loaded-node browser search or remote shell command. Enforce 500 results, 20,000 visited files, 10 MB per file, request timeout/cancellation, and visible truncation or warning counts; Search results may open unloaded paths through provider `stat` and `readText`.
 - Remote Related results use loaded same-folder nodes, workspace-scoped recent identities, and provider `stat` for unresolved Markdown links. Do not recursively download a remote workspace for Related or plan discovery.
-- Remote binary asset capabilities remain disabled until their phase; do not provide a local asset fallback.
+- Remote image reads and writes use authenticated, workspace-scoped, chunked binary RPC. Accept only PNG, JPEG, WebP, and GIF through content and extension checks, enforce the 25 MB limit, reject path/symlink escapes, and never provide a local asset fallback.
+- Remote Markdown image object URLs belong to their document session and must be revoked on close or reload. Paste/drop creates or reuses the remote root `assets/` folder, selects a safe unique name, inserts a document-relative Markdown link, and refreshes the lazy Explorer metadata.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.
@@ -328,6 +329,16 @@ Run the Markdown-first plain-text workspace, source-only editor, validation, sea
 
 ```bash
 node --experimental-websocket tests/e2e/plain-text-file-support.headless.mjs
+```
+
+Run the Remote SSH workspace, recovery, restore/search, and image-asset smoke tests with Go and Chrome available on `PATH`:
+
+```bash
+node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs
+node --experimental-websocket tests/e2e/remote-ssh-conflict.headless.mjs
+node --experimental-websocket tests/e2e/remote-ssh-reconnect.headless.mjs
+node --experimental-websocket tests/e2e/remote-ssh-restore-search.headless.mjs
+node --experimental-websocket tests/e2e/remote-ssh-images.headless.mjs
 ```
 
 ## Documentation

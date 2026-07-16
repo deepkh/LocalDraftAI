@@ -220,7 +220,7 @@ func (s *Server) registerBridgeHandlers() {
 				"ssh":          true,
 				"sftp":         true,
 				"remoteSearch": true,
-				"binaryAssets": false,
+				"binaryAssets": true,
 			},
 		}, nil
 	})

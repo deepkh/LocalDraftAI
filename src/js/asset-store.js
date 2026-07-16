@@ -188,10 +188,94 @@
     return candidate;
   }
 
+  function isMissingResource(error) {
+    return Boolean(error && (error.code === "RESOURCE_NOT_FOUND" || error.name === "NotFoundError"));
+  }
+
+  async function ensureRemoteAssetDir(session, provider, workspace) {
+    var directoryPath = sessionAssetDirName(session);
+    var entry;
+
+    try {
+      entry = await provider.stat(workspace, directoryPath);
+      if (!entry || entry.kind !== "directory") {
+        throw new Error("The remote asset path is not a directory.");
+      }
+      return directoryPath;
+    } catch (error) {
+      if (!isMissingResource(error)) {
+        throw error;
+      }
+    }
+
+    try {
+      await provider.createDirectory(workspace, "", directoryPath);
+    } catch (error) {
+      if (!error || error.code !== "RESOURCE_ALREADY_EXISTS") {
+        throw error;
+      }
+    }
+    entry = await provider.stat(workspace, directoryPath);
+    if (!entry || entry.kind !== "directory") {
+      throw new Error("The remote asset path is not a directory.");
+    }
+    return directoryPath;
+  }
+
+  async function remoteFileExists(provider, workspace, relativePath) {
+    try {
+      await provider.stat(workspace, relativePath);
+      return true;
+    } catch (error) {
+      if (isMissingResource(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async function saveRemoteImageFile(session, file, options, provider, workspace) {
+    var extension = assertSupportedImage(file);
+    var directoryPath;
+    var baseName = baseNameForFile(file, options || {});
+    var index = 1;
+    var fileName;
+    var relativePath;
+    var result;
+
+    if (!provider || typeof provider.writeBinary !== "function" || !workspace || !workspace.id) {
+      throw new Error("The remote image workspace is unavailable.");
+    }
+    directoryPath = await ensureRemoteAssetDir(session, provider, workspace);
+    while (index < 10000) {
+      fileName = baseName + (index === 1 ? "" : "-" + index) + "." + extension;
+      relativePath = directoryPath + "/" + fileName;
+      if (await remoteFileExists(provider, workspace, relativePath)) {
+        index += 1;
+        continue;
+      }
+      try {
+        result = await provider.writeBinary(workspace, relativePath, file, { mimeType: file.type });
+        return result.path || relativePath;
+      } catch (error) {
+        if (error && error.code === "RESOURCE_ALREADY_EXISTS") {
+          index += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Could not choose an available remote image filename.");
+  }
+
   async function saveImageFile(session, file, options) {
+    options = options || {};
+    if (session && session.storageProviderId === "remote-ssh") {
+      return saveRemoteImageFile(session, file, options, options.provider, options.workspace);
+    }
     var extension = assertSupportedImage(file);
     var directoryHandle = await ensureAssetDir(session);
-    var fileName = await uniqueFileName(directoryHandle, baseNameForFile(file, options || {}), extension);
+    var fileName = await uniqueFileName(directoryHandle, baseNameForFile(file, options), extension);
     var fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
     var writable = await fileHandle.createWritable();
 

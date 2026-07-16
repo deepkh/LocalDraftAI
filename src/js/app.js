@@ -35,6 +35,7 @@
   var activeEditSource = null;
   var lastEditorAnchor = null;
   var softWrapEnabled = editorMode.readStoredSoftWrap();
+  var REMOTE_IMAGE_PENDING_URL = "blob:localdraftai-remote-image-pending";
 
   var menuBarElement = document.getElementById("menuBar");
   var wysiwygEditor = document.getElementById("wysiwygEditor");
@@ -336,6 +337,54 @@
     return assetStore && assetStore.isImagePickerSupported();
   }
 
+  function remoteImagePathForSession(session, src) {
+    var source = String(src || "").trim();
+    var documentParts;
+    var sourceParts;
+    var resolved;
+
+    if (!session || session.storageProviderId !== "remote-ssh" || !source) {
+      return "";
+    }
+    if (/^(?:blob:|https?:)/i.test(source)) {
+      return "";
+    }
+    source = source.split(/[?#]/)[0];
+    try {
+      source = decodeURIComponent(source);
+    } catch (error) {
+      throw new Error("The remote image path is not valid URL text.");
+    }
+    if (!source || source.charAt(0) === "/" || source.indexOf("\\") !== -1 || /^[A-Za-z]:/.test(source)) {
+      throw new Error("The remote image path must stay inside the workspace.");
+    }
+    documentParts = String(session.workspacePath || session.storageResource && session.storageResource.path || "")
+      .split("/")
+      .slice(0, -1);
+    sourceParts = source.split("/");
+    resolved = documentParts;
+    sourceParts.forEach(function (part) {
+      if (!part || part === ".") {
+        return;
+      }
+      if (part === "..") {
+        if (!resolved.length) {
+          throw new Error("The remote image path resolves outside the workspace.");
+        }
+        resolved.pop();
+        return;
+      }
+      if (part.indexOf("\u0000") !== -1) {
+        throw new Error("The remote image path is invalid.");
+      }
+      resolved.push(part);
+    });
+    if (!resolved.length) {
+      throw new Error("The remote image path is invalid.");
+    }
+    return resolved.join("/");
+  }
+
   function resolveImageUrl(src) {
     var session = getActiveSession();
 
@@ -345,6 +394,16 @@
       session.assetObjectUrls[src]
     ) {
       return session.assetObjectUrls[src];
+    }
+
+    if (session && session.storageProviderId === "remote-ssh") {
+      try {
+        if (remoteImagePathForSession(session, src)) {
+          return REMOTE_IMAGE_PENDING_URL;
+        }
+      } catch (error) {
+        return REMOTE_IMAGE_PENDING_URL;
+      }
     }
 
     return src;
@@ -856,6 +915,7 @@
     wysiwygEditor.innerHTML = html;
     isSyncingEditors = false;
     wysiwygNeedsSync = false;
+    hydrateRemoteImages(getActiveSession());
 
     if (scrollState) {
       restorePaneScrollState(scrollState);
@@ -1018,7 +1078,15 @@
   }
 
   function revokeAssetObjectUrls(session) {
-    if (!session || !session.assetObjectUrls || !window.URL || typeof window.URL.revokeObjectURL !== "function") {
+    if (!session) {
+      return;
+    }
+
+    session.assetLoadGeneration = (session.assetLoadGeneration || 0) + 1;
+    session.assetObjectUrlPromises = {};
+    session.assetErrors = {};
+    if (!session.assetObjectUrls || !window.URL || typeof window.URL.revokeObjectURL !== "function") {
+      session.assetObjectUrls = {};
       return;
     }
 
@@ -1034,8 +1102,126 @@
     }
 
     session.assetObjectUrls = session.assetObjectUrls || {};
+    if (session.assetObjectUrls[relativePath] && typeof window.URL.revokeObjectURL === "function") {
+      window.URL.revokeObjectURL(session.assetObjectUrls[relativePath]);
+    }
     session.assetObjectUrls[relativePath] = window.URL.createObjectURL(file);
     return session.assetObjectUrls[relativePath];
+  }
+
+  function updateRemoteImageElements(session, markdownSrc, objectUrl, error) {
+    if (getActiveSession() !== session) {
+      return;
+    }
+    Array.prototype.forEach.call(wysiwygEditor.querySelectorAll("img[data-md-src]"), function (image) {
+      if (image.getAttribute("data-md-src") !== markdownSrc) {
+        return;
+      }
+      image.classList.toggle("remote-image-error", Boolean(error));
+      if (error) {
+        image.removeAttribute("src");
+        image.setAttribute("title", error.message || "Could not load this remote image.");
+        image.setAttribute("aria-label", (image.getAttribute("alt") || "Image") + ": " + (error.message || "remote image unavailable"));
+        return;
+      }
+      image.setAttribute("src", objectUrl);
+      image.removeAttribute("title");
+      image.removeAttribute("aria-label");
+    });
+  }
+
+  function loadRemoteImageForSession(session, markdownSrc) {
+    var provider;
+    var resource;
+    var relativePath;
+    var generation;
+    var workspaceId;
+    var promise;
+
+    session.assetObjectUrls = session.assetObjectUrls || {};
+    session.assetObjectUrlPromises = session.assetObjectUrlPromises || {};
+    session.assetErrors = session.assetErrors || {};
+    if (session.assetObjectUrls[markdownSrc]) {
+      updateRemoteImageElements(session, markdownSrc, session.assetObjectUrls[markdownSrc], null);
+      return Promise.resolve(session.assetObjectUrls[markdownSrc]);
+    }
+    if (session.assetErrors[markdownSrc]) {
+      updateRemoteImageElements(session, markdownSrc, "", session.assetErrors[markdownSrc]);
+      return Promise.resolve("");
+    }
+    if (session.assetObjectUrlPromises[markdownSrc]) {
+      return session.assetObjectUrlPromises[markdownSrc];
+    }
+    try {
+      relativePath = remoteImagePathForSession(session, markdownSrc);
+      if (!relativePath) {
+        return Promise.resolve("");
+      }
+      provider = storageProviders && storageProviders.getForSession(session);
+      if (!provider || typeof provider.readBinary !== "function") {
+        throw new Error("The remote image provider is unavailable.");
+      }
+      workspaceId = session.workspaceId || session.storageResource && session.storageResource.workspaceId || "";
+      if (!workspaceId) {
+        throw new Error("The remote image workspace is unavailable.");
+      }
+      resource = provider.resourceFor
+        ? provider.resourceFor(workspaceId, relativePath)
+        : ME.storageResource.create({
+          providerId: "remote-ssh",
+          workspaceId: workspaceId,
+          path: relativePath,
+          displayName: relativePath.split("/").pop(),
+          opaque: {}
+        });
+    } catch (error) {
+      session.assetErrors[markdownSrc] = error;
+      updateRemoteImageElements(session, markdownSrc, "", error);
+      return Promise.resolve("");
+    }
+
+    generation = session.assetLoadGeneration || 0;
+    promise = provider.readBinary(resource).then(function (result) {
+      var blob;
+      var objectUrl;
+
+      if ((session.assetLoadGeneration || 0) !== generation) {
+        return "";
+      }
+      blob = new Blob([result.bytes], { type: result.mimeType });
+      objectUrl = registerAssetObjectUrl(session, markdownSrc, blob);
+      updateRemoteImageElements(session, markdownSrc, objectUrl, null);
+      return objectUrl;
+    }).catch(function (error) {
+      if ((session.assetLoadGeneration || 0) === generation) {
+        session.assetErrors[markdownSrc] = error;
+        updateRemoteImageElements(session, markdownSrc, "", error);
+      }
+      return "";
+    }).finally(function () {
+      if (session.assetObjectUrlPromises[markdownSrc] === promise) {
+        delete session.assetObjectUrlPromises[markdownSrc];
+      }
+    });
+    session.assetObjectUrlPromises[markdownSrc] = promise;
+    return promise;
+  }
+
+  function hydrateRemoteImages(session) {
+    var sources = {};
+
+    if (!session || session.storageProviderId !== "remote-ssh") {
+      return;
+    }
+    Array.prototype.forEach.call(wysiwygEditor.querySelectorAll("img[data-md-src]"), function (image) {
+      var source = image.getAttribute("data-md-src") || "";
+      if (source && !/^(?:blob:|https?:)/i.test(source)) {
+        sources[source] = true;
+      }
+    });
+    Object.keys(sources).forEach(function (source) {
+      loadRemoteImageForSession(session, source);
+    });
   }
 
   function resetScrollPositions() {
@@ -1180,6 +1366,7 @@
       wysiwygEditor.innerHTML = "";
     } else {
       wysiwygEditor.innerHTML = renderMarkdownForSession(activeSession.markdownText);
+      hydrateRemoteImages(activeSession);
     }
     wysiwygNeedsSync = false;
     activeEditSource = activeSession.activeMode;
@@ -3431,6 +3618,12 @@
       remoteConnectionState === "connected" &&
       remoteSSHProvider && remoteSSHProvider.isAvailable()
     );
+    var remoteBinaryAssets = Boolean(
+      remoteWritable &&
+      workspaceState.workspace &&
+      workspaceState.workspace.capabilities &&
+      workspaceState.workspace.capabilities.binaryAssets
+    );
 
     openFileButton.disabled = !supported;
     saveFileButton.disabled = remoteSession ? !remoteWritable : !supported;
@@ -3443,9 +3636,17 @@
       : "Save document as (Ctrl/Cmd+Shift+S)";
 
     if (insertImageButton) {
-      insertImageButton.disabled = remoteSession || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
+      insertImageButton.disabled = remoteSession
+        ? !remoteBinaryAssets || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands()
+        : !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
       insertImageButton.title = remoteSession
-        ? "Remote image asset storage is not available yet"
+        ? !remoteBinaryAssets
+          ? "Reconnect the SSH workspace before storing remote images"
+          : !activeDocumentAllowsMarkdownCommands()
+          ? "Images can be inserted only in Markdown files"
+          : isImagePickerSupported()
+          ? "Insert an image into the remote workspace"
+          : "Image insertion requires browser file access"
         : !activeDocumentAllowsMarkdownCommands()
         ? "Images can be inserted only in Markdown files"
         : isImagePickerSupported()
@@ -3555,27 +3756,75 @@
 
   async function saveImagesForInsertion(session, files, options) {
     var images = [];
+    var remoteSession = Boolean(session && session.storageProviderId === "remote-ssh");
+    var provider = remoteSession ? activeWorkspaceProvider() : null;
     var i;
+    var markdownPath;
     var relativePath;
     var file;
 
-    if (!assetStore || !assetStore.isStorageSupported()) {
+    if (!assetStore || !remoteSession && !assetStore.isStorageSupported()) {
       throw new Error("Image storage is not supported in this browser.");
+    }
+    if (remoteSession && (
+      !remoteWorkspaceConnected() ||
+      !workspaceState.workspace ||
+      !workspaceState.workspace.capabilities ||
+      !workspaceState.workspace.capabilities.binaryAssets
+    )) {
+      throw new Error("Reconnect the SSH workspace before storing remote images.");
     }
 
     for (i = 0; i < files.length; i += 1) {
       file = files[i];
       relativePath = await assetStore.saveImageFile(session, file, {
-        prefix: options.prefix
+        prefix: options.prefix,
+        provider: provider,
+        workspace: workspaceState.workspace
       });
+      markdownPath = remoteSession ? markdownLinkFromWorkspacePath(session, relativePath) : relativePath;
       images.push({
         alt: options.alt || assetStore.imageAlt(file, options.fallbackAlt),
-        displaySrc: registerAssetObjectUrl(session, relativePath, file),
-        src: relativePath
+        displaySrc: registerAssetObjectUrl(session, markdownPath, file),
+        src: markdownPath
       });
     }
 
     return images;
+  }
+
+  function markdownLinkFromWorkspacePath(session, targetPath) {
+    var documentDirectory = String(session && session.workspacePath || "").split("/").slice(0, -1);
+    var target = String(targetPath || "").split("/");
+    var common = 0;
+
+    while (common < documentDirectory.length && common < target.length && documentDirectory[common] === target[common]) {
+      common += 1;
+    }
+    return documentDirectory.slice(common).map(function () { return ".."; })
+      .concat(target.slice(common))
+      .join("/");
+  }
+
+  async function refreshRemoteAssetExplorer(session) {
+    var directoryPath;
+    var directoryNode;
+
+    if (!session || session.storageProviderId !== "remote-ssh" || !workspaceState.lazy || !workspaceStore) {
+      return;
+    }
+    directoryPath = session.assetDirName || "assets";
+    try {
+      await handleRefreshWorkspace("");
+      directoryNode = workspaceStore.findTreeNode(workspaceState.tree || [], directoryPath);
+      if (directoryNode && directoryNode.loaded) {
+        await handleRefreshWorkspace(directoryPath);
+      }
+    } catch (error) {
+      if (statusBarController) {
+        statusBarController.showMessage("The remote image was saved, but Explorer could not be refreshed.", 6000);
+      }
+    }
   }
 
   async function storeAndInsertImages(files, options) {
@@ -3586,15 +3835,12 @@
     if (!session || !activeDocumentAllowsMarkdownCommands() || !files || !files.length) {
       return;
     }
-    if (session.storageProviderId === "remote-ssh") {
-      showAssetError(options.action || "Insert image", new Error(
-        "Remote image asset storage is not available yet. No local asset folder was used."
-      ));
-      return;
-    }
-
     try {
       images = await saveImagesForInsertion(session, files, options);
+      if (getActiveSession() !== session) {
+        return;
+      }
+      await refreshRemoteAssetExplorer(session);
       if (getActiveSession() !== session) {
         return;
       }
@@ -4288,6 +4534,7 @@
   }
 
   function applyRemoteFileData(session, fileData) {
+    revokeAssetObjectUrls(session);
     session.markdownText = fileData.markdownText;
     session.preferredLineEnding = fileData.preferredLineEnding;
     session.hasUtf8Bom = fileData.hasUtf8Bom;
@@ -4400,6 +4647,9 @@
     workspaceState.directories = result.directories;
 
     sessions = tabs.listSessions().filter(remoteSessionBelongsToActiveWorkspace);
+    sessions.forEach(function (session) {
+      session.assetErrors = {};
+    });
     await Promise.all(sessions.map(async function (session) {
       var remoteData;
       var previousHash = session.storageRevision && session.storageRevision.hash || "";
@@ -4434,6 +4684,7 @@
     renderTabs();
     updateDocumentTitle();
     renderWorkspaceSidebar();
+    hydrateRemoteImages(getActiveSession());
     if (statusBarController) {
       statusBarController.showMessage(
         changedCount || missingCount

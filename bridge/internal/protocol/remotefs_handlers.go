@@ -9,6 +9,7 @@ import (
 )
 
 func RegisterRemoteFilesystemHandlers(router *Router, service *remotefs.Service) {
+	binaryUploads := newBinaryUploadStore()
 	router.Register("workspace.open", func(ctx context.Context, params json.RawMessage) (any, *Error) {
 		var request struct {
 			ConnectionID string `json:"connectionId"`
@@ -182,6 +183,91 @@ func RegisterRemoteFilesystemHandlers(router *Router, service *remotefs.Service)
 			return nil, remoteFilesystemError(err)
 		}
 		return result, nil
+	})
+	router.Register("fs.readBinary", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID string `json:"workspaceId"`
+			Path        string `json:"path"`
+			Offset      int64  `json:"offset"`
+			MaxBytes    int    `json:"maxBytes"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Path == "" || request.Offset < 0 {
+			return nil, NewError(InvalidParamsCode, "workspaceId, path, and a valid offset are required")
+		}
+		if request.MaxBytes <= 0 || request.MaxBytes > maximumBinaryRPCChunk {
+			request.MaxBytes = maximumBinaryRPCChunk
+		}
+		file, err := service.ReadBinary(ctx, request.WorkspaceID, request.Path)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		if request.Offset > int64(len(file.Bytes)) {
+			return nil, NewError(InvalidParamsCode, "offset is beyond the end of the remote image")
+		}
+		end := request.Offset + int64(request.MaxBytes)
+		if end > int64(len(file.Bytes)) {
+			end = int64(len(file.Bytes))
+		}
+		return map[string]any{
+			"path":       file.Path,
+			"mimeType":   file.MIMEType,
+			"bytes":      file.Bytes[request.Offset:end],
+			"offset":     request.Offset,
+			"nextOffset": end,
+			"size":       len(file.Bytes),
+			"complete":   end == int64(len(file.Bytes)),
+			"revision":   file.Revision,
+		}, nil
+	})
+	router.Register("fs.writeBinary", func(ctx context.Context, params json.RawMessage) (any, *Error) {
+		var request struct {
+			WorkspaceID string `json:"workspaceId"`
+			Path        string `json:"path"`
+			MIMEType    string `json:"mimeType"`
+			UploadID    string `json:"uploadId"`
+			Offset      int64  `json:"offset"`
+			TotalSize   int64  `json:"totalSize"`
+			Bytes       []byte `json:"bytes"`
+			Complete    *bool  `json:"complete"`
+		}
+		if err := decodeParams(params, &request); err != nil || request.WorkspaceID == "" || request.Path == "" || request.Offset < 0 {
+			return nil, NewError(InvalidParamsCode, "workspaceId, path, and a valid offset are required")
+		}
+		complete := true
+		if request.Complete != nil {
+			complete = *request.Complete
+		}
+		if request.TotalSize == 0 && complete && len(request.Bytes) > 0 {
+			request.TotalSize = int64(len(request.Bytes))
+		}
+		uploadID, payload, nextOffset, assembled, rpcError := binaryUploads.append(binaryUploadRequest{
+			WorkspaceID: request.WorkspaceID,
+			Path:        request.Path,
+			MIMEType:    request.MIMEType,
+			UploadID:    request.UploadID,
+			Offset:      request.Offset,
+			TotalSize:   request.TotalSize,
+			Bytes:       request.Bytes,
+			Complete:    complete,
+		})
+		if rpcError != nil {
+			return nil, rpcError
+		}
+		if !assembled {
+			return map[string]any{"uploadId": uploadID, "nextOffset": nextOffset, "complete": false}, nil
+		}
+		result, err := service.WriteBinary(ctx, request.WorkspaceID, request.Path, payload, request.MIMEType)
+		if err != nil {
+			return nil, remoteFilesystemError(err)
+		}
+		return map[string]any{
+			"path":       result.Path,
+			"name":       result.Name,
+			"mimeType":   result.MIMEType,
+			"revision":   result.Revision,
+			"complete":   true,
+			"nextOffset": nextOffset,
+		}, nil
 	})
 }
 

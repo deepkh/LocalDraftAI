@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	MaximumTextFileSize  = int64(10 << 20)
-	MaximumDirectorySize = 5000
+	MaximumTextFileSize    = int64(10 << 20)
+	MaximumBinaryAssetSize = int64(25 << 20)
+	MaximumDirectorySize   = 5000
 )
 
 type ClientProvider interface {

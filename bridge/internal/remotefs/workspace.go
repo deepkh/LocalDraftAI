@@ -28,6 +28,20 @@ type TextFile struct {
 	Revision Revision `json:"revision"`
 }
 
+type BinaryFile struct {
+	Path     string   `json:"path"`
+	MIMEType string   `json:"mimeType"`
+	Bytes    []byte   `json:"bytes"`
+	Revision Revision `json:"revision"`
+}
+
+type BinaryWriteResult struct {
+	Path     string   `json:"path"`
+	Name     string   `json:"name"`
+	MIMEType string   `json:"mimeType"`
+	Revision Revision `json:"revision"`
+}
+
 type WriteResult struct {
 	Path      string   `json:"path"`
 	Name      string   `json:"name,omitempty"`

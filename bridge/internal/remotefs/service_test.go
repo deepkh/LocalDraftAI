@@ -497,3 +497,68 @@ func TestFilesystemPermissionErrorsStayStructured(t *testing.T) {
 		t.Fatalf("permission error = %#v", err)
 	}
 }
+
+func TestRemoteBinaryImageReadWriteLimitsAndPathSafety(t *testing.T) {
+	fixture := newRemoteFixture(t)
+	assetsPath := filepath.Join(fixture.root, "assets")
+	if err := os.Mkdir(assetsPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+	written, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/pixel.png", png, "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if written.MIMEType != "image/png" || written.Revision.Size != int64(len(png)) || written.Revision.Hash == "" {
+		t.Fatalf("binary write = %#v", written)
+	}
+	read, err := fixture.service.ReadBinary(context.Background(), fixture.workspace.ID, "assets/pixel.png")
+	if err != nil || string(read.Bytes) != string(png) || read.MIMEType != "image/png" {
+		t.Fatalf("binary read = %#v, error = %v", read, err)
+	}
+	if _, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/pixel.png", png, "image/png"); err == nil || errorCode(t, err) != "RESOURCE_ALREADY_EXISTS" {
+		t.Fatalf("existing binary error = %v", err)
+	}
+	jpeg := []byte{0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 'J', 'F', 'I', 'F', 0}
+	if _, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/photo.jpg", jpeg, "image/jpeg"); err != nil {
+		t.Fatalf("JPEG write: %v", err)
+	}
+	if _, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/wrong.png", jpeg, "image/jpeg"); err == nil || errorCode(t, err) != "OPERATION_UNSUPPORTED" {
+		t.Fatalf("extension mismatch error = %v", err)
+	}
+	if _, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/not-image.png", []byte("not an image"), "image/png"); err == nil || errorCode(t, err) != "OPERATION_UNSUPPORTED" {
+		t.Fatalf("invalid image error = %v", err)
+	}
+	if _, err := fixture.service.ReadBinary(context.Background(), fixture.workspace.ID, "assets/missing.png"); err == nil || errorCode(t, err) != "RESOURCE_NOT_FOUND" {
+		t.Fatalf("missing image error = %v", err)
+	}
+	if _, err := fixture.service.ReadBinary(context.Background(), fixture.workspace.ID, "../outside.png"); err == nil || errorCode(t, err) != "INVALID_PATH" {
+		t.Fatalf("outside relative image error = %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.png")
+	if err := os.WriteFile(outside, png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(assetsPath, "linked.png")); err == nil {
+		if _, err := fixture.service.ReadBinary(context.Background(), fixture.workspace.ID, "assets/linked.png"); err == nil || errorCode(t, err) != "PATH_OUTSIDE_WORKSPACE" {
+			t.Fatalf("symlink image error = %v", err)
+		}
+	}
+	oversized := filepath.Join(assetsPath, "oversized.png")
+	file, err := os.Create(oversized)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(MaximumBinaryAssetSize + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.service.ReadBinary(context.Background(), fixture.workspace.ID, "assets/oversized.png"); err == nil || errorCode(t, err) != "FILE_TOO_LARGE" {
+		t.Fatalf("oversized read error = %v", err)
+	}
+	if _, err := fixture.service.WriteBinary(context.Background(), fixture.workspace.ID, "assets/too-large.png", make([]byte, MaximumBinaryAssetSize+1), "image/png"); err == nil || errorCode(t, err) != "FILE_TOO_LARGE" {
+		t.Fatalf("oversized write error = %v", err)
+	}
+}

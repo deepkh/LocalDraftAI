@@ -37,7 +37,8 @@
 - Store Remote SSH session metadata with `providerId`, connection ID, canonical root, and lightweight tab/sidebar state only. Restore after a user action, reconnect through the saved profile, reread files, skip missing tabs visibly, and never persist ordinary document content or secrets.
 - Remote Search traverses SFTP in the bridge, checks cancellation, scans only registered text extensions, skips unreadable and oversized files with a warning count, and stops at 500 results or 20,000 visited files. Search results may `stat` and open paths absent from the lazy tree.
 - Keep remote Related rule-based: loaded same-folder nodes, workspace-scoped recent paths, provider `stat` for unresolved Markdown links, and plan rules over loaded nodes only. Never recursively download for Related.
-- Keep binary asset capabilities false until their phase lands. Asset insertion must fail visibly without a local fallback.
+- Binary image RPC accepts only PNG, JPEG, WebP, and GIF, enforces a 25 MB asset limit, and uses 4 MB JSON-RPC chunks to stay below the 16 MB message ceiling. Reads and writes use the same canonical-root and symlink guard as text operations.
+- Remote Markdown images load through authenticated provider calls into per-session object URLs. Missing or unsafe paths fail visibly; revoke URLs on close or reload. Paste/drop stores a safe unique file in the remote root `assets/` folder, inserts a document-relative link, refreshes lazy Explorer metadata, and never falls back to local storage.
 
 ## Credentials and host keys
 
@@ -59,4 +60,5 @@
 - Run the SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server for lazy reads and remote mutations.
 - Run conflict and recovery coverage with `node --experimental-websocket tests/e2e/remote-ssh-conflict.headless.mjs` and `node --experimental-websocket tests/e2e/remote-ssh-reconnect.headless.mjs`.
 - Run restore and bridge-side search coverage with `node --experimental-websocket tests/e2e/remote-ssh-restore-search.headless.mjs`.
+- Run remote binary image coverage with `node --experimental-websocket tests/e2e/remote-ssh-images.headless.mjs`.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.

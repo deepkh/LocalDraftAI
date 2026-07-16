@@ -30,7 +30,7 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 - **Multi-tab editing**: open multiple documents, switch tabs, close tabs, scroll many tabs, and reorder tabs by drag-and-drop.
 - **Local file workflow**: preserve the selected extension, LF/CRLF line endings, UTF-8 BOM, and document text in browsers that support the File System Access API.
 - **Workspace sidebar**: browse supported text documents with type indicators and collapsible folders, reopen recent workspaces, restore tabs, search content, and open results by line.
-- **Remote SSH workspaces**: from the authenticated LocalDraft Bridge origin, connect through SSH/SFTP, lazily browse supported documents, and safely read, save, create, rename, or duplicate remote text files without exposing SSH credentials to the browser.
+- **Remote SSH workspaces**: from the authenticated LocalDraft Bridge origin, connect through SSH/SFTP, lazily browse supported documents, safely mutate remote text files, and load or store workspace-confined image assets without exposing SSH credentials to the browser.
 - **Image support**: paste, drop, or insert PNG, JPEG, WebP, and GIF images.
 - **Workspace assets folder**: inserted local images can be copied into an `assets/` folder and linked with relative Markdown paths.
 - **Configurable AI Assistant**: edit the local YAML action list to add, disable, remove, import, or export writing actions for local mock, local Ollama, cloud, or custom OpenAI-compatible providers.
@@ -172,7 +172,9 @@ After connecting, use `Workspace -> Open Remote Folder…`. The bridge canonical
 
 If the remote hash changed, LocalDraftAI keeps the editor dirty and offers Compare Changes, Reload Remote, Overwrite, or Cancel; Compare has the default focus and Overwrite is the only choice that bypasses the revision check. If SSH disconnects, open tabs, selections, scroll positions, modes, and unsaved text remain in memory while remote filesystem actions are disabled. The bridge makes at most three automatic reconnect attempts after keepalive failure, using delays of about 1, 2, and 4 seconds. After either automatic or explicit reconnect, the app relists the root and rechecks every open remote file. Changed or missing files are marked and retain their old expected revision so the next Save cannot overwrite them silently.
 
-Remote workspace metadata is stored separately from local handles and restores only after you choose Restore Workspace or a Recent Remote Workspace. Restore reconnects the saved profile, reopens the canonical root, rereads every tab from the server, and restores tab order, active tab, mode, selection, scroll, Soft Wrap, collapsed folders, and sidebar scroll. Missing tabs are skipped with a visible summary, and missing profiles remain recoverable; document contents and session-only SSH secrets are never persisted. Remote Search traverses supported text files through SFTP in the bridge rather than downloading the tree into the browser. It visits at most 20,000 files, returns at most 500 matches (the current UI requests 100), skips oversized or unreadable files with a visible warning count, respects request cancellation/timeouts, and opens results at their line even when the folder was never expanded. Related remains rule-based and may stat linked paths without recursively downloading the workspace. Remote image assets remain disabled until the next phase. See [`bridge/README.md`](bridge/README.md) for the security boundary, configuration paths, supported SSH options, limits, and development flags.
+Remote workspace metadata is stored separately from local handles and restores only after you choose Restore Workspace or a Recent Remote Workspace. Restore reconnects the saved profile, reopens the canonical root, rereads every tab from the server, and restores tab order, active tab, mode, selection, scroll, Soft Wrap, collapsed folders, and sidebar scroll. Missing tabs are skipped with a visible summary, and missing profiles remain recoverable; document contents and session-only SSH secrets are never persisted. Remote Search traverses supported text files through SFTP in the bridge rather than downloading the tree into the browser. It visits at most 20,000 files, returns at most 500 matches (the current UI requests 100), skips oversized or unreadable files with a visible warning count, respects request cancellation/timeouts, and opens results at their line even when the folder was never expanded. Related remains rule-based and may stat linked paths without recursively downloading the workspace.
+
+Relative PNG, JPEG, WebP, and GIF references in remote Markdown are read through authenticated, workspace-scoped `fs.readBinary` calls and displayed with per-tab object URLs. Missing, invalid, oversized, or outside-workspace paths fail visibly. Pasted, dropped, or explicitly inserted images create or reuse the remote root's `assets/` folder, choose a safe unique name, write exact bytes through `fs.writeBinary`, and insert a Markdown-relative link; nested documents receive the required `../` components. Binary RPCs use 4 MB chunks so the 25 MB asset limit stays below the 16 MB JSON-message limit. Object URLs are revoked on tab close or document reload, and remote asset operations never fall back to a local folder picker. See [`bridge/README.md`](bridge/README.md) for the security boundary, configuration paths, supported SSH options, limits, and development flags.
 
 Use the hosted static app:
 
@@ -227,6 +229,8 @@ When you paste, drop, or insert the first local image, the app asks for a worksp
 ```markdown
 ![photo](assets/photo.png)
 ```
+
+In a bridge-served Remote SSH workspace, paste and drop use the remote provider instead. The app does not ask for a local destination folder and does not expose an unauthenticated image URL; it reads and writes supported images through the authenticated bridge while enforcing the canonical remote workspace root.
 
 ---
 
@@ -790,7 +794,7 @@ Add stricter rules to the prompt, for example:
 | `src/js/recent-files.js` | Recent file list storage |
 | `src/js/workspace-store.js` | Eager local and lazy remote supported-document tree model |
 | `src/js/workspace-sidebar.js` | Workspace sidebar rendering, search, persisted state, and resizing |
-| `src/js/asset-store.js` | Local image workspace handling |
+| `src/js/asset-store.js` | Provider-aware local and remote image workspace handling |
 | `src/js/ai-action-defaults.js` | Built-in AI Actions YAML |
 | `src/js/ai-action-config.js` | AI Actions YAML parsing, validation, normalization, and prompt building |
 | `src/js/ai-action-config-store.js` | IndexedDB persistence with last-good and localStorage fallback |
