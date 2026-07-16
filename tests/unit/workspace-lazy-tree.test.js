@@ -75,6 +75,16 @@ async function runTest(name, callback) {
     assert.deepEqual(result.files.map((file) => file.path), ["README.md"]);
   });
 
+  await runTest("does not recursively inspect unloaded remote root directories", async function () {
+    calls.length = 0;
+    const result = await workspaceStore.scanWorkspace(workspace);
+
+    assert.deepEqual(calls, [""]);
+    assert.ok(workspaceStore.findTreeNode(result.tree, "empty"));
+    assert.ok(workspaceStore.findTreeNode(result.tree, "plans"));
+    assert.equal(workspaceStore.findTreeNode(result.tree, "plans/archive"), null);
+  });
+
   await runTest("loads one expanded directory and caches its children", async function () {
     calls.length = 0;
     const result = await workspaceStore.scanWorkspace(workspace);
