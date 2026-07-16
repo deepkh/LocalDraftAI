@@ -48,6 +48,7 @@
 - Clear browser secret inputs before the prompt response finishes and whenever a prompt closes. Host-key prompts show the algorithm and fingerprint and default to no trust until the user explicitly continues.
 - Attempt authentication in order: SSH agent, configured identity, passphrase for an encrypted identity, then password when explicitly allowed. Do not prompt for an identity passphrase when the agent has already authenticated successfully.
 - Verify host keys against the bridge-managed `known_hosts`. Unknown keys require an explicit fingerprint confirmation. Changed keys are blocked and are never automatically trusted.
+- Changed-key recovery must require independent fingerprint verification and removal of only the matching bridge-managed `known_hosts` entry while the bridge is stopped. Do not edit or replace a user-managed host-key file automatically.
 - Do not modify the user's OpenSSH config or existing `known_hosts` file.
 - Import only exact OpenSSH aliases and the documented `HostName`, `User`, `Port`, `IdentityFile`, `IdentitiesOnly`, and `UserKnownHostsFile` options. Do not claim support for proxy, forwarding, certificate, PKCS#11, `Match`, or connection-sharing directives.
 

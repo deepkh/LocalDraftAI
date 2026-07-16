@@ -239,6 +239,19 @@ func TestMessageLimitClosesConnection(t *testing.T) {
 	}
 }
 
+func TestOversizedResponseReturnsStructuredLimitError(t *testing.T) {
+	bridge := startTestBridge(t, func(config *Config) { config.MaximumMessageSize = 512 })
+	bridge.server.router.Register("test.largeResponse", func(context.Context, json.RawMessage) (any, *protocol.Error) {
+		return map[string]string{"value": strings.Repeat("x", 2048)}, nil
+	})
+	connection := dialBridge(t, bridge, exchangeSession(t, bridge), bridge.server.Origin())
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	response := rpcCall(t, connection, `{"jsonrpc":"2.0","id":"large-response","method":"test.largeResponse"}`)
+	if response.Error == nil || response.Error.Data == nil || response.Error.Data.Code != "FILE_TOO_LARGE" {
+		t.Fatalf("oversized response = %#v", response)
+	}
+}
+
 func TestConcurrentRPCBound(t *testing.T) {
 	bridge := startTestBridge(t, func(config *Config) { config.MaximumConcurrent = 2 })
 	started := make(chan struct{}, 3)

@@ -152,11 +152,12 @@ Local file and folder behavior is routed through a small storage-provider interf
 
 The hosted and standalone UI uses the `local-fsa` provider. The authenticated bridge-served app can additionally activate one `remote-ssh` workspace provider. SSH credentials and SSH implementation details remain outside the static editor modules.
 
-### LocalDraft Bridge foundation
+### Remote SSH with LocalDraft Bridge
 
 The repository includes an isolated Go bridge module under `bridge/`. It serves the static app from a loopback origin, exchanges a one-time startup token for an HttpOnly strict-same-site session, and exposes an authenticated exact-origin JSON-RPC WebSocket. Browser code detects it only through same-origin `/api/health`, so the hosted site does not probe services on your machine.
 
 ```bash
+mkdir -p build
 cd bridge
 go test ./...
 go build -o ../build/localdraft-bridge ./cmd/localdraft-bridge
@@ -175,6 +176,8 @@ If the remote hash changed, LocalDraftAI keeps the editor dirty and offers Compa
 Remote workspace metadata is stored separately from local handles and restores only after you choose Restore Workspace or a Recent Remote Workspace. Restore reconnects the saved profile, reopens the canonical root, rereads every tab from the server, and restores tab order, active tab, mode, selection, scroll, Soft Wrap, collapsed folders, and sidebar scroll. Missing tabs are skipped with a visible summary, and missing profiles remain recoverable; document contents and session-only SSH secrets are never persisted. Remote Search traverses supported text files through SFTP in the bridge rather than downloading the tree into the browser. It visits at most 20,000 files, returns at most 500 matches (the current UI requests 100), skips oversized or unreadable files with a visible warning count, respects request cancellation/timeouts, and opens results at their line even when the folder was never expanded. Related remains rule-based and may stat linked paths without recursively downloading the workspace.
 
 Relative PNG, JPEG, WebP, and GIF references in remote Markdown are read through authenticated, workspace-scoped `fs.readBinary` calls and displayed with per-tab object URLs. Missing, invalid, oversized, or outside-workspace paths fail visibly. Pasted, dropped, or explicitly inserted images create or reuse the remote root's `assets/` folder, choose a safe unique name, write exact bytes through `fs.writeBinary`, and insert a Markdown-relative link; nested documents receive the required `../` components. Binary RPCs use 4 MB chunks so the 25 MB asset limit stays below the 16 MB JSON-message limit. Object URLs are revoked on tab close or document reload, and remote asset operations never fall back to a local folder picker. See [`bridge/README.md`](bridge/README.md) for the security boundary, configuration paths, supported SSH options, limits, and development flags.
+
+Remote SSH in this release requires opening the bridge-served app at its loopback origin. The hosted `https://localdraft.ai/` application remains local-browser editing only and does not connect to or probe a loopback bridge. Remote terminals, command execution, Git tooling, port forwarding, proxy commands, offline mirrors, deletion, multiple active hosts, mixed local/remote workspace tabs, persistent dirty-buffer crash recovery, and Windows-style remote roots are not supported.
 
 Use the hosted static app:
 

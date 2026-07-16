@@ -20,7 +20,7 @@ type notification struct {
 
 func (s *Server) broadcastNotification(method string, params any) {
 	payload, err := json.Marshal(notification{JSONRPC: protocol.Version, Method: method, Params: params})
-	if err != nil {
+	if err != nil || int64(len(payload)) > s.config.MaximumMessageSize {
 		return
 	}
 	s.connectionMu.Lock()
@@ -82,6 +82,18 @@ func (s *Server) serveWebSocket(ctx context.Context, connection *websocket.Conn,
 		payload, err := json.Marshal(response)
 		if err != nil {
 			return
+		}
+		if int64(len(payload)) > s.config.MaximumMessageSize {
+			payload, err = json.Marshal(protocol.Failure(response.ID, protocol.NewStorageError(
+				-32020,
+				"FILE_TOO_LARGE",
+				"The bridge response exceeds the JSON message limit.",
+				false,
+				nil,
+			)))
+			if err != nil || int64(len(payload)) > s.config.MaximumMessageSize {
+				return
+			}
 		}
 		writes.Lock()
 		defer writes.Unlock()
