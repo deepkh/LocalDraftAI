@@ -165,6 +165,17 @@ cd ..
 ./build/localdraft-bridge serve --listen 127.0.0.1:4782 --web-root .
 ```
 
+GitHub Actions also builds the bridge for Linux x86-64, Linux AArch64, and Windows x64 through [`.github/workflows/bridge-binaries.yml`](.github/workflows/bridge-binaries.yml). Every successful workflow run publishes one binary artifact per platform for 30 days. A pushed `v*` tag creates a GitHub Release containing all three binaries and `SHA256SUMS.txt`.
+
+Downloaded binaries still need the static frontend from this repository. Run them from the repository root with `--web-root .`; on Linux, first make the downloaded file executable:
+
+```bash
+chmod +x localdraft-bridge-linux-x86_64
+./localdraft-bridge-linux-x86_64 serve --web-root .
+```
+
+On Windows, run `localdraft-bridge-windows-x64.exe serve --web-root .` from the repository root.
+
 The bridge also stores non-secret SSH profiles, discovers supported exact aliases from OpenSSH config, verifies host keys against its own `known_hosts`, authenticates through an agent, identity file, session-only passphrase, or session-only password, and starts SFTP after connection. When the app is opened from the bridge, the left side of the Status Bar provides SSH connection commands, and the Workspace menu can manage profiles, confirm first-use host keys, collect session-only secrets, browse remote folders, and show the redacted connection log.
 
 After connecting, use `Workspace -> Open Remote Folder…`. The bridge canonicalizes the folder and confines every operation to it; the Explorer lists only the root initially and loads a directory when you expand it. Unsupported files stay hidden, empty directories remain visible, and Markdown, plain text, JSON, and YAML keep their existing editor-mode rules.

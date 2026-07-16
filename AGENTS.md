@@ -55,6 +55,7 @@ src/js/workspace-related.js  Related file and plan-file detection helpers
 src/js/asset-store.js        Provider-aware local and remote image workspace/assets handling
 bridge/                      Isolated Go loopback bridge module
 bridge/internal/remotefs/    Workspace-confined SFTP text, search, and binary-asset service
+.github/workflows/bridge-binaries.yml Tested bridge cross-build and tagged-release workflow
 src/js/ai-assistant.js       AI workflow, side-panel review/apply, revisions, and modal fallback
 src/js/ai-actions.js         Compatibility facade for configured AI actions
 src/js/ai-action-defaults.js Default AI Actions YAML
@@ -168,6 +169,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Every document session has a provider ID, normalized storage resource, and revision. Legacy local file and workspace handles remain compatibility fields; provider-neutral application code uses storage resources.
 - Local File System Access picker, read, write, directory traversal, and workspace mutation calls belong in `local-filesystem-provider.js`. Local asset storage may retain narrowly scoped browser file calls in `asset-store.js`.
 - The optional Go bridge binds to loopback by default, serves only `src/` and `assets/`, exchanges a one-time startup token for an HttpOnly strict-same-site cookie, and accepts WebSockets only from its exact authenticated origin.
+- The bridge binary workflow runs Go tests and vet before CGO-disabled Linux x86-64, Linux AArch64, and Windows x64 cross-builds. Version tags publish all three binaries with SHA-256 checksums; binaries continue to require an explicit LocalDraftAI static `--web-root`.
 - Bridge JSON-RPC protocol version 1 limits messages to 16 MB, concurrent calls to 8, normal operations to 30 seconds, search to 120 seconds, and its redacted in-memory log to 200 structured entries.
 - Bridge connection profiles are stored atomically without secrets. SSH authentication tries the agent before a configured identity and uses prompt-scoped passphrases or passwords only in process memory. Unknown host keys require fingerprint confirmation in the bridge-managed `known_hosts`; changed keys are blocked.
 - OpenSSH discovery supports exact host aliases and only `Host`, `HostName`, `User`, `Port`, `IdentityFile`, `IdentitiesOnly`, and `UserKnownHostsFile`. Do not write OpenSSH configuration or user-managed known-host files, and do not imply support for deferred proxy, forwarding, certificate, PKCS#11, or connection-sharing options.

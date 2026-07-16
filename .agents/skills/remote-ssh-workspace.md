@@ -55,6 +55,7 @@
 ## Scope and tests
 
 - Keep local and remote workspace tests separate. Remote tests use an in-process SSH/SFTP server rooted in a temporary directory; do not depend on a developer's SSH configuration.
+- Keep `.github/workflows/bridge-binaries.yml` gated by bridge tests and vet, use CGO-disabled cross-compilation for the documented Linux x86-64, Linux AArch64, and Windows x64 targets, and keep artifact names stable. The server binary does not embed the static frontend and must retain its explicit `--web-root` boundary.
 - Run frontend regression tests with `for test in tests/unit/*.test.js; do node "$test"; done`.
 - Run bridge checks from `bridge/` with Go 1.25 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.

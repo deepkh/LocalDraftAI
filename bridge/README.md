@@ -41,6 +41,31 @@ cd ..
 ./build/localdraft-bridge serve --listen 127.0.0.1:4782 --web-root .
 ```
 
+## GitHub binary builds
+
+The `Build bridge binaries` GitHub Actions workflow tests and vets the bridge before cross-compiling these artifacts:
+
+```text
+localdraft-bridge-linux-x86_64
+localdraft-bridge-linux-aarch64
+localdraft-bridge-windows-x64.exe
+```
+
+The workflow runs for bridge changes on `master`, relevant pull requests, version tags matching `v*`, and manual dispatches. Workflow artifacts are retained for 30 days. A version tag also creates a GitHub Release with the three binaries and `SHA256SUMS.txt`.
+
+The binary does not embed the static frontend. Keep it beside or point it at a LocalDraftAI checkout, then provide the checkout root with `--web-root`:
+
+```bash
+chmod +x localdraft-bridge-linux-x86_64
+./localdraft-bridge-linux-x86_64 serve --web-root /path/to/LocalDraftAI
+```
+
+On Windows:
+
+```powershell
+.\localdraft-bridge-windows-x64.exe serve --web-root C:\path\to\LocalDraftAI
+```
+
 Development options:
 
 ```text

@@ -1,0 +1,125 @@
+name: Build bridge binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+    paths:
+      - ".github/workflows/bridge-binaries.yml"
+      - "bridge/**"
+  pull_request:
+    paths:
+      - ".github/workflows/bridge-binaries.yml"
+      - "bridge/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bridge-binaries-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Test bridge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: bridge/go.mod
+          cache-dependency-path: bridge/go.sum
+
+      - name: Run tests
+        working-directory: bridge
+        run: go test ./...
+
+      - name: Run vet
+        working-directory: bridge
+        run: go vet ./...
+
+  build:
+    name: Build ${{ matrix.artifact }}
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: localdraft-bridge-linux-x86_64
+            goos: linux
+            goarch: amd64
+          - artifact: localdraft-bridge-linux-aarch64
+            goos: linux
+            goarch: arm64
+          - artifact: localdraft-bridge-windows-x64.exe
+            goos: windows
+            goarch: amd64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: bridge/go.mod
+          cache-dependency-path: bridge/go.sum
+
+      - name: Build bridge
+        working-directory: bridge
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p ../dist
+          go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o "../dist/${{ matrix.artifact }}" \
+            ./cmd/localdraft-bridge
+
+      - name: Upload bridge binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish release binaries
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download bridge binaries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: localdraft-bridge-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create checksums
+        working-directory: release-assets
+        run: sha256sum localdraft-bridge-* > SHA256SUMS.txt
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          release-assets/*
+          --verify-tag
+          --generate-notes
+          --title "LocalDraftAI ${GITHUB_REF_NAME}"
