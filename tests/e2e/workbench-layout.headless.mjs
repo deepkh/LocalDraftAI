@@ -416,10 +416,19 @@ async function main() {
     await waitFor(send, `document.activeElement.matches(".workspace-content-search")`);
     let activity = await evaluate(send, `({
       active: document.querySelector("#activityBar .is-active").dataset.workbenchView,
+      duplicateViewTabs: document.querySelectorAll("#workspaceSidebar [data-workspace-panel]").length,
       focusedSearch: document.activeElement.matches(".workspace-content-search"),
+      hideButtons: document.querySelectorAll("#workspaceSidebar [data-workspace-action='hide']").length,
       panel: localStorage.getItem("localdraftai.workspaceSidebar.panel")
     })`);
-    assert.deepEqual(activity, { active: "search", focusedSearch: true, panel: "search" });
+    assert.deepEqual(activity, {
+      active: "search",
+      duplicateViewTabs: 0,
+      focusedSearch: true,
+      hideButtons: 0,
+      panel: "search"
+    });
+    assert.equal(await evaluate(send, `document.querySelector("#workspaceSidebar .workspace-sidebar-header")`), null);
 
     await evaluate(send, `document.querySelector('[data-workbench-view="related"]').click()`);
     assert.equal(await evaluate(send, `document.querySelector("#activityBar .is-active").dataset.workbenchView`), "related");

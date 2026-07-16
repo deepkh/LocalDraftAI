@@ -52,7 +52,6 @@
   var formatMoreMenu = document.getElementById("formatMoreMenu");
   var documentMoreButton = document.getElementById("documentMoreButton");
   var documentMoreMenu = document.getElementById("documentMoreMenu");
-  var compactAiButton = document.getElementById("compactAiButton");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
   var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
@@ -1695,16 +1694,6 @@
 
   function toggleFocusModeState() {
     setFocusMode(!focusModeEnabled);
-  }
-
-  function syncCompactAiButton(visible) {
-    if (!compactAiButton) {
-      return;
-    }
-    compactAiButton.classList.toggle("is-active", Boolean(visible));
-    compactAiButton.setAttribute("aria-pressed", String(Boolean(visible)));
-    compactAiButton.title = visible ? "Focus AI Assistant" : "Open AI Assistant";
-    compactAiButton.setAttribute("aria-label", compactAiButton.title);
   }
 
   function openAboutDialog() {
@@ -5700,11 +5689,6 @@
     });
     toggleEditorMode.addEventListener("click", toggleEditorModeState);
 
-    if (compactAiButton && ME.commandRegistry) {
-      compactAiButton.addEventListener("click", function () {
-        ME.commandRegistry.executeCommand("ai.openAssistant");
-      });
-    }
     if (themeToggleButton && ME.commandRegistry) {
       themeToggleButton.addEventListener("click", function () {
         ME.commandRegistry.executeCommand("view.toggleTheme");
@@ -6475,7 +6459,6 @@
       aiAssistantPanelClose: aiAssistantPanelClose,
       aiAssistantPanelSettings: aiAssistantPanelSettings,
       onPanelVisibilityChange: function (visible) {
-        syncCompactAiButton(visible);
         if (activityBar) {
           activityBar.syncSecondarySidebar(visible);
         }
@@ -6486,7 +6469,6 @@
         }
       }
     });
-    syncCompactAiButton(aiAssistant.isPanelOpen());
 
     if (ME.activityBar && activityBarElement) {
       activityBar = ME.activityBar.create({

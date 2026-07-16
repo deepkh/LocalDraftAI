@@ -395,17 +395,18 @@ async function main() {
       toggleHidden: document.querySelector("#toggleFormatToolbar").hidden
     })`), { expanded: "true", hidden: false, toggleHidden: false });
 
-    await evaluate(send, `document.querySelector("#compactAiButton").click()`);
+    assert.equal(await evaluate(send, `document.querySelector("#compactAiButton")`), null);
+    await evaluate(send, `document.querySelector('[data-workbench-view="ai"]').click()`);
     assert.deepEqual(await evaluate(send, `({
       count: document.querySelectorAll("#aiAssistantPanel").length,
       hidden: document.querySelector("#aiAssistantPanel").hidden,
-      pressed: document.querySelector("#compactAiButton").getAttribute("aria-pressed")
+      pressed: document.querySelector('[data-workbench-view="ai"]').getAttribute("aria-pressed")
     })`), { count: 1, hidden: false, pressed: "true" });
-    await evaluate(send, `document.querySelector("#compactAiButton").click()`);
+    await evaluate(send, `document.querySelector('[data-workbench-view="ai"]').click()`);
     assert.equal(await evaluate(send, `document.querySelector("#aiAssistantPanel").hidden`), false);
     assert.equal(await evaluate(send, `document.activeElement === document.querySelector("#aiAssistantPanelClose")`), true);
     await evaluate(send, `document.querySelector("#aiAssistantPanelClose").click()`);
-    assert.equal(await evaluate(send, `document.querySelector("#compactAiButton").getAttribute("aria-pressed")`), "false");
+    assert.equal(await evaluate(send, `document.querySelector('[data-workbench-view="ai"]').getAttribute("aria-pressed")`), "false");
 
     await evaluate(send, `(() => {
       for (let index = 0; index < 12; index += 1) {

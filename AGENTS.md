@@ -219,7 +219,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Escaped Markdown punctuation should render and round-trip as literal text in WYSIWYG mode.
 - LocalDraftAI uses one main editor surface.
 - The application shell uses semantic Menu Bar, Activity Bar, Primary Sidebar, Editor Area, Secondary Sidebar, and Status Bar regions.
-- The Activity Bar routes Explorer, Search, and Related to the existing workspace sidebar, opens the AI Secondary Sidebar without moving review state, and opens the existing Settings dialog.
+- The Activity Bar is the sole switcher and hide/show control for Explorer, Search, and Related in the existing workspace sidebar; do not add an internal panel header, duplicate those view buttons, or add a hide button inside the sidebar. It also opens the AI Secondary Sidebar without moving review state and opens the existing Settings dialog.
 - Theme is application-level state with supported `light` and `dark` values stored under `localdraftai.appearance.theme` in localStorage.
 - Apply the persisted theme before the stylesheet renders; switching themes must not modify document, editor, tab, sidebar, workspace, or AI state.
 - Theme-sensitive colors belong in semantic CSS variables with light defaults and dark overrides.
@@ -229,7 +229,7 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - WYSIWYG remains the editable rendered view.
 - Markdown remains the source of truth for saving and syncing.
 - Soft Wrap affects visual wrapping only and must not change saved document content in any supported type.
-- Application actions remain available from the compact Menu Bar. The Editor Area topbar keeps tabs, Format, Markdown/WYSIWYG, AI, and document More visible while formatting expands into an optional second row.
+- Application actions remain available from the compact Menu Bar. The Editor Area topbar keeps tabs, Format, Markdown/WYSIWYG, and document More visible while formatting expands into an optional second row; the AI Assistant is opened from the Activity Bar or application menu.
 - Formatting-toolbar preference is stored under `localdraftai.ui.formatToolbarVisible`, defaults to collapsed, and is not overwritten when Focus Mode or a source-only document temporarily hides the row.
 - Topbar popup commands execute through the command registry, while formatting `data-action` controls continue through the existing editor-action delegate and must execute exactly once.
 - The right-hand workspace hosts the AI Assistant review panel and should keep the editor visible while reviewing output.

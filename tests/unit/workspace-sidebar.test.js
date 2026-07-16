@@ -178,12 +178,32 @@ function createSidebar(storage) {
   return { folderChanges, root, scrollChanges, sidebar };
 }
 
-runTest("omits the minimize action from the Explorer panel header", function () {
+runTest("omits an internal header and duplicate controls from every primary sidebar view", function () {
   const storage = createStorage();
   const view = createSidebar(storage);
 
-  assert.doesNotMatch(view.root.innerHTML, /data-workspace-action="minimize"/);
-  assert.match(view.root.innerHTML, /data-workspace-action="hide"/);
+  ["files", "search", "related"].forEach(function (panel) {
+    view.sidebar.setPanel(panel);
+    assert.doesNotMatch(view.root.innerHTML, /workspace-sidebar-header|workspace-sidebar-root/);
+    assert.doesNotMatch(view.root.innerHTML, /workspace-sidebar-title|workspace-sidebar-actions|workspace-sidebar-icon/);
+    assert.doesNotMatch(view.root.innerHTML, /data-workspace-action="(?:hide|minimize)"|Hide sidebar|>Workspace</);
+  });
+});
+
+runTest("leaves Files, Search, and Related navigation to the Activity Bar", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+
+  assert.doesNotMatch(view.root.innerHTML, /workspace-panel-tabs|data-workspace-panel/);
+  assert.match(view.root.innerHTML, /workspace-file-search/);
+
+  view.sidebar.setPanel("search");
+  assert.doesNotMatch(view.root.innerHTML, /workspace-panel-tabs|data-workspace-panel/);
+  assert.match(view.root.innerHTML, /workspace-content-search/);
+
+  view.sidebar.setPanel("related");
+  assert.doesNotMatch(view.root.innerHTML, /workspace-panel-tabs|data-workspace-panel/);
+  assert.match(view.root.innerHTML, /Open a workspace file to see related files/);
 });
 
 runTest("collapses folders and persists relative paths per workspace", function () {

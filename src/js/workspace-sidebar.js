@@ -515,18 +515,6 @@
         "</div>";
     }
 
-    function renderPanelTabs() {
-      return "<div class=\"workspace-panel-tabs\" role=\"tablist\" aria-label=\"Workspace views\">" +
-        ["files", "search", "related"].map(function (panel) {
-          var label = panel.charAt(0).toUpperCase() + panel.slice(1);
-          var active = panel === activePanel;
-
-          return "<button type=\"button\" class=\"workspace-panel-tab" + (active ? " is-active" : "") +
-            "\" data-workspace-panel=\"" + panel + "\" aria-selected=\"" + String(active) + "\">" + label + "</button>";
-        }).join("") +
-        "</div>";
-    }
-
     function renderFilesPanel() {
       var isFiltering = Boolean(fileSearchQuery.trim());
       var filteredTree = ME.workspaceStore && ME.workspaceStore.filterTree
@@ -682,19 +670,7 @@
           : renderFilesPanel();
 
       rootElement.innerHTML =
-        "<div class=\"workspace-sidebar-header\">" +
-        "<div class=\"workspace-sidebar-title-group\">" +
-        "<div class=\"workspace-sidebar-title\">Workspace</div>" +
-        "<div class=\"workspace-sidebar-root\" data-workspace-root=\"true\" title=\"" + escapeHtml(state.rootName || "") + "\">" +
-        escapeHtml(state.rootName || "No folder") +
-        "</div>" +
-        "</div>" +
-        "<div class=\"workspace-sidebar-actions\">" +
-        "<button type=\"button\" class=\"workspace-sidebar-icon\" data-workspace-action=\"hide\" title=\"Hide sidebar\" aria-label=\"Hide sidebar\">x</button>" +
-        "</div>" +
-        "</div>" +
         renderRestorePrompt() +
-        renderPanelTabs() +
         panelHtml +
         renderContextMenu();
     }
@@ -821,7 +797,6 @@
     function handleClick(event) {
       var actionElement = event.target.closest("[data-workspace-action]");
       var restoreElement = event.target.closest("[data-workspace-restore]");
-      var panelElement = event.target.closest("[data-workspace-panel]");
       var contextActionElement = event.target.closest("[data-workspace-context-action]");
       var searchResultElement = event.target.closest("[data-workspace-search-path]");
       var relatedElement = event.target.closest("[data-workspace-related-path]");
@@ -849,17 +824,10 @@
         return;
       }
 
-      if (panelElement && rootElement.contains(panelElement)) {
-        setPanel(panelElement.getAttribute("data-workspace-panel"));
-        return;
-      }
-
       if (actionElement && rootElement.contains(actionElement)) {
         action = actionElement.getAttribute("data-workspace-action");
         if (action === "expand") {
           setMode(SIDEBAR_MODES.EXPANDED);
-        } else if (action === "hide") {
-          setMode(SIDEBAR_MODES.HIDDEN);
         } else if (action === "minimize") {
           setMode(SIDEBAR_MODES.MINIMIZED);
         } else if (action === "open") {

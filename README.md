@@ -101,7 +101,7 @@ When you switch to a different workspace, open workspace tabs from the previous 
 
 Closing the current workspace also closes every open tab, including files that are not owned by that workspace, and returns the editor to a fresh `Untitled.md` tab. Unsaved changes use the same aggregate confirmation as `Close All Open Files`.
 
-The sidebar has three views:
+The Activity Bar opens three views in the sidebar; the sidebar does not add its own panel header, repeat those view buttons, or include a separate hide control:
 
 - `Files`: browse supported text documents, collapse or expand folders, filter by file name, and use right-click actions.
 - `Search`: search all supported document contents case-insensitively and open results by file and line.
@@ -122,7 +122,7 @@ Workspace features are still focused on Markdown planning and writing. LocalDraf
 
 ### Layout
 
-The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. The editor topbar starts as one compact row with document tabs, **Format**, the current editor mode, **AI**, and a document **More** menu. Tabs remain the primary content and scroll independently when many files are open.
+The main layout is a lightweight workbench. A compact Menu Bar sits above the Activity Bar, Primary Sidebar, Editor Area, and AI Secondary Sidebar, while a small Status Bar remains at the bottom. The editor topbar starts as one compact row with document tabs, **Format**, the current editor mode, and a document **More** menu. The AI Assistant remains available from the Activity Bar and application menu. Tabs remain the primary content and scroll independently when many files are open.
 
 Use **Format** to expand or collapse the Markdown formatting row. The choice is remembered in the browser. Less-frequent formatting actions remain available from the formatting **More** menu, while Soft Wrap, Focus Mode, validation, and rendered-HTML copying are available from the document **More** menu. Plain text, JSON, and YAML keep the compact document controls but do not expose Markdown formatting. Focus Mode temporarily hides an expanded formatting row and restores it when Focus Mode ends.
 

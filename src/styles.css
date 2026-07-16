@@ -1019,53 +1019,6 @@
       border-radius: 7px;
     }
 
-    .workspace-sidebar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-height: 50px;
-      min-width: 0;
-      padding: 12px 10px 10px 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .workspace-sidebar-title-group {
-      display: grid;
-      gap: 2px;
-      min-width: 0;
-    }
-
-    .workspace-sidebar-title {
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .workspace-sidebar-root {
-      min-width: 0;
-      overflow: hidden;
-      font-size: 13px;
-      font-weight: 760;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .workspace-sidebar-actions {
-      display: inline-flex;
-      gap: 4px;
-      flex: 0 0 auto;
-    }
-
-    .workspace-sidebar-icon {
-      min-width: 28px;
-      min-height: 28px;
-      padding: 0;
-      font-size: 17px;
-      line-height: 1;
-    }
-
     .workspace-restore-prompt {
       display: grid;
       gap: 8px;
@@ -1091,38 +1044,6 @@
       min-height: 28px;
       padding: 0 8px;
       font-size: 12px;
-    }
-
-    .workspace-panel-tabs {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 4px;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel);
-    }
-
-    .workspace-panel-tab {
-      min-width: 0;
-      min-height: 30px;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 760;
-    }
-
-    .workspace-panel-tab:hover,
-    .workspace-panel-tab:focus-visible {
-      background: var(--panel-alt);
-      color: var(--text);
-    }
-
-    .workspace-panel-tab.is-active {
-      border-color: var(--border);
-      background: var(--panel-alt);
-      color: var(--accent-strong);
     }
 
     .workspace-search-wrap {
