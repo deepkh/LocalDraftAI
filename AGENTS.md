@@ -35,6 +35,8 @@ src/js/storage-resource.js   Provider-neutral document resource identity and rev
 src/js/storage-provider-registry.js Storage provider lookup and normalized errors
 src/js/local-filesystem-provider.js Local File System Access provider
 src/js/bridge-client.js       Authenticated same-origin JSON-RPC bridge client and detection
+src/js/remote-status.js       Remote Status Bar state, labels, menu, and command availability
+src/js/remote-connection-ui.js SSH profile, prompt, folder selection, and connection-log dialogs
 src/js/document-type.js      Central supported-extension and document-capability registry
 src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
@@ -107,6 +109,8 @@ Use these routes:
 - Local bridge server, browser bridge client, protocol, startup authentication, and security:
   - `.agents/skills/remote-ssh-workspace.md`
   - `src/js/bridge-client.js`
+  - `src/js/remote-status.js`
+  - `src/js/remote-connection-ui.js`
   - `bridge/internal/appserver/`
   - `bridge/internal/protocol/`
   - `bridge/internal/logbuffer/`
@@ -164,7 +168,9 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 - Bridge connection profiles are stored atomically without secrets. SSH authentication tries the agent before a configured identity and uses prompt-scoped passphrases or passwords only in process memory. Unknown host keys require fingerprint confirmation in the bridge-managed `known_hosts`; changed keys are blocked.
 - OpenSSH discovery supports exact host aliases and only `Host`, `HostName`, `User`, `Port`, `IdentityFile`, `IdentitiesOnly`, and `UserKnownHostsFile`. Do not write OpenSSH configuration or user-managed known-host files, and do not imply support for deferred proxy, forwarding, certificate, PKCS#11, or connection-sharing options.
 - Connected SSH sessions own an SFTP client, use a 15-second connection timeout and a 30-second keepalive, and close after three consecutive keepalive failures. Remote shell commands remain out of scope.
-- The static app detects a bridge only through same-origin `/api/health`; the hosted site does not probe loopback. Remote commands and UI stay unavailable until their implementation phases.
+- The static app detects a bridge only through same-origin `/api/health`; the hosted site does not probe loopback. Remote command controls remain disabled unless that handshake succeeds.
+- The Remote Status Bar item always identifies local or SSH state. SSH commands are enabled only after an authenticated same-origin bridge handshake; hosted and standalone static origins keep them disabled.
+- Remote connection UI owns profile management, host-key confirmation, prompt-scoped password/passphrase entry, remote folder selection, and the redacted connection log. Clear secret inputs before requests settle, never use browser storage for them, and do not switch workspaces until the selected folder opens successfully.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.

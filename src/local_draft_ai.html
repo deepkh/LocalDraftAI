@@ -21,14 +21,31 @@
           <button type="button" id="workspaceButton" class="wide-button" aria-haspopup="menu" aria-expanded="false"
             role="menuitem" title="Workspace">Workspace</button>
           <div id="workspaceMenu" class="ai-menu workspace-menu" role="menu" hidden>
-            <button type="button" id="openWorkspaceFolder" role="menuitem" data-command="workspace.openFolder">Open Folder</button>
+            <button type="button" id="openWorkspaceFolder" role="menuitem" data-command="workspace.openFolder">Open Local Folder…</button>
+            <button type="button" id="connectRemoteHost" role="menuitem" data-command="remote.connectHost"
+              data-remote-command="remote.connectHost">Connect to Remote Host…</button>
+            <button type="button" id="openRemoteFolder" role="menuitem" data-command="remote.openFolder"
+              data-remote-command="remote.openFolder">Open Remote Folder…</button>
             <button type="button" id="restoreWorkspace" role="menuitem" data-command="workspace.restore">Restore Workspace</button>
             <div class="ai-menu-separator" role="separator"></div>
-            <label class="menu-select-label" for="recentWorkspaces">Recent Workspaces</label>
+            <label class="menu-select-label" for="recentWorkspaces">Recent Local Workspaces</label>
             <select id="recentWorkspaces" class="recent-select" title="Open or remove recent workspaces"
               aria-label="Open or remove recent workspaces">
               <option value="">No recent</option>
             </select>
+            <label class="menu-select-label" for="recentRemoteWorkspaces">Recent Remote Workspaces</label>
+            <select id="recentRemoteWorkspaces" class="recent-select" aria-label="Recent remote workspaces" disabled>
+              <option value="">No recent remote</option>
+            </select>
+            <div class="ai-menu-separator" role="separator"></div>
+            <button type="button" id="manageRemoteConnections" role="menuitem" data-command="remote.manageConnections"
+              data-remote-command="remote.manageConnections">Manage SSH Connections…</button>
+            <button type="button" id="showRemoteConnectionLog" role="menuitem" data-command="remote.showLog"
+              data-remote-command="remote.showLog">Show Remote Connection Log</button>
+            <button type="button" id="reconnectRemote" role="menuitem" data-command="remote.reconnect"
+              data-remote-command="remote.reconnect">Reconnect</button>
+            <button type="button" id="closeRemoteConnection" role="menuitem" data-command="remote.closeConnection"
+              data-remote-command="remote.closeConnection">Close Remote Connection</button>
             <div class="ai-menu-separator" role="separator"></div>
             <button type="button" id="refreshWorkspace" role="menuitem" data-command="workspace.refresh">Refresh Workspace</button>
             <button type="button" id="closeWorkspace" role="menuitem" data-command="workspace.close">Close Workspace</button>
@@ -48,7 +65,7 @@
             <button type="button" id="newFile" role="menuitem" data-command="file.new"
               title="New document (Ctrl/Cmd+N)">New</button>
             <button type="button" id="openFile" role="menuitem" data-command="file.open"
-              title="Open a supported text document (Ctrl/Cmd+O)">Open File</button>
+              title="Open a supported local text document (Ctrl/Cmd+O)">Open Local File…</button>
             <button type="button" id="saveFile" role="menuitem" data-command="file.save"
               title="Save document (Ctrl/Cmd+S)">Save</button>
             <button type="button" id="saveAsFile" role="menuitem" data-command="file.saveAs"
@@ -254,6 +271,9 @@
 
     <footer id="statusBar" class="status-bar">
       <div class="status-bar-left">
+        <button type="button" id="remoteStatusItem" class="status-bar-remote" data-state="local"
+          aria-haspopup="menu" aria-expanded="false" aria-label="Remote connection: Local mode"
+          aria-live="polite">&gt;&lt; Local</button>
         <span id="workspaceStatus" class="status-bar-item" title="Current workspace">No Workspace</span>
         <span id="documentStatus" class="status-bar-item status-bar-document" hidden></span>
         <span id="applicationStatus" class="status-bar-item" role="status" aria-live="polite" hidden></span>
@@ -271,6 +291,126 @@
         <span id="aiStatusBadge" class="ai-status-badge" data-status="checking" aria-live="polite">Checking</span>
       </div>
     </footer>
+
+    <div id="remoteStatusMenu" class="ai-menu remote-status-menu" role="menu" hidden>
+      <button type="button" role="menuitem" data-remote-command="remote.connectHost">Connect to Host…</button>
+      <button type="button" role="menuitem" data-remote-command="remote.openFolder">Open Remote Folder…</button>
+      <button type="button" role="menuitem" data-remote-command="remote.reconnect">Reconnect</button>
+      <div class="ai-menu-separator" role="separator"></div>
+      <button type="button" role="menuitem" data-remote-command="remote.showLog">Show Connection Log</button>
+      <button type="button" role="menuitem" data-remote-command="remote.manageConnections">Manage SSH Connections…</button>
+      <div class="ai-menu-separator" role="separator"></div>
+      <button type="button" role="menuitem" data-remote-command="remote.closeConnection">Close Remote Connection</button>
+    </div>
+
+    <div id="remoteConnectionsOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remoteConnectionsDialog" class="ai-settings-dialog remote-connections-dialog" role="dialog"
+        aria-modal="true" aria-labelledby="remoteConnectionsTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="remoteConnectionsTitle">SSH Connections</h2>
+          <button type="button" id="remoteConnectionsClose" class="icon-text ai-settings-close"
+            aria-label="Close SSH connections">×</button>
+        </div>
+        <div class="ai-settings-body remote-connections-body">
+          <div id="remoteConnectionLists" class="remote-connection-lists">
+            <section aria-labelledby="savedConnectionsTitle">
+              <h3 id="savedConnectionsTitle">Saved Connections</h3>
+              <div id="savedConnectionsList" class="remote-connection-list" role="listbox"
+                aria-label="Saved SSH connections"></div>
+            </section>
+            <section aria-labelledby="importedConnectionsTitle">
+              <h3 id="importedConnectionsTitle">Imported OpenSSH Hosts</h3>
+              <div id="importedConnectionsList" class="remote-connection-list" role="listbox"
+                aria-label="Imported OpenSSH hosts"></div>
+            </section>
+          </div>
+          <form id="remoteConnectionForm" class="remote-connection-form" hidden>
+            <h3 id="remoteConnectionFormTitle">Add SSH Connection</h3>
+            <div class="remote-connection-form-grid">
+              <label class="ai-settings-field">Connection Name<input id="remoteConnectionName" type="text" autocomplete="off"></label>
+              <label class="ai-settings-field">Host<input id="remoteConnectionHost" type="text" autocomplete="off" spellcheck="false"></label>
+              <label class="ai-settings-field">Port<input id="remoteConnectionPort" type="number" min="1" max="65535" value="22"></label>
+              <label class="ai-settings-field">User<input id="remoteConnectionUser" type="text" autocomplete="username" spellcheck="false"></label>
+              <label class="remote-checkbox-field"><input id="remoteConnectionUseAgent" type="checkbox" checked>Use ssh-agent</label>
+              <label class="ai-settings-field remote-form-wide">Identity File<input id="remoteConnectionIdentityFile" type="text"
+                  autocomplete="off" spellcheck="false" placeholder="~/.ssh/id_ed25519"></label>
+              <label class="remote-checkbox-field remote-form-wide"><input id="remoteConnectionAllowPassword" type="checkbox" checked>Allow Password Authentication</label>
+              <label class="ai-settings-field remote-form-wide">Default Remote Folder<input id="remoteConnectionDefaultPath"
+                  type="text" autocomplete="off" spellcheck="false" placeholder="/home/user/notes"></label>
+            </div>
+            <p class="ai-settings-note">Identity files are read by the local bridge. Passwords and passphrases are never saved.</p>
+            <div id="remoteConnectionFormStatus" class="ai-settings-status" aria-live="polite"></div>
+            <div class="remote-inline-actions">
+              <button type="button" id="remoteConnectionFormCancel" class="file-button">Cancel</button>
+              <button type="button" id="remoteConnectionFormSave" class="file-button">Save Connection</button>
+            </div>
+          </form>
+          <div id="remoteConnectionsStatus" class="ai-settings-status" aria-live="polite"></div>
+        </div>
+        <div class="ai-settings-actions remote-manager-actions">
+          <button type="button" id="remoteConnectionsRefresh" class="file-button">Refresh SSH Config</button>
+          <button type="button" id="remoteConnectionAdd" class="file-button">Add</button>
+          <button type="button" id="remoteConnectionEdit" class="file-button">Edit</button>
+          <button type="button" id="remoteConnectionRemove" class="file-button">Remove</button>
+          <span class="remote-actions-spacer"></span>
+          <button type="button" id="remoteConnectionsCancel" class="file-button">Cancel</button>
+          <button type="button" id="remoteConnectionConnect" class="file-button">Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="remotePromptOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remotePromptDialog" class="ai-settings-dialog remote-prompt-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="remotePromptTitle" tabindex="-1">
+        <div class="ai-settings-header"><h2 id="remotePromptTitle">SSH Authentication</h2></div>
+        <div class="ai-settings-body">
+          <p id="remotePromptMessage" class="remote-prompt-message"></p>
+          <pre id="remotePromptFingerprint" class="remote-host-fingerprint" hidden></pre>
+          <label id="remoteSecretField" class="ai-settings-field">Session-only secret
+            <input id="remoteSecretInput" type="password" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="ai-settings-note">The secret is sent only to the local bridge for this connection attempt and is not stored.</p>
+        </div>
+        <div class="ai-settings-actions">
+          <button type="button" id="remotePromptCancel" class="file-button">Cancel</button>
+          <button type="button" id="remotePromptConfirm" class="file-button">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="remoteFolderOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remoteFolderDialog" class="ai-settings-dialog remote-folder-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="remoteFolderTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="remoteFolderTitle">Open Remote Folder</h2>
+          <button type="button" id="remoteFolderClose" class="icon-text ai-settings-close" aria-label="Close remote folder dialog">×</button>
+        </div>
+        <div class="ai-settings-body remote-folder-body">
+          <div class="remote-folder-path-row">
+            <label class="ai-settings-field">Path<input id="remoteFolderPath" type="text" spellcheck="false" autocomplete="off"></label>
+            <button type="button" id="remoteFolderUp" class="file-button">Up</button>
+          </div>
+          <div id="remoteFolderList" class="remote-directory-list" aria-label="Remote directories"></div>
+          <div id="remoteFolderStatus" class="ai-settings-status" aria-live="polite"></div>
+        </div>
+        <div class="ai-settings-actions">
+          <button type="button" id="remoteFolderCancel" class="file-button">Cancel</button>
+          <button type="button" id="remoteFolderOpen" class="file-button">Open Folder</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="remoteLogOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remoteLogDialog" class="ai-settings-dialog remote-log-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="remoteLogTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="remoteLogTitle">Remote Connection Log</h2>
+          <button type="button" id="remoteLogClose" class="icon-text ai-settings-close" aria-label="Close connection log">×</button>
+        </div>
+        <div class="ai-settings-body"><pre id="remoteLogContents" class="remote-log-contents"></pre></div>
+        <div class="ai-settings-actions"><button type="button" id="remoteLogDone" class="file-button">Close</button></div>
+      </div>
+    </div>
 
     <div id="aboutOverlay" class="about-overlay" hidden>
       <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"
@@ -546,6 +686,8 @@ SOFTWARE.</pre>
   <script src="js/storage-provider-registry.js"></script>
   <script src="js/local-filesystem-provider.js"></script>
   <script src="js/bridge-client.js"></script>
+  <script src="js/remote-status.js"></script>
+  <script src="js/remote-connection-ui.js"></script>
   <script src="js/command-registry.js"></script>
   <script src="js/menu-bar.js"></script>
   <script src="js/status-bar.js"></script>

@@ -186,6 +186,46 @@ async function main() {
       assert.equal(button.hasIcon, true);
     });
 
+    const remoteShell = await evaluate(send, `(() => {
+      const status = document.querySelector("#remoteStatusItem");
+      const manager = document.querySelector("#remoteConnectionsDialog");
+      const folder = document.querySelector("#remoteFolderDialog");
+      const prompt = document.querySelector("#remotePromptDialog");
+      return {
+        folderLabel: folder.getAttribute("aria-labelledby"),
+        managerLabel: manager.getAttribute("aria-labelledby"),
+        managerModal: manager.getAttribute("aria-modal"),
+        promptLabel: prompt.getAttribute("aria-labelledby"),
+        statusAria: status.getAttribute("aria-label"),
+        statusText: status.textContent.trim()
+      };
+    })()`);
+    assert.equal(remoteShell.statusText, ">< Local");
+    assert.match(remoteShell.statusAria, /Remote connection: Local mode/);
+    assert.deepEqual({
+      folderLabel: remoteShell.folderLabel,
+      managerLabel: remoteShell.managerLabel,
+      managerModal: remoteShell.managerModal,
+      promptLabel: remoteShell.promptLabel
+    }, {
+      folderLabel: "remoteFolderTitle",
+      managerLabel: "remoteConnectionsTitle",
+      managerModal: "true",
+      promptLabel: "remotePromptTitle"
+    });
+
+    await evaluate(send, `document.querySelector("#workspaceButton").click()`);
+    assert.deepEqual(await evaluate(send, `Array.from(document.querySelectorAll("#workspaceMenu [data-remote-command]"))
+      .map((button) => ({ command: button.dataset.remoteCommand, disabled: button.disabled }))`), [
+      { command: "remote.connectHost", disabled: true },
+      { command: "remote.openFolder", disabled: true },
+      { command: "remote.manageConnections", disabled: true },
+      { command: "remote.showLog", disabled: true },
+      { command: "remote.reconnect", disabled: true },
+      { command: "remote.closeConnection", disabled: true }
+    ]);
+    await evaluate(send, `document.querySelector("#workspaceButton").dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }))`);
+
     const menuLabels = await evaluate(send, `Array.from(document.querySelectorAll("#menuBar [aria-haspopup='menu']"))
       .sort((left, right) => left.getBoundingClientRect().left - right.getBoundingClientRect().left)
       .map((button) => button.textContent.trim())`);
@@ -302,11 +342,13 @@ async function main() {
     const darkSurfaces = await evaluate(send, `({
       editor: getComputedStyle(document.querySelector("#editorArea")).backgroundColor,
       panel: getComputedStyle(document.querySelector("#aiAssistantPanel")).backgroundColor,
+      remote: getComputedStyle(document.querySelector("#remoteConnectionsDialog")).backgroundColor,
       review: getComputedStyle(document.querySelector("#aiReviewDialog")).backgroundColor
     })`);
     assert.equal(settingsSurface, darkSurfaces.editor);
     assert.equal(darkSurfaces.panel, darkSurfaces.editor);
     assert.equal(darkSurfaces.review, darkSurfaces.editor);
+    assert.equal(darkSurfaces.remote, darkSurfaces.editor);
     assert.notEqual(darkSurfaces.editor, "rgb(255, 255, 255)");
     await evaluate(send, `document.querySelector("#aiAssistantPanelClose").click()`);
 
@@ -419,12 +461,21 @@ async function main() {
           .every((button) => button.getBoundingClientRect().left >= 0 && button.getBoundingClientRect().right <= innerWidth),
         menuVisible: document.querySelector("#menuBar").getBoundingClientRect().height > 0,
         pageOverflow: document.documentElement.scrollWidth > innerWidth,
+        remoteDialogFits: (() => {
+          const overlay = document.querySelector("#remoteConnectionsOverlay");
+          overlay.hidden = false;
+          const rect = document.querySelector("#remoteConnectionsDialog").getBoundingClientRect();
+          const fits = rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
+          overlay.hidden = true;
+          return fits;
+        })(),
         statusVisible: document.querySelector("#statusBar").getBoundingClientRect().height > 0
       })`);
       assert.equal(responsive.editorVisible, true, `editor should remain visible at ${width}px`);
       assert.equal(responsive.menusReachable, true, `menus should remain reachable at ${width}px`);
       assert.equal(responsive.menuVisible, true, `menu should remain visible at ${width}px`);
       assert.equal(responsive.pageOverflow, false, `page should not overflow at ${width}px`);
+      assert.equal(responsive.remoteDialogFits, true, `remote dialog should fit at ${width}px`);
       assert.equal(responsive.statusVisible, true, `status should remain visible at ${width}px`);
     }
 

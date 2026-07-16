@@ -131,10 +131,12 @@
         return hello;
       }
       state = "connecting";
+      emit("bridge.stateChanged", { state: state });
       socket = new WebSocketImpl(url);
       socket.onmessage = handleMessage;
       socket.onclose = function () {
         state = "disconnected";
+        emit("bridge.stateChanged", { state: state });
         rejectPending(bridgeError("BRIDGE_UNAVAILABLE", "The LocalDraft Bridge connection closed.", {
           retryable: true
         }));
@@ -169,6 +171,7 @@
         });
       }
       state = "connected";
+      emit("bridge.stateChanged", { state: state });
       return hello;
     }
 
@@ -177,6 +180,7 @@
         socket.close(1000, "browser client closed");
       }
       state = "disconnected";
+      emit("bridge.stateChanged", { state: state });
     }
 
     function on(method, listener) {

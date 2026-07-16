@@ -12,6 +12,7 @@
 - Use JSON-RPC 2.0, protocol version 1, bounded messages and concurrency, operation timeouts, structured provider errors, and a redacted bounded in-memory log.
 - Serve only the repository `src/` and `assets/` trees. Do not expose the repository root, `.git`, configuration files, or an arbitrary static filesystem.
 - Browser bridge detection stays same-origin: check `/api/health`, then authenticate `/api/bridge` with the session cookie. Do not probe loopback from the hosted site.
+- Render remote status in local mode on every origin, but enable connection, folder, log, and profile commands only after an authenticated same-origin bridge handshake. Protocol mismatches remain visible and recoverable.
 - Never expose an unauthenticated arbitrary-file HTTP endpoint or execute remote shell commands. Use SFTP for every remote filesystem operation.
 
 ## Remote paths and revisions
@@ -27,6 +28,7 @@
 - SSH private keys, passwords, passphrases, agent protocol data, session cookies, and startup tokens stay in the bridge process and never enter browser storage or logs.
 - Profiles may store authentication preferences and an identity-file path, but never secret values or private-key contents. Write bridge configuration atomically with restrictive permissions.
 - Prompt IDs bind session-only passwords and passphrases to one connection attempt; discard the secret immediately after the attempt.
+- Clear browser secret inputs before the prompt response finishes and whenever a prompt closes. Host-key prompts show the algorithm and fingerprint and default to no trust until the user explicitly continues.
 - Attempt authentication in order: SSH agent, configured identity, passphrase for an encrypted identity, then password when explicitly allowed. Do not prompt for an identity passphrase when the agent has already authenticated successfully.
 - Verify host keys against the bridge-managed `known_hosts`. Unknown keys require an explicit fingerprint confirmation. Changed keys are blocked and are never automatically trusted.
 - Do not modify the user's OpenSSH config or existing `known_hosts` file.

@@ -15,6 +15,8 @@
   var storageProviders = ME.storageProviders;
   var localFilesystemProvider = ME.localFilesystemProvider;
   var bridgeClient = ME.bridgeClient;
+  var remoteStatus = ME.remoteStatus;
+  var remoteConnectionUI = ME.remoteConnectionUI;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
   var EDITOR_MODES = editorMode.EDITOR_MODES;
@@ -192,6 +194,8 @@
   var menuBarController;
   var aiPanelResizer;
   var activityBar;
+  var remoteStatusController;
+  var remoteConnectionController;
   var actions;
   var aiAssistant;
   var workspaceSidebar;
@@ -1751,6 +1755,9 @@
     }
     if (collapseWorkspaceFoldersButton) {
       collapseWorkspaceFoldersButton.disabled = !hasWorkspace;
+    }
+    if (remoteConnectionController) {
+      remoteConnectionController.updateCommandElements(workspaceMenu);
     }
   }
 
@@ -4246,6 +4253,25 @@
       }
     });
 
+    register("remote.connectHost", function () {
+      return remoteConnectionController && remoteConnectionController.openManager();
+    });
+    register("remote.openFolder", function () {
+      return remoteConnectionController && remoteConnectionController.openRemoteFolder();
+    });
+    register("remote.manageConnections", function () {
+      return remoteConnectionController && remoteConnectionController.openManager();
+    });
+    register("remote.showLog", function () {
+      return remoteConnectionController && remoteConnectionController.showLogs();
+    });
+    register("remote.reconnect", function () {
+      return remoteConnectionController && remoteConnectionController.reconnect();
+    });
+    register("remote.closeConnection", function () {
+      return remoteConnectionController && remoteConnectionController.disconnect();
+    });
+
     register("ai.openAssistant", function () {
       if (aiAssistant) {
         aiAssistant.openAssistant();
@@ -4767,6 +4793,81 @@
       statusBarController.setSoftWrap(softWrapEnabled);
     }
 
+    if (remoteStatus) {
+      remoteStatusController = remoteStatus.create({
+        button: document.getElementById("remoteStatusItem"),
+        menu: document.getElementById("remoteStatusMenu"),
+        onCommand: function (commandId) {
+          if (ME.commandRegistry && ME.commandRegistry.hasCommand(commandId)) {
+            ME.commandRegistry.executeCommand(commandId);
+          }
+        }
+      });
+    }
+
+    if (remoteConnectionUI && remoteStatusController) {
+      remoteConnectionController = remoteConnectionUI.create({
+        addButton: document.getElementById("remoteConnectionAdd"),
+        connectButton: document.getElementById("remoteConnectionConnect"),
+        editButton: document.getElementById("remoteConnectionEdit"),
+        folderCancel: document.getElementById("remoteFolderCancel"),
+        folderClose: document.getElementById("remoteFolderClose"),
+        folderList: document.getElementById("remoteFolderList"),
+        folderOpen: document.getElementById("remoteFolderOpen"),
+        folderOverlay: document.getElementById("remoteFolderOverlay"),
+        folderPath: document.getElementById("remoteFolderPath"),
+        folderStatus: document.getElementById("remoteFolderStatus"),
+        folderUp: document.getElementById("remoteFolderUp"),
+        formFields: {
+          allowPassword: document.getElementById("remoteConnectionAllowPassword"),
+          defaultRemotePath: document.getElementById("remoteConnectionDefaultPath"),
+          host: document.getElementById("remoteConnectionHost"),
+          identityFile: document.getElementById("remoteConnectionIdentityFile"),
+          label: document.getElementById("remoteConnectionName"),
+          port: document.getElementById("remoteConnectionPort"),
+          useAgent: document.getElementById("remoteConnectionUseAgent"),
+          user: document.getElementById("remoteConnectionUser")
+        },
+        importedList: document.getElementById("importedConnectionsList"),
+        logClose: document.getElementById("remoteLogClose"),
+        logContents: document.getElementById("remoteLogContents"),
+        logDialog: document.getElementById("remoteLogDialog"),
+        logDone: document.getElementById("remoteLogDone"),
+        logOverlay: document.getElementById("remoteLogOverlay"),
+        managerCancel: document.getElementById("remoteConnectionsCancel"),
+        managerClose: document.getElementById("remoteConnectionsClose"),
+        managerDialog: document.getElementById("remoteConnectionsDialog"),
+        managerLists: document.getElementById("remoteConnectionLists"),
+        managerOverlay: document.getElementById("remoteConnectionsOverlay"),
+        managerStatus: document.getElementById("remoteConnectionsStatus"),
+        onMessage: function (message, kind) {
+          if (statusBarController && message) {
+            statusBarController.showMessage(message, kind === "error" ? 8000 : 4000);
+          }
+        },
+        onRemoteFolderSelected: function (selection) {
+          ME.pendingRemoteWorkspace = selection;
+        },
+        profileForm: document.getElementById("remoteConnectionForm"),
+        profileFormCancel: document.getElementById("remoteConnectionFormCancel"),
+        profileFormSave: document.getElementById("remoteConnectionFormSave"),
+        profileFormStatus: document.getElementById("remoteConnectionFormStatus"),
+        profileFormTitle: document.getElementById("remoteConnectionFormTitle"),
+        promptCancel: document.getElementById("remotePromptCancel"),
+        promptConfirm: document.getElementById("remotePromptConfirm"),
+        promptFingerprint: document.getElementById("remotePromptFingerprint"),
+        promptMessage: document.getElementById("remotePromptMessage"),
+        promptOverlay: document.getElementById("remotePromptOverlay"),
+        promptTitle: document.getElementById("remotePromptTitle"),
+        refreshButton: document.getElementById("remoteConnectionsRefresh"),
+        removeButton: document.getElementById("remoteConnectionRemove"),
+        savedList: document.getElementById("savedConnectionsList"),
+        secretField: document.getElementById("remoteSecretField"),
+        secretInput: document.getElementById("remoteSecretInput"),
+        statusController: remoteStatusController
+      });
+    }
+
     viewport = ME.viewport.create({
       getActiveMode: getActiveMode,
       getMarkdownText: getMarkdownText,
@@ -4996,6 +5097,12 @@
     tabs.addSession(initialSession, { activate: false });
     setActiveSession(initialSession, { restoreScroll: false });
     bindEvents();
+    if (remoteStatusController) {
+      remoteStatusController.bindEvents();
+    }
+    if (remoteConnectionController) {
+      remoteConnectionController.bindEvents();
+    }
     aiAssistant.bindEvents();
     if (activityBar) {
       activityBar.bindEvents();
@@ -5007,8 +5114,14 @@
     if (bridgeClient && typeof bridgeClient.detect === "function") {
       bridgeClient.detect().then(function (client) {
         ME.activeBridgeClient = client;
+        if (remoteConnectionController) {
+          remoteConnectionController.setBridgeClient(client);
+        }
       }).catch(function (error) {
         ME.bridgeDetectionError = error;
+        if (remoteConnectionController) {
+          remoteConnectionController.setBridgeError(error);
+        }
       });
     }
     updateFileControls();

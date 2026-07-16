@@ -680,7 +680,13 @@
 
     .workspace-menu {
       position: fixed;
-      width: min(260px, calc(100vw - 16px));
+      width: min(300px, calc(100vw - 16px));
+    }
+
+    .remote-status-menu {
+      position: fixed;
+      z-index: 50;
+      width: min(280px, calc(100vw - 16px));
     }
 
     .file-menu,
@@ -1617,6 +1623,47 @@
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .status-bar-remote {
+      min-width: 0;
+      min-height: 20px;
+      max-width: 180px;
+      flex: 0 1 auto;
+      overflow: hidden;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      padding: 0 4px;
+      color: var(--muted-text);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-bar-remote:hover,
+    .status-bar-remote:focus-visible,
+    .status-bar-remote[aria-expanded="true"] {
+      background: var(--active-bg);
+      color: var(--text);
+    }
+
+    .status-bar-remote[data-state="connected"] {
+      color: var(--status-success-text);
+    }
+
+    .status-bar-remote[data-state="connecting"],
+    .status-bar-remote[data-state="waiting-for-host-key"],
+    .status-bar-remote[data-state="waiting-for-secret"],
+    .status-bar-remote[data-state="reconnecting"] {
+      color: var(--status-warning-text);
+    }
+
+    .status-bar-remote[data-state="error"],
+    .status-bar-remote[data-state="disconnected"] {
+      color: var(--status-error-text);
     }
 
     .status-bar-validation[data-status="valid"] {
@@ -2984,6 +3031,192 @@
       align-items: center;
     }
 
+    .remote-connections-dialog {
+      width: min(100%, 760px);
+      max-height: min(760px, calc(100vh - 48px));
+    }
+
+    .remote-connections-body,
+    .remote-connection-lists,
+    .remote-connection-lists section {
+      min-height: 0;
+    }
+
+    .remote-connection-lists {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .remote-connection-lists h3,
+    .remote-connection-form h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .remote-connection-list,
+    .remote-directory-list {
+      min-height: 160px;
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel-alt);
+      padding: 5px;
+    }
+
+    .remote-connection-row,
+    .remote-directory-row {
+      display: grid;
+      width: 100%;
+      min-height: 44px;
+      justify-items: start;
+      border: 0;
+      background: transparent;
+      padding: 5px 8px;
+      text-align: left;
+    }
+
+    .remote-connection-row:hover,
+    .remote-connection-row:focus-visible,
+    .remote-directory-row:hover,
+    .remote-directory-row:focus-visible,
+    .remote-connection-row.is-selected {
+      background: var(--active-bg);
+    }
+
+    .remote-connection-row.is-selected {
+      box-shadow: inset 3px 0 var(--accent);
+    }
+
+    .remote-connection-row-title {
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .remote-connection-row-detail {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .remote-empty-state {
+      margin: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .remote-connection-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .remote-connection-form[hidden] {
+      display: none;
+    }
+
+    .remote-connection-form-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .remote-form-wide {
+      grid-column: 1 / -1;
+    }
+
+    .remote-checkbox-field {
+      display: flex;
+      align-items: center;
+      align-self: end;
+      min-height: 36px;
+      gap: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .remote-inline-actions,
+    .remote-manager-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .remote-actions-spacer {
+      flex: 1 1 auto;
+    }
+
+    .remote-prompt-dialog {
+      width: min(100%, 520px);
+    }
+
+    .remote-prompt-message {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .remote-host-fingerprint,
+    .remote-log-contents {
+      margin: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code-bg);
+      padding: 12px;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .remote-folder-dialog {
+      width: min(100%, 640px);
+    }
+
+    .remote-folder-body {
+      grid-template-rows: auto minmax(180px, 1fr) auto;
+    }
+
+    .remote-folder-path-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 8px;
+    }
+
+    .remote-directory-list {
+      max-height: none;
+    }
+
+    .remote-directory-row {
+      min-height: 34px;
+      align-content: center;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    .remote-directory-row::before {
+      content: "▸ ";
+      color: var(--muted);
+    }
+
+    .remote-log-dialog {
+      width: min(100%, 780px);
+    }
+
+    .remote-log-contents {
+      min-height: 320px;
+      max-height: 55vh;
+    }
+
     @media (max-width: 1180px) {
       .document-title {
         flex: 1 1 160px;
@@ -3107,6 +3340,10 @@
         display: none;
       }
 
+      .status-bar-remote {
+        max-width: 132px;
+      }
+
       .group+.group {
         padding-left: 4px;
       }
@@ -3168,6 +3405,21 @@
 
       .ai-settings-model-row {
         grid-template-columns: minmax(0, 1fr);
+      }
+
+      .remote-connection-lists,
+      .remote-connection-form-grid,
+      .remote-folder-path-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .remote-connection-list {
+        min-height: 100px;
+        max-height: 160px;
+      }
+
+      .remote-actions-spacer {
+        display: none;
       }
 
       .ai-review-grid {

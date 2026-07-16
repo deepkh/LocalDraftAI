@@ -69,4 +69,4 @@ Exact aliases from `~/.ssh/config` may supply `Host`, `HostName`, `User`, `Port`
 
 An unknown host key must be confirmed by fingerprint before it is appended to the bridge-managed `known_hosts`. A changed key is blocked and reports both expected and received fingerprints; it is never replaced automatically.
 
-The SSH/SFTP protocol foundation is active, but remote connection controls and remote workspace file operations remain hidden until their frontend phases are complete. The hosted `https://localdraft.ai/` app remains local-only and does not probe a loopback bridge.
+When loaded from the authenticated bridge origin, LocalDraftAI exposes remote status, connection management, host-key and secret prompts, folder browsing, and the redacted connection log. The same commands remain disabled on the hosted and standalone static app. Remote workspace file operations arrive in the storage-provider phases. The hosted `https://localdraft.ai/` app remains local-only and does not probe a loopback bridge.
