@@ -26,11 +26,22 @@
 
     function setDocument(state) {
       var dirty = Boolean(state && state.dirty);
+      var remoteChanged = Boolean(state && state.remoteChanged);
       var title = String(state && state.title || "Untitled.md");
 
-      context.document.textContent = dirty ? "Unsaved" : "";
-      context.document.hidden = !dirty;
-      context.document.title = dirty ? title + " has unsaved changes" : title;
+      context.document.textContent = dirty && remoteChanged
+        ? "Unsaved · Remote changed"
+        : dirty
+          ? "Unsaved"
+          : remoteChanged
+            ? "Remote changed"
+            : "";
+      context.document.hidden = !dirty && !remoteChanged;
+      context.document.title = remoteChanged
+        ? title + " changed on the remote server" + (dirty ? " and has unsaved changes" : "")
+        : dirty
+          ? title + " has unsaved changes"
+          : title;
     }
 
     function setDocumentType(typeId) {

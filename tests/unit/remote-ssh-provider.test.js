@@ -68,6 +68,7 @@ async function runTest(name, callback) {
         return { path: params.name, name: params.name, revision: { size: 10, mtimeMs: 8, hash: "duplicate" } };
       }
       if (method === "workspace.close") return { closed: true };
+      if (method === "workspace.getStatus") return { available: true, workspace: { id: params.workspaceId } };
       return {};
     }
   };
@@ -86,6 +87,7 @@ async function runTest(name, callback) {
     assert.equal(workspace.capabilities.read, true);
     assert.equal(workspace.capabilities.write, true);
     assert.equal(workspace.capabilities.createFile, true);
+    assert.equal((await provider.getWorkspaceStatus(workspace)).available, true);
   });
 
   await runTest("filters unsupported files and creates credential-free resources", async function () {

@@ -3197,6 +3197,37 @@
       width: min(100%, 560px);
     }
 
+    .remote-conflict-dialog {
+      width: min(100%, 780px);
+      max-height: min(760px, calc(100vh - 48px));
+    }
+
+    .remote-conflict-body {
+      min-height: 0;
+    }
+
+    .remote-conflict-comparison {
+      min-height: 140px;
+      max-height: 48vh;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code-bg);
+    }
+
+    .remote-conflict-comparison .ai-diff-unified {
+      border: 0;
+      border-radius: 0;
+    }
+
+    .remote-conflict-actions {
+      flex-wrap: wrap;
+    }
+
+    .tab-dirty.is-remote-changed {
+      color: var(--status-warning-text);
+    }
+
     .remote-folder-body {
       grid-template-rows: auto minmax(180px, 1fr) auto;
     }

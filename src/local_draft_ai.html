@@ -433,6 +433,27 @@
       </div>
     </div>
 
+    <div id="remoteConflictOverlay" class="ai-settings-overlay remote-overlay" hidden>
+      <div id="remoteConflictDialog" class="ai-settings-dialog remote-conflict-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="remoteConflictTitle" tabindex="-1">
+        <div class="ai-settings-header">
+          <h2 id="remoteConflictTitle">Remote File Conflict</h2>
+          <button type="button" id="remoteConflictClose" class="icon-text ai-settings-close" aria-label="Close remote conflict dialog">×</button>
+        </div>
+        <div class="ai-settings-body remote-conflict-body">
+          <p id="remoteConflictMessage" class="remote-prompt-message">The remote file changed after you opened it.</p>
+          <div id="remoteConflictStatus" class="ai-settings-status" aria-live="polite"></div>
+          <section id="remoteConflictComparison" class="remote-conflict-comparison" aria-label="Editor and remote file comparison" hidden></section>
+        </div>
+        <div class="ai-settings-actions remote-conflict-actions">
+          <button type="button" id="remoteConflictCompare" class="file-button">Compare Changes</button>
+          <button type="button" id="remoteConflictReload" class="file-button">Reload Remote</button>
+          <button type="button" id="remoteConflictOverwrite" class="file-button">Overwrite</button>
+          <button type="button" id="remoteConflictCancel" class="file-button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div id="aboutOverlay" class="about-overlay" hidden>
       <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"
         aria-describedby="aboutBody" tabindex="-1">

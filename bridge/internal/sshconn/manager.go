@@ -26,6 +26,7 @@ type ManagerConfig struct {
 	DialTimeout       time.Duration
 	KeepaliveInterval time.Duration
 	KeepaliveFailures int
+	ReconnectDelays   []time.Duration
 }
 
 type PromptResponse struct {
@@ -39,6 +40,10 @@ type pendingPrompt struct {
 	response     chan PromptResponse
 }
 
+type automaticReconnect struct {
+	cancel context.CancelFunc
+}
+
 type Manager struct {
 	config      ManagerConfig
 	verifier    *HostKeyVerifier
@@ -46,6 +51,8 @@ type Manager struct {
 	connections map[string]*Connection
 	promptMu    sync.Mutex
 	prompts     map[string]pendingPrompt
+	reconnectMu sync.Mutex
+	reconnects  map[string]*automaticReconnect
 }
 
 func NewManager(config ManagerConfig) *Manager {
@@ -58,11 +65,15 @@ func NewManager(config ManagerConfig) *Manager {
 	if config.KeepaliveFailures <= 0 {
 		config.KeepaliveFailures = 3
 	}
+	if len(config.ReconnectDelays) == 0 {
+		config.ReconnectDelays = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+	}
 	return &Manager{
 		config:      config,
 		verifier:    NewHostKeyVerifier(config.Paths.KnownHostsFile),
 		connections: make(map[string]*Connection),
 		prompts:     make(map[string]pendingPrompt),
+		reconnects:  make(map[string]*automaticReconnect),
 	}
 }
 
@@ -200,6 +211,7 @@ func (m *Manager) dial(ctx context.Context, profile bridgeconfig.Profile, method
 }
 
 func (m *Manager) Disconnect(connectionID string) error {
+	m.cancelAutomaticReconnect(connectionID)
 	m.mu.RLock()
 	connection := m.connections[connectionID]
 	m.mu.RUnlock()
@@ -227,8 +239,77 @@ func (m *Manager) Close() {
 }
 
 func (m *Manager) Reconnect(ctx context.Context, connectionID string) (Status, error) {
+	m.cancelAutomaticReconnect(connectionID)
 	_ = m.Disconnect(connectionID)
 	return m.Connect(ctx, connectionID)
+}
+
+func (m *Manager) startAutomaticReconnect(connectionID string) {
+	m.reconnectMu.Lock()
+	if _, exists := m.reconnects[connectionID]; exists {
+		m.reconnectMu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	attempt := &automaticReconnect{cancel: cancel}
+	m.reconnects[connectionID] = attempt
+	m.reconnectMu.Unlock()
+
+	go func() {
+		defer func() {
+			m.reconnectMu.Lock()
+			if m.reconnects[connectionID] == attempt {
+				delete(m.reconnects, connectionID)
+			}
+			m.reconnectMu.Unlock()
+		}()
+		for _, delay := range m.config.ReconnectDelays {
+			m.mu.RLock()
+			connection := m.connections[connectionID]
+			m.mu.RUnlock()
+			if connection == nil {
+				return
+			}
+			m.reconnectMu.Lock()
+			if m.reconnects[connectionID] != attempt || ctx.Err() != nil {
+				m.reconnectMu.Unlock()
+				return
+			}
+			connection.setState(StateReconnecting, "", "")
+			m.reconnectMu.Unlock()
+			m.emit("connection.stateChanged", connection.status())
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return
+			case <-timer.C:
+			}
+			status, err := m.Connect(ctx, connectionID)
+			if err == nil && status.State == StateConnected {
+				return
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			_, _, retryable, _ := classifyConnectionError(err)
+			if !retryable {
+				return
+			}
+		}
+	}()
+}
+
+func (m *Manager) cancelAutomaticReconnect(connectionID string) {
+	m.reconnectMu.Lock()
+	attempt := m.reconnects[connectionID]
+	delete(m.reconnects, connectionID)
+	m.reconnectMu.Unlock()
+	if attempt != nil {
+		attempt.cancel()
+	}
 }
 
 func (m *Manager) GetStatus(connectionID string) (Status, bool) {

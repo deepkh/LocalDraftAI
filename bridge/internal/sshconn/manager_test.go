@@ -52,6 +52,7 @@ type promptAnswers struct {
 	mu          sync.Mutex
 	hostPrompts int
 	secretTypes []string
+	states      []State
 }
 
 func newPromptingManager(t *testing.T, paths bridgeconfig.Paths, store *bridgeconfig.Store, answers *promptAnswers, configure func(*ManagerConfig)) *Manager {
@@ -63,6 +64,14 @@ func newPromptingManager(t *testing.T, paths bridgeconfig.Paths, store *bridgeco
 		DialTimeout:       5 * time.Second,
 		KeepaliveInterval: time.Hour,
 		Events: func(method string, params any) {
+			if method == "connection.stateChanged" {
+				if status, ok := params.(Status); ok {
+					answers.mu.Lock()
+					answers.states = append(answers.states, status.State)
+					answers.mu.Unlock()
+				}
+				return
+			}
 			values, ok := params.(map[string]any)
 			if !ok {
 				return
@@ -99,6 +108,20 @@ func newPromptingManager(t *testing.T, paths bridgeconfig.Paths, store *bridgeco
 	}
 	manager = NewManager(config)
 	return manager
+}
+
+func waitForState(t *testing.T, manager *Manager, connectionID string, expected State) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		status, _ := manager.GetStatus(connectionID)
+		if status.State == expected {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	status, _ := manager.GetStatus(connectionID)
+	t.Fatalf("connection state = %s, want %s", status.State, expected)
 }
 
 func TestIdentityAuthenticationHostTrustSFTPAndReconnect(t *testing.T) {
@@ -347,20 +370,125 @@ func TestAuthenticationFailureAndKeepaliveDisconnect(t *testing.T) {
 	manager = newPromptingManager(t, paths, store, answers, func(config *ManagerConfig) {
 		config.KeepaliveInterval = 10 * time.Millisecond
 		config.KeepaliveFailures = 1
+		config.ReconnectDelays = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
 	})
 	if _, err := manager.Connect(context.Background(), profile.ID); err != nil {
 		t.Fatal(err)
 	}
 	server.CloseConnections()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		status, _ = manager.GetStatus(profile.ID)
-		if status.State == StateDisconnected && status.ErrorCode == "CONNECTION_LOST" {
+		answers.mu.Lock()
+		sawReconnecting := false
+		connectedCount := 0
+		for _, state := range answers.states {
+			if state == StateReconnecting {
+				sawReconnecting = true
+			}
+			if state == StateConnected {
+				connectedCount++
+			}
+		}
+		answers.mu.Unlock()
+		if status.State == StateConnected && sawReconnecting && connectedCount >= 2 {
+			_ = manager.Disconnect(profile.ID)
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("keepalive did not detect disconnect: %#v", status)
+	t.Fatalf("keepalive did not reconnect: %#v", status)
+}
+
+func TestAutomaticReconnectStopsAfterThreeRetryableFailures(t *testing.T) {
+	server, err := testssh.Start(testssh.Options{Root: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := managerPaths(t)
+	identityPath := filepath.Join(t.TempDir(), "id_ed25519")
+	if err := server.WriteIdentityFile(identityPath, nil); err != nil {
+		t.Fatal(err)
+	}
+	profile := serverProfile(server)
+	profile.Auth.IdentityFile = identityPath
+	store := bridgeconfig.NewStore(paths)
+	profile, err = store.Create(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers := &promptAnswers{trust: true}
+	manager := newPromptingManager(t, paths, store, answers, func(config *ManagerConfig) {
+		config.DialTimeout = 50 * time.Millisecond
+		config.KeepaliveInterval = 10 * time.Millisecond
+		config.KeepaliveFailures = 1
+		config.ReconnectDelays = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
+	})
+	defer manager.Close()
+	if _, err := manager.Connect(context.Background(), profile.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	var status Status
+	for time.Now().Before(deadline) {
+		status, _ = manager.GetStatus(profile.ID)
+		answers.mu.Lock()
+		reconnecting := 0
+		for _, state := range answers.states {
+			if state == StateReconnecting {
+				reconnecting++
+			}
+		}
+		answers.mu.Unlock()
+		if status.State == StateError && reconnecting == 3 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("automatic reconnect status = %#v, states = %#v", status, answers.states)
+}
+
+func TestDisconnectCancelsAutomaticReconnect(t *testing.T) {
+	server, err := testssh.Start(testssh.Options{Root: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	paths := managerPaths(t)
+	identityPath := filepath.Join(t.TempDir(), "id_ed25519")
+	if err := server.WriteIdentityFile(identityPath, nil); err != nil {
+		t.Fatal(err)
+	}
+	profile := serverProfile(server)
+	profile.Auth.IdentityFile = identityPath
+	store := bridgeconfig.NewStore(paths)
+	profile, err = store.Create(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers := &promptAnswers{trust: true}
+	manager := newPromptingManager(t, paths, store, answers, func(config *ManagerConfig) {
+		config.KeepaliveInterval = 10 * time.Millisecond
+		config.KeepaliveFailures = 1
+		config.ReconnectDelays = []time.Duration{200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond}
+	})
+	defer manager.Close()
+	if _, err := manager.Connect(context.Background(), profile.ID); err != nil {
+		t.Fatal(err)
+	}
+	server.CloseConnections()
+	waitForState(t, manager, profile.ID, StateReconnecting)
+	if err := manager.Disconnect(profile.ID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(250 * time.Millisecond)
+	status, _ := manager.GetStatus(profile.ID)
+	if status.State != StateDisconnected {
+		t.Fatalf("status after disconnect = %#v", status)
+	}
 }
 
 func TestConnectionHandshakeTimeout(t *testing.T) {

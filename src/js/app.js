@@ -18,6 +18,7 @@
   var remoteStatus = ME.remoteStatus;
   var remoteConnectionUI = ME.remoteConnectionUI;
   var remoteSSHProviderModule = ME.remoteSSHProvider;
+  var textDiff = ME.aiDiff;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
   var EDITOR_MODES = editorMode.EDITOR_MODES;
@@ -176,6 +177,16 @@
   var remoteSaveAsCancel = document.getElementById("remoteSaveAsCancel");
   var remoteSaveAsClose = document.getElementById("remoteSaveAsClose");
   var remoteSaveAsSave = document.getElementById("remoteSaveAsSave");
+  var remoteConflictOverlay = document.getElementById("remoteConflictOverlay");
+  var remoteConflictDialog = document.getElementById("remoteConflictDialog");
+  var remoteConflictClose = document.getElementById("remoteConflictClose");
+  var remoteConflictMessage = document.getElementById("remoteConflictMessage");
+  var remoteConflictStatus = document.getElementById("remoteConflictStatus");
+  var remoteConflictComparison = document.getElementById("remoteConflictComparison");
+  var remoteConflictCompare = document.getElementById("remoteConflictCompare");
+  var remoteConflictReload = document.getElementById("remoteConflictReload");
+  var remoteConflictOverwrite = document.getElementById("remoteConflictOverwrite");
+  var remoteConflictCancel = document.getElementById("remoteConflictCancel");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
@@ -207,6 +218,10 @@
   var remoteStatusController;
   var remoteConnectionController;
   var remoteSSHProvider;
+  var remoteConnectionState = "disconnected";
+  var remoteConnectionWasUnavailable = false;
+  var remoteRecoveryPromise = null;
+  var remoteConflictState = null;
   var actions;
   var aiAssistant;
   var workspaceSidebar;
@@ -931,6 +946,7 @@
     if (statusBarController) {
       statusBarController.setDocument({
         dirty: Boolean(session && session.dirty),
+        remoteChanged: Boolean(session && session.remoteChanged),
         title: title
       });
       if (session) {
@@ -1652,6 +1668,40 @@
     return Boolean(workspaceState.workspace && workspaceState.id);
   }
 
+  function remoteWorkspaceConnected() {
+    return Boolean(
+      workspaceState.providerId !== "remote-ssh" ||
+      remoteConnectionState === "connected"
+    );
+  }
+
+  function activeWorkspaceCapabilities() {
+    var capabilities = Object.assign(
+      {},
+      workspaceState.workspace && workspaceState.workspace.capabilities || {}
+    );
+
+    if (workspaceState.providerId === "remote-ssh" && !remoteWorkspaceConnected()) {
+      ["read", "write", "createFile", "createDirectory", "rename", "duplicate", "search", "binaryAssets"].forEach(function (name) {
+        capabilities[name] = false;
+      });
+    }
+    return capabilities;
+  }
+
+  function requireRemoteWorkspaceConnection(action) {
+    if (workspaceState.providerId !== "remote-ssh" || remoteWorkspaceConnected()) {
+      return true;
+    }
+    if (statusBarController) {
+      statusBarController.showMessage(
+        "Reconnect the SSH workspace before " + String(action || "using the remote filesystem") + ". Open tabs and unsaved text are unchanged.",
+        8000
+      );
+    }
+    return false;
+  }
+
   function sessionBelongsToWorkspace(session) {
     return Boolean(
       session &&
@@ -1762,7 +1812,7 @@
       selectedPath: selectedWorkspacePath(),
       workspaceState: {
         directories: workspaceState.directories,
-        capabilities: workspaceState.workspace && workspaceState.workspace.capabilities || {},
+        capabilities: activeWorkspaceCapabilities(),
         error: workspaceState.error,
         files: workspaceState.files,
         isScanning: workspaceState.isScanning,
@@ -1781,6 +1831,7 @@
   function updateWorkspaceMenuControls() {
     var hasWorkspace = hasActiveWorkspace();
     var supported = isWorkspaceSupported();
+    var workspaceReadable = hasWorkspace && remoteWorkspaceConnected();
 
     if (openWorkspaceFolderButton) {
       openWorkspaceFolderButton.disabled = !supported;
@@ -1789,7 +1840,7 @@
         : "Folder workspace is supported in Chrome or Edge. You can still open individual text documents.";
     }
     if (refreshWorkspaceButton) {
-      refreshWorkspaceButton.disabled = !hasWorkspace || workspaceState.isScanning;
+      refreshWorkspaceButton.disabled = !workspaceReadable || workspaceState.isScanning;
     }
     if (restoreWorkspaceButton) {
       restoreWorkspaceButton.disabled = !restorableWorkspaceSession;
@@ -1801,10 +1852,10 @@
       closeWorkspaceButton.disabled = !hasWorkspace;
     }
     if (expandWorkspaceFoldersButton) {
-      expandWorkspaceFoldersButton.disabled = !hasWorkspace;
+      expandWorkspaceFoldersButton.disabled = !workspaceReadable;
     }
     if (collapseWorkspaceFoldersButton) {
-      collapseWorkspaceFoldersButton.disabled = !hasWorkspace;
+      collapseWorkspaceFoldersButton.disabled = !workspaceReadable;
     }
     if (remoteConnectionController) {
       remoteConnectionController.updateCommandElements(workspaceMenu);
@@ -2258,7 +2309,7 @@
   async function handleExpandWorkspaceFolder(path) {
     var result;
 
-    if (!workspaceState.lazy || !workspaceStore || !workspaceStore.loadDirectory) {
+    if (!workspaceState.lazy || !workspaceStore || !workspaceStore.loadDirectory || !requireRemoteWorkspaceConnection("loading this folder")) {
       return;
     }
     result = await workspaceStore.loadDirectory(workspaceState.workspace, workspaceState.tree, path);
@@ -2562,7 +2613,7 @@
     var result;
 
     closeWorkspaceMenu();
-    if (!hasActiveWorkspace() || !workspaceStore) {
+    if (!hasActiveWorkspace() || !workspaceStore || !requireRemoteWorkspaceConnection("refreshing the workspace")) {
       return;
     }
 
@@ -2593,7 +2644,7 @@
 
   async function handleWorkspaceContentSearch(query) {
     var searchQuery = String(query || "");
-    var capabilities = workspaceState.workspace && workspaceState.workspace.capabilities || {};
+    var capabilities = activeWorkspaceCapabilities();
     var result;
 
     if (!workspaceSearch || !hasActiveWorkspace() || !searchQuery.trim()) {
@@ -2772,6 +2823,10 @@
       window.alert("Save or close unsaved changes before renaming this file.");
       return;
     }
+    if (session && session.remoteChanged) {
+      window.alert("Reload or resolve the remote file change before renaming this file.");
+      return;
+    }
 
     name = window.prompt("Rename file", fileItem.name);
     if (name == null) {
@@ -2817,6 +2872,9 @@
   }
 
   async function handleWorkspaceContextAction(action, target) {
+    if (["refresh", "open", "new-file", "new-folder", "duplicate", "rename"].indexOf(action) >= 0 && !requireRemoteWorkspaceConnection("running this workspace action")) {
+      return;
+    }
     if (action === "refresh") {
       await handleRefreshWorkspace(target && target.kind === "directory" ? target.path : "");
       return;
@@ -2970,7 +3028,7 @@
 
     options = options || {};
     closeWorkspaceMenu();
-    if (!fileItem || !resource) {
+    if (!fileItem || !resource || !requireRemoteWorkspaceConnection("opening a remote file")) {
       return;
     }
 
@@ -3060,6 +3118,7 @@
       workspaceState.workspace &&
       workspaceState.workspace.capabilities &&
       workspaceState.workspace.capabilities.write &&
+      remoteConnectionState === "connected" &&
       remoteSSHProvider && remoteSSHProvider.isAvailable()
     );
 
@@ -3572,12 +3631,12 @@
       tab.setAttribute("aria-selected", String(isActive));
       tab.setAttribute("tabindex", isActive ? "0" : "-1");
       tab.setAttribute("data-session-id", session.id);
-      tab.setAttribute("aria-label", (session.dirty ? "Unsaved changes, " : "") + session.title);
-      tab.title = session.title + (session.dirty ? " has unsaved changes" : "");
+      tab.setAttribute("aria-label", (session.dirty ? "Unsaved changes, " : "") + (session.remoteChanged ? "Changed remotely, " : "") + session.title);
+      tab.title = session.title + (session.dirty ? " has unsaved changes" : "") + (session.remoteChanged ? " changed on the remote server" : "");
 
-      dirty.className = "tab-dirty";
+      dirty.className = "tab-dirty" + (session.remoteChanged ? " is-remote-changed" : "");
       dirty.setAttribute("aria-hidden", "true");
-      dirty.textContent = session.dirty ? "*" : "";
+      dirty.textContent = session.dirty ? "*" : session.remoteChanged ? "!" : "";
 
       title.className = "tab-title";
       title.textContent = session.title;
@@ -3822,6 +3881,295 @@
     }
   }
 
+  function setRemoteConflictBusy(busy) {
+    [remoteConflictCompare, remoteConflictReload, remoteConflictOverwrite, remoteConflictCancel, remoteConflictClose].forEach(function (button) {
+      if (button) {
+        button.disabled = Boolean(busy);
+      }
+    });
+  }
+
+  function setRemoteConflictStatus(message, kind) {
+    if (!remoteConflictStatus) {
+      return;
+    }
+    remoteConflictStatus.textContent = String(message || "");
+    if (kind) {
+      remoteConflictStatus.dataset.status = kind;
+    } else {
+      remoteConflictStatus.removeAttribute("data-status");
+    }
+  }
+
+  function closeRemoteConflict() {
+    if (remoteConflictOverlay) {
+      remoteConflictOverlay.hidden = true;
+    }
+    if (remoteConflictComparison) {
+      remoteConflictComparison.hidden = true;
+      remoteConflictComparison.textContent = "";
+    }
+    setRemoteConflictStatus("");
+    setRemoteConflictBusy(false);
+    remoteConflictState = null;
+  }
+
+  async function loadRemoteConflictData() {
+    if (!remoteConflictState || !remoteConflictState.session) {
+      throw new Error("The conflicted document is no longer available.");
+    }
+    if (!remoteConflictState.remoteData) {
+      remoteConflictState.remoteData = await fileStore.openResource(remoteConflictState.session.storageResource);
+    }
+    return remoteConflictState.remoteData;
+  }
+
+  function showRemoteConflict(session, error) {
+    if (!session || !remoteConflictOverlay) {
+      showFileError("Save", error);
+      return;
+    }
+    session.remoteChanged = true;
+    session.remoteRevision = error && error.details && error.details.currentRevision || null;
+    remoteConflictState = {
+      error: error,
+      remoteData: null,
+      session: session
+    };
+    if (remoteConflictMessage) {
+      remoteConflictMessage.textContent = "The remote file changed after you opened it. Your editor text has not been changed.";
+    }
+    remoteConflictComparison.hidden = true;
+    remoteConflictComparison.textContent = "";
+    setRemoteConflictStatus("");
+    setRemoteConflictBusy(false);
+    remoteConflictOverlay.hidden = false;
+    renderTabs();
+    updateDocumentTitle();
+    window.requestAnimationFrame(function () {
+      remoteConflictCompare.focus();
+    });
+  }
+
+  async function compareRemoteConflict() {
+    var state = remoteConflictState;
+    var remoteData;
+    var chunks;
+
+    if (!state || !textDiff) {
+      return;
+    }
+    setRemoteConflictBusy(true);
+    setRemoteConflictStatus("Reading the current remote file…");
+    try {
+      state.remoteData = null;
+      remoteData = await loadRemoteConflictData();
+      chunks = textDiff.diffText(state.session.markdownText, remoteData.markdownText);
+      remoteConflictComparison.textContent = "";
+      remoteConflictComparison.appendChild(textDiff.renderUnifiedDiff(chunks, { hideUnchanged: false }));
+      remoteConflictComparison.hidden = false;
+      setRemoteConflictStatus("The editor version is shown with - lines; the current remote version is shown with + lines.", "success");
+    } catch (error) {
+      setRemoteConflictStatus(error && error.message || "Could not read the current remote file.", "error");
+    } finally {
+      setRemoteConflictBusy(false);
+      remoteConflictCompare.focus();
+    }
+  }
+
+  function applyRemoteFileData(session, fileData) {
+    session.markdownText = fileData.markdownText;
+    session.preferredLineEnding = fileData.preferredLineEnding;
+    session.hasUtf8Bom = fileData.hasUtf8Bom;
+    session.hasFinalNewline = fileData.hasFinalNewline;
+    session.storageProviderId = fileData.storageProviderId;
+    session.storageResource = fileData.storageResource;
+    session.storageRevision = fileData.storageRevision;
+    session.remoteChanged = false;
+    session.remoteMissing = false;
+    session.remoteRevision = null;
+    session.dirty = false;
+    if (session.history) {
+      session.history.reset(session.markdownText);
+    }
+    if (session === getActiveSession()) {
+      setActiveSession(session, { restoreScroll: true });
+    } else {
+      renderTabs();
+      updateDocumentTitle();
+    }
+  }
+
+  async function reloadRemoteConflict() {
+    var state = remoteConflictState;
+    var remoteData;
+
+    if (!state) {
+      return;
+    }
+    if (state.session.dirty && !window.confirm("Reload the remote file and discard the unsaved editor changes?")) {
+      setRemoteConflictStatus("Reload cancelled. Your editor text is unchanged.");
+      return;
+    }
+    setRemoteConflictBusy(true);
+    setRemoteConflictStatus("Reloading the remote file…");
+    try {
+      state.remoteData = null;
+      remoteData = await loadRemoteConflictData();
+      applyRemoteFileData(state.session, remoteData);
+      closeRemoteConflict();
+      renderWorkspaceSidebar();
+    } catch (error) {
+      setRemoteConflictStatus(error && error.message || "Could not reload the remote file.", "error");
+      setRemoteConflictBusy(false);
+    }
+  }
+
+  async function overwriteRemoteConflict() {
+    var state = remoteConflictState;
+    var fileItem;
+
+    if (!state) {
+      return;
+    }
+    setRemoteConflictBusy(true);
+    setRemoteConflictStatus("Overwriting the remote file…");
+    try {
+      await fileStore.saveSession(state.session, { force: true });
+      state.session.remoteChanged = false;
+      state.session.remoteMissing = false;
+      state.session.remoteRevision = null;
+      if (state.session === getActiveSession()) {
+        markSessionClean();
+      } else if (state.session.history) {
+        state.session.history.markClean(state.session.markdownText);
+      }
+      fileItem = findWorkspaceFile(state.session.workspacePath);
+      if (fileItem) {
+        fileItem.resource = state.session.storageResource;
+        fileItem.revision = state.session.storageRevision;
+      }
+      closeRemoteConflict();
+      renderTabs();
+      updateDocumentTitle();
+      renderWorkspaceSidebar();
+    } catch (error) {
+      setRemoteConflictStatus(error && error.message || "Could not overwrite the remote file.", "error");
+      setRemoteConflictBusy(false);
+    }
+  }
+
+  function remoteSessionBelongsToActiveWorkspace(session) {
+    return Boolean(
+      session &&
+      session.storageProviderId === "remote-ssh" &&
+      session.workspaceId === workspaceState.id &&
+      session.storageResource
+    );
+  }
+
+  async function recoverRemoteWorkspaceAfterReconnect() {
+    var sessions;
+    var changedCount = 0;
+    var missingCount = 0;
+    var result;
+
+    if (
+      workspaceState.providerId !== "remote-ssh" ||
+      !workspaceState.workspace ||
+      !remoteSSHProvider ||
+      remoteConnectionState !== "connected"
+    ) {
+      return;
+    }
+
+    await remoteSSHProvider.getWorkspaceStatus(workspaceState.workspace);
+    result = await workspaceStore.refreshDirectory(workspaceState.workspace, workspaceState.tree, "");
+    workspaceState.tree = result.tree;
+    workspaceState.files = result.files;
+    workspaceState.directories = result.directories;
+
+    sessions = tabs.listSessions().filter(remoteSessionBelongsToActiveWorkspace);
+    await Promise.all(sessions.map(async function (session) {
+      var remoteData;
+      var previousHash = session.storageRevision && session.storageRevision.hash || "";
+      var currentHash;
+
+      try {
+        remoteData = await fileStore.openResource(session.storageResource);
+        currentHash = remoteData.storageRevision && remoteData.storageRevision.hash || "";
+        session.remoteMissing = false;
+        if (previousHash && currentHash === previousHash) {
+          session.storageResource = remoteData.storageResource;
+          session.storageRevision = remoteData.storageRevision;
+          session.remoteChanged = false;
+          session.remoteRevision = null;
+          return;
+        }
+        session.remoteChanged = true;
+        session.remoteRevision = remoteData.storageRevision;
+        changedCount += 1;
+      } catch (error) {
+        if (error && error.code === "RESOURCE_NOT_FOUND") {
+          session.remoteMissing = true;
+          session.remoteChanged = true;
+          session.remoteRevision = null;
+          missingCount += 1;
+          return;
+        }
+        throw error;
+      }
+    }));
+
+    renderTabs();
+    updateDocumentTitle();
+    renderWorkspaceSidebar();
+    if (statusBarController) {
+      statusBarController.showMessage(
+        changedCount || missingCount
+          ? "SSH workspace reconnected. " + String(changedCount) + " open file" + (changedCount === 1 ? " has" : "s have") + " remote changes" + (missingCount ? "; " + String(missingCount) + " file" + (missingCount === 1 ? " is" : "s are") + " missing" : "") + "."
+          : "SSH workspace reconnected. Open remote files are unchanged.",
+        changedCount || missingCount ? 8000 : 4000
+      );
+    }
+  }
+
+  function handleRemoteConnectionStateChange(connection) {
+    var activeAuthority = workspaceState.workspace && workspaceState.workspace.authority;
+    var appliesToWorkspace = Boolean(
+      workspaceState.providerId === "remote-ssh" &&
+      activeAuthority &&
+      (!connection.connectionId || connection.connectionId === activeAuthority.connectionId)
+    );
+
+    remoteConnectionState = String(connection && connection.state || "disconnected");
+    if (appliesToWorkspace && remoteConnectionState !== "connected") {
+      remoteConnectionWasUnavailable = true;
+    }
+    updateFileControls();
+    renderWorkspaceSidebar();
+
+    if (!appliesToWorkspace || remoteConnectionState !== "connected" || !remoteConnectionWasUnavailable) {
+      return Promise.resolve();
+    }
+    if (remoteRecoveryPromise) {
+      return remoteRecoveryPromise;
+    }
+    remoteConnectionWasUnavailable = false;
+    remoteRecoveryPromise = recoverRemoteWorkspaceAfterReconnect().catch(function (error) {
+      remoteConnectionWasUnavailable = true;
+      if (statusBarController) {
+        statusBarController.showMessage(error && error.message || "The remote workspace could not be recovered after reconnecting.", 8000);
+      }
+      throw error;
+    }).finally(function () {
+      remoteRecoveryPromise = null;
+      updateFileControls();
+      renderWorkspaceSidebar();
+    });
+    return remoteRecoveryPromise;
+  }
+
   async function handleSaveFile() {
     var activeSession = getActiveSession();
     var remoteSession = Boolean(activeSession && activeSession.storageProviderId === "remote-ssh");
@@ -3829,6 +4177,12 @@
 
     closeFileMenu();
     if (!activeSession || !remoteSession && !isFileAccessSupported()) {
+      return;
+    }
+    if (remoteSession && remoteConnectionState !== "connected") {
+      if (statusBarController) {
+        statusBarController.showMessage("Reconnect the SSH workspace before saving. Your unsaved text is still in memory.", 8000);
+      }
       return;
     }
 
@@ -3842,6 +4196,9 @@
         await addRecentFile(activeSession.fileHandle, activeSession.title);
       }
       if (remoteSession) {
+        activeSession.remoteChanged = false;
+        activeSession.remoteMissing = false;
+        activeSession.remoteRevision = null;
         fileItem = findWorkspaceFile(activeSession.workspacePath);
         if (fileItem) {
           fileItem.resource = activeSession.storageResource;
@@ -3850,7 +4207,11 @@
       }
       renderWorkspaceSidebar();
     } catch (error) {
-      showFileError("Save", error);
+      if (remoteSession && error && error.code === "REVISION_CONFLICT") {
+        showRemoteConflict(activeSession, error);
+      } else {
+        showFileError("Save", error);
+      }
     }
   }
 
@@ -3932,6 +4293,12 @@
     if (!activeSession || !remoteSession && !isFileAccessSupported()) {
       return;
     }
+    if (remoteSession && remoteConnectionState !== "connected") {
+      if (statusBarController) {
+        statusBarController.showMessage("Reconnect the SSH workspace before using Save As. Your unsaved text is still in memory.", 8000);
+      }
+      return;
+    }
 
     flushActiveEditor();
     validateSession(activeSession);
@@ -3945,6 +4312,9 @@
       }
       await fileStore.saveSessionAs(activeSession, { path: remotePath });
       if (remoteSession) {
+        activeSession.remoteChanged = false;
+        activeSession.remoteMissing = false;
+        activeSession.remoteRevision = null;
         activeSession.workspaceDirHandle = null;
         activeSession.workspaceFileHandle = null;
         activeSession.workspaceId = workspaceState.id;
@@ -4634,6 +5004,24 @@
         closeAboutDialog();
       }
     });
+    if (remoteConflictCompare) {
+      remoteConflictCompare.addEventListener("click", compareRemoteConflict);
+      remoteConflictReload.addEventListener("click", reloadRemoteConflict);
+      remoteConflictOverwrite.addEventListener("click", overwriteRemoteConflict);
+      remoteConflictCancel.addEventListener("click", closeRemoteConflict);
+      remoteConflictClose.addEventListener("click", closeRemoteConflict);
+      remoteConflictOverlay.addEventListener("click", function (event) {
+        if (event.target === remoteConflictOverlay) {
+          closeRemoteConflict();
+        }
+      });
+      remoteConflictDialog.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeRemoteConflict();
+        }
+      });
+    }
 
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
@@ -4995,6 +5383,9 @@
           sourceOnly: Boolean(session && session.sourceOnly),
           validationState: session ? session.validationState : null,
           storageProviderId: session ? session.storageProviderId : "",
+          remoteChanged: Boolean(session && session.remoteChanged),
+          remoteMissing: Boolean(session && session.remoteMissing),
+          remoteConnectionState: remoteConnectionState,
           title: session ? session.title : "",
           markdownHidden: markdownEditor.hidden,
           wysiwygHidden: wysiwygEditor.hidden
@@ -5149,6 +5540,7 @@
             statusBarController.showMessage(message, kind === "error" ? 8000 : 4000);
           }
         },
+        onConnectionStateChange: handleRemoteConnectionStateChange,
         onRemoteFolderSelected: handleOpenRemoteWorkspace,
         profileForm: document.getElementById("remoteConnectionForm"),
         profileFormCancel: document.getElementById("remoteConnectionFormCancel"),

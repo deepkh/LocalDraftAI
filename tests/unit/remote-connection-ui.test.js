@@ -148,6 +148,31 @@ function runTest(name, callback) {
     assert.equal(await ui.openManager(), false);
     assert.match(message, /LocalDraft Bridge/);
   });
+
+  await runTest("announces connection state changes for workspace recovery", async function () {
+    const callbacks = {};
+    const states = [];
+    const ui = remoteConnectionUI.create({
+      onConnectionStateChange(connection) { states.push(connection.state); },
+      statusController: {
+        getCommandAvailability() { return {}; },
+        setBridgeAvailable() {},
+        setConnection() {}
+      }
+    });
+    ui.setBridgeClient({
+      on(method, callback) {
+        callbacks[method] = callback;
+        return function () {};
+      }
+    });
+
+    callbacks["connection.stateChanged"]({ connectionId: "home", state: "disconnected" });
+    callbacks["connection.stateChanged"]({ connectionId: "home", state: "reconnecting" });
+    callbacks["connection.stateChanged"]({ connectionId: "home", state: "connected" });
+
+    assert.deepEqual(states, ["disconnected", "reconnecting", "connected"]);
+  });
 }()).catch(function (error) {
   process.exitCode = 1;
   throw error;

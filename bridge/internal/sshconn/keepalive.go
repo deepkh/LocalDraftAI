@@ -35,6 +35,7 @@ func (m *Manager) startKeepalive(connection *Connection) {
 					"message":      "The SSH connection was lost.",
 					"retryable":    true,
 				})
+				m.startAutomaticReconnect(connection.profile.ID)
 				return
 			}
 		}

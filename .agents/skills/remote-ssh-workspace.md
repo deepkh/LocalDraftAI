@@ -30,6 +30,10 @@
 - Keep Remote Explorer trees lazy: list the root once, load only an expanded directory, cache loaded children, retain empty directories, filter file types through `document-type.js`, and attach failures to the affected node.
 - Remote text writes must send the session revision, preserve shared text serialization, clear dirty state only after a verified bridge result, and never invoke File System Access pickers. Save As accepts a validated workspace-relative path.
 - New File, New Folder, Rename, and Duplicate dispatch through the active provider. Refresh only the affected lazy directory and update an open tab's resource and workspace path after rename or Save As.
+- On `REVISION_CONFLICT`, leave the editor and dirty state unchanged. Compare uses the shared text-only diff renderer, Reload rereads the remote bytes and requires dirty-change confirmation, Overwrite alone uses `force: true`, and Cancel performs no mutation. Do not couple this flow to AI review revisions.
+- Treat every non-connected SSH state as remote storage unavailable: disable remote reads and writes but keep tabs, editor buffers, history, selections, scroll, modes, and dirty markers. Never fall back to local file access or an offline mirror.
+- After reconnect, verify the workspace root and reread every open resource's authoritative hash. Adopt a new revision only when its hash matches the opened revision; otherwise mark the tab remotely changed and retain the prior expected revision for conflict-safe Save.
+- Automatic reconnect is bridge-owned, limited to three retryable attempts after keepalive loss, and uses approximately 1, 2, and 4 second delays. Explicit Disconnect cancels pending attempts, and authentication or host-key failures must not loop automatically.
 - Keep search, Related, restore, and binary asset capabilities false until their phases land. Asset insertion must fail visibly without a local fallback.
 
 ## Credentials and host keys
@@ -50,4 +54,5 @@
 - Run bridge checks from `bridge/` with Go 1.25 or newer using `go test ./...` and `go vet ./...`.
 - Run browser tests with `for test in tests/e2e/*.headless.mjs; do node --experimental-websocket "$test"; done` when Chrome is available on `PATH`.
 - Run the SSH workspace browser flow with `node --experimental-websocket tests/e2e/remote-ssh-workspace.headless.mjs`; it builds a temporary bridge and uses the in-process SSH/SFTP server for lazy reads and remote mutations.
+- Run conflict and recovery coverage with `node --experimental-websocket tests/e2e/remote-ssh-conflict.headless.mjs` and `node --experimental-websocket tests/e2e/remote-ssh-reconnect.headless.mjs`.
 - Keep remote terminal, command execution, Git, port forwarding, proxy commands, deletion, offline mirrors, multiple active providers, and mixed local/remote workspace tabs out of scope.

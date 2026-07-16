@@ -128,6 +128,11 @@
         status.setConnection(connection);
       }
       updateCommandElements(document);
+      if (typeof context.onConnectionStateChange === "function") {
+        Promise.resolve(context.onConnectionStateChange(Object.assign({}, connection))).catch(function (error) {
+          report(error && error.message || "Could not recover the remote workspace.", "error");
+        });
+      }
       return Object.assign({}, connection);
     }
 

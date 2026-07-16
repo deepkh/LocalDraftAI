@@ -81,6 +81,10 @@ runTest("updates workspace, document, mode, wrap, cursor, and counts", function 
   assert.equal(elements.cursor.textContent, "Ln 2, Col 3");
   assert.equal(elements.wordCount.textContent, "2 words");
   assert.equal(elements.charCount.textContent, "7 chars");
+
+  view.setDocument({ dirty: true, remoteChanged: true, title: "Notes.md" });
+  assert.equal(elements.document.textContent, "Unsaved · Remote changed");
+  assert.match(elements.document.title, /remote server/);
 });
 
 runTest("hides cursor outside Markdown mode and renders accessible AI status", function () {

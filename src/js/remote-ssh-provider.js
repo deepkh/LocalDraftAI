@@ -110,6 +110,13 @@
       await bridge().request("workspace.close", { workspaceId: workspace.id });
     }
 
+    async function getWorkspaceStatus(workspace) {
+      if (!workspace || !workspace.id) {
+        throw storageError("RESOURCE_NOT_FOUND", "The remote workspace is unavailable.");
+      }
+      return bridge().request("workspace.getStatus", { workspaceId: workspace.id });
+    }
+
     async function listDirectory(workspace, relativePath) {
       var result = await bridge().request("fs.listDirectory", {
         workspaceId: workspace.id,
@@ -285,6 +292,7 @@
       saveDocumentAs: saveDocumentAs,
       openWorkspace: openWorkspace,
       closeWorkspace: closeWorkspace,
+      getWorkspaceStatus: getWorkspaceStatus,
       listDirectory: listDirectory,
       stat: stat,
       readText: readText,

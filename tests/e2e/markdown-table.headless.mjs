@@ -205,7 +205,11 @@ async function main() {
     }
     await stopProcess(chrome.process);
     await stopProcess(server);
-    fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 12, recursive: true, retryDelay: 250 });
+    try {
+      fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 12, recursive: true, retryDelay: 250 });
+    } catch (error) {
+      // Chrome can release profile files asynchronously; the OS can remove this temporary directory later.
+    }
   }
 }
 

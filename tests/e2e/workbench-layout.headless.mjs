@@ -373,6 +373,7 @@ async function main() {
     })`), { checked: "false", stored: "light", theme: "light" });
 
     await evaluate(send, `document.querySelector('[data-workbench-view="search"]').click()`);
+    await waitFor(send, `document.activeElement.matches(".workspace-content-search")`);
     let activity = await evaluate(send, `({
       active: document.querySelector("#activityBar .is-active").dataset.workbenchView,
       focusedSearch: document.activeElement.matches(".workspace-content-search"),
