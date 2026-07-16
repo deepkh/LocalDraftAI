@@ -14,12 +14,6 @@ It is designed for people who want a simple Markdown workspace without a heavy d
 
 ---
 
-## Snapshot
-
-![LocalDraftAI snapshot](assets/local-draft-ai-snapshot.png)
-
----
-
 ## Highlights
 
 - **Use instantly online**: open [localdraft.ai](https://localdraft.ai/) and start writing without installing anything.
