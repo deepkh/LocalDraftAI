@@ -108,6 +108,33 @@ function createMockDirectory() {
   const root = createMockDirectory();
   const provider = window.MarkdownEditor.localFilesystemProvider;
   const workspace = provider.createWorkspaceDescriptor(root, { id: "workspace-test" });
+  const folderCalls = [];
+  const createdFolder = await workspaceOperations.createFolder({
+    directoryPath: "drafts",
+    name: "notes",
+    provider: {
+      async createDirectory(activeWorkspace, directoryPath, name) {
+        folderCalls.push({
+          activeWorkspace,
+          directoryPath,
+          name
+        });
+        return { name };
+      }
+    },
+    workspace
+  });
+
+  assert.deepEqual(folderCalls, [{
+    activeWorkspace: workspace,
+    directoryPath: "drafts",
+    name: "notes"
+  }]);
+  assert.deepEqual(createdFolder, {
+    name: "notes",
+    path: "drafts/notes"
+  });
+  console.log("ok - creates folders with normalized workspace-relative paths");
 
   for (const name of ["notes.md", "notes.txt", "application.log", "settings.json", "config.yml", "workflow.yaml"]) {
     const created = await workspaceOperations.createTextFile({

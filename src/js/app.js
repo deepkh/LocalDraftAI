@@ -251,6 +251,7 @@
     error: "",
     lazy: false
   };
+  var preservedWorkspaceDirectoryPaths = Object.create(null);
   var workspaceContentSearchState = {
     error: "",
     isSearching: false,
@@ -1914,6 +1915,50 @@
     return workspaceState.rootName || "";
   }
 
+  function normalizeWorkspaceDirectoryPath(path) {
+    return String(path || "").split("/").filter(Boolean).join("/");
+  }
+
+  function preservedWorkspaceDirectoryPathList() {
+    return Object.keys(preservedWorkspaceDirectoryPaths);
+  }
+
+  function clearPreservedWorkspaceDirectoryPaths() {
+    preservedWorkspaceDirectoryPaths = Object.create(null);
+  }
+
+  function preserveWorkspaceDirectoryPath(path) {
+    path = normalizeWorkspaceDirectoryPath(path);
+    if (path && workspaceState.providerId !== "remote-ssh") {
+      preservedWorkspaceDirectoryPaths[path] = true;
+    }
+  }
+
+  function releaseNaturallyRelevantPreservedDirectoryPaths(result) {
+    var naturalTree;
+
+    if (
+      !result ||
+      result.providerId === "remote-ssh" ||
+      !preservedWorkspaceDirectoryPathList().length ||
+      !workspaceStore ||
+      !workspaceStore.pruneTreeToRelevantFolders ||
+      !workspaceStore.findTreeNode
+    ) {
+      return;
+    }
+
+    naturalTree = workspaceStore.pruneTreeToRelevantFolders(result.tree || []);
+    preservedWorkspaceDirectoryPathList().forEach(function (path) {
+      if (
+        !workspaceStore.findTreeNode(result.tree || [], path) ||
+        workspaceStore.findTreeNode(naturalTree, path)
+      ) {
+        delete preservedWorkspaceDirectoryPaths[path];
+      }
+    });
+  }
+
   function hasActiveWorkspace() {
     return Boolean(workspaceState.workspace && workspaceState.id);
   }
@@ -2333,6 +2378,7 @@
   }
 
   function resetWorkspaceState() {
+    clearPreservedWorkspaceDirectoryPaths();
     workspaceState = {
       directories: [],
       id: "",
@@ -2362,10 +2408,16 @@
 
   function applyWorkspaceScanResult(result) {
     var previousWorkspaceId = workspaceState.id;
+    var nextId = result.workspaceId || workspaceState.id || "workspace-" + nextWorkspaceId++;
+
+    if (previousWorkspaceId && nextId !== previousWorkspaceId) {
+      clearPreservedWorkspaceDirectoryPaths();
+    }
+    releaseNaturallyRelevantPreservedDirectoryPaths(result);
 
     workspaceState = {
       directories: result.directories || [],
-      id: result.workspaceId || workspaceState.id || "workspace-" + nextWorkspaceId++,
+      id: nextId,
       providerId: result.providerId || result.workspace && result.workspace.providerId || "local-fsa",
       rootHandle: result.rootHandle,
       rootName: result.rootName,
@@ -3159,6 +3211,7 @@
         return;
       }
       result = await workspaceStore.scanWorkspace(workspaceState.workspace || workspaceState.rootHandle, {
+        preserveDirectoryPaths: preservedWorkspaceDirectoryPathList(),
         workspaceId: workspaceState.id
       });
       applyWorkspaceScanResult(result);
@@ -3305,6 +3358,7 @@
         provider: activeWorkspaceProvider(),
         workspace: workspaceState.workspace
       });
+      preserveWorkspaceDirectoryPath(result.path);
       await refreshWorkspaceAfterOperation("", result.path);
       if (workspaceSidebar && result.path) {
         workspaceSidebar.revealFile(result.path);

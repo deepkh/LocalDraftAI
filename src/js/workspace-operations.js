@@ -81,6 +81,10 @@
     return [left, right].filter(Boolean).join("/");
   }
 
+  function normalizePath(path) {
+    return String(path || "").split("/").filter(Boolean).join("/");
+  }
+
   function providerAndWorkspace(options) {
     var provider = options.provider || ME.storageProviders && ME.storageProviders.getForWorkspace(options.workspace) || ME.localFilesystemProvider;
     var workspace = options.workspace;
@@ -123,17 +127,22 @@
     var directoryPath = options.directoryPath || "";
     var validation = validateFolderName(options.name);
     var context;
+    var result;
 
     if (!validation.ok) {
       throw new Error(validation.message);
     }
 
     context = providerAndWorkspace(options);
-    return context.provider.createDirectory(
+    result = await context.provider.createDirectory(
       context.workspace,
       directoryPath,
       validation.normalizedName
     );
+    result = Object.assign({}, result || {});
+    result.name = result.name || validation.normalizedName;
+    result.path = normalizePath(result.path || joinPath(directoryPath, result.name));
+    return result;
   }
 
   function suggestedDuplicateName(path) {

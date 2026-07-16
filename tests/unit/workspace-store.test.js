@@ -367,4 +367,52 @@ await runTest("pruning preserves explicit directories, their ancestors, and unkn
   assert.deepEqual(localPruned[0].children.map((node) => node.path), ["drafts/new"]);
   assert.deepEqual(lazyPruned.map((node) => node.path), ["remote"]);
 });
+
+await runTest("local scanning preserves a newly created empty folder and its parent chain", async function () {
+  const scanned = await scanLocalFixture({
+    drafts: {
+      new: {},
+      unrelated: {}
+    }
+  }, "Preserved", {
+    preserveDirectoryPaths: ["drafts/new"]
+  });
+
+  assert.deepEqual(scanned.result.tree.map((node) => node.path), ["drafts"]);
+  assert.deepEqual(scanned.result.tree[0].children.map((node) => node.path), ["drafts/new"]);
+  assert.deepEqual(scanned.result.directories.map((node) => node.path), ["drafts", "drafts/new"]);
+  assert.equal(workspaceStore.findTreeNode(scanned.result.tree, "drafts/unrelated"), null);
+});
+
+await runTest("clearing preserved paths hides an empty folder again", async function () {
+  const tree = {
+    drafts: {
+      new: {}
+    }
+  };
+  const preserved = await scanLocalFixture(tree, "Preserved", {
+    preserveDirectoryPaths: ["drafts/new"]
+  });
+  const cleared = await scanLocalFixture(tree, "Cleared", {
+    preserveDirectoryPaths: []
+  });
+
+  assert.ok(workspaceStore.findTreeNode(preserved.result.tree, "drafts/new"));
+  assert.deepEqual(cleared.result.tree, []);
+  assert.deepEqual(cleared.result.directories, []);
+});
+
+await runTest("a supported descendant keeps a folder visible without preservation", async function () {
+  const scanned = await scanLocalFixture({
+    drafts: {
+      new: {
+        "note.md": "supported"
+      }
+    }
+  });
+
+  assert.ok(workspaceStore.findTreeNode(scanned.result.tree, "drafts"));
+  assert.ok(workspaceStore.findTreeNode(scanned.result.tree, "drafts/new"));
+  assert.ok(workspaceStore.findTreeNode(scanned.result.tree, "drafts/new/note.md"));
+});
 }());
