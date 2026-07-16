@@ -2,8 +2,15 @@
   "use strict";
 
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
+
+  function localProvider() {
+    return ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider || null;
+  }
+
   function isSupported() {
-    return typeof window.showDirectoryPicker === "function";
+    var provider = localProvider();
+
+    return Boolean(provider && provider.isWorkspaceAvailable && provider.isWorkspaceAvailable());
   }
 
   function isAbortError(error) {
@@ -70,6 +77,8 @@
             path: currentPath,
             handle: directoryInfo.path === currentPath ? directoryInfo.handle || null : null,
             kind: "directory",
+            loaded: directoryInfo.loaded !== false,
+            loading: Boolean(directoryInfo.loading),
             children: []
           };
           directoriesByPath[currentPath] = directory;
@@ -98,6 +107,8 @@
             path: currentPath,
             handle: null,
             kind: "directory",
+            loaded: true,
+            loading: false,
             children: []
           };
           directoriesByPath[currentPath] = directory;
@@ -111,6 +122,8 @@
         path: file.path || parts.join("/"),
         handle: file.handle || null,
         kind: "file",
+        resource: file.resource || null,
+        revision: file.revision || file.resource && file.resource.revision || null,
         extension: file.extension || extensionForName(file.name || parts[parts.length - 1]),
         documentType: ((ME.documentType && ME.documentType.getDocumentTypeForName(file.name || parts[parts.length - 1])) || {}).id || file.documentType || "markdown",
         isPlan: isMarkdownFile(file.path || parts.join("/")) && ME.workspaceRelated && ME.workspaceRelated.isPlanFile
@@ -143,6 +156,8 @@
             path: node.path,
             handle: node.handle || null,
             kind: "directory",
+            loaded: node.loaded !== false,
+            loading: Boolean(node.loading),
             children: selfMatches ? node.children || [] : childMatches
           });
         }
@@ -156,65 +171,55 @@
     }, []);
   }
 
-  async function scanDirectory(directoryHandle, baseParts, files, directories) {
-    var entries = [];
-    var iterator;
-    var next;
-    var directoryPath = normalizePath(baseParts);
-
-    if (!directoryHandle || typeof directoryHandle.entries !== "function") {
-      return files;
-    }
+  async function scanDirectory(provider, workspace, directoryPath, files, directories) {
+    var entries;
+    var baseParts = String(directoryPath || "").split("/").filter(Boolean);
 
     if (directoryPath) {
       directories.push({
-        handle: directoryHandle,
+        handle: null,
         kind: "directory",
         name: baseParts[baseParts.length - 1],
-        path: directoryPath
+        path: directoryPath,
+        loaded: true
       });
     }
 
-    iterator = directoryHandle.entries();
-    while ((next = await iterator.next()) && !next.done) {
-      entries.push(next.value);
-    }
+    entries = await provider.listDirectory(workspace, directoryPath || "", {});
 
     entries.sort(function (left, right) {
-      var leftHandle = left[1];
-      var rightHandle = right[1];
-
       return compareNodes({
-        kind: leftHandle.kind,
-        name: left[0]
+        kind: left.kind,
+        name: left.name
       }, {
-        kind: rightHandle.kind,
-        name: right[0]
+        kind: right.kind,
+        name: right.name
       });
     });
 
     await entries.reduce(function (chain, entry) {
       return chain.then(async function () {
-        var name = entry[0];
-        var handle = entry[1];
-        var pathParts = baseParts.concat(name);
+        var name = entry.name;
+        var path = entry.path || normalizePath(baseParts.concat(name));
 
-        if (handle.kind === "directory") {
-          await scanDirectory(handle, pathParts, files, directories);
+        if (entry.kind === "directory") {
+          await scanDirectory(provider, workspace, path, files, directories);
           return;
         }
 
-        if (handle.kind === "file" && isSupportedFileName(name)) {
+        if (entry.kind === "file" && isSupportedFileName(name)) {
           var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(name);
           files.push({
             name: name,
-            path: normalizePath(pathParts),
-            handle: handle,
+            path: path,
+            handle: entry.fileHandle || null,
+            resource: entry.resource || null,
+            revision: entry.revision || entry.resource && entry.resource.revision || null,
             kind: "file",
             extension: extensionForName(name),
             documentType: descriptor ? descriptor.id : "markdown",
             isPlan: isMarkdownFile(name) && ME.workspaceRelated && ME.workspaceRelated.isPlanFile
-              ? ME.workspaceRelated.isPlanFile(normalizePath(pathParts))
+              ? ME.workspaceRelated.isPlanFile(path)
               : false
           });
         }
@@ -224,25 +229,51 @@
     return files;
   }
 
-  async function scanWorkspace(rootHandle) {
+  async function scanWorkspace(workspaceOrHandle, options) {
+    var provider;
+    var workspace;
     var directories = [];
-    var files = await scanDirectory(rootHandle, [], [], directories);
+    var files;
+    var rootHandle;
+
+    options = options || {};
+    workspace = workspaceOrHandle && workspaceOrHandle.providerId ? workspaceOrHandle : null;
+    provider = workspace
+      ? ME.storageProviders && ME.storageProviders.getForWorkspace(workspace)
+      : localProvider();
+    if (!provider) {
+      throw new Error("The workspace storage provider is unavailable.");
+    }
+    if (!workspace) {
+      workspace = provider.createWorkspaceDescriptor(workspaceOrHandle, {
+        id: options.workspaceId,
+        name: workspaceOrHandle && workspaceOrHandle.name
+      });
+    }
+    files = await scanDirectory(provider, workspace, "", [], directories);
+    rootHandle = provider.getLegacyWorkspaceHandle ? provider.getLegacyWorkspaceHandle(workspace) : null;
 
     return {
       directories: directories,
       rootHandle: rootHandle,
-      rootName: rootHandle && rootHandle.name ? rootHandle.name : "Workspace",
+      rootName: workspace.name || "Workspace",
+      providerId: provider.id,
+      workspace: workspace,
+      workspaceId: workspace.id,
       files: files,
       tree: buildTree(files, directories)
     };
   }
 
-  async function openWorkspace() {
-    var rootHandle = await window.showDirectoryPicker({
-      mode: "read"
-    });
+  async function openWorkspace(options) {
+    var provider = options && options.provider || localProvider();
+    var workspace;
 
-    return scanWorkspace(rootHandle);
+    if (!provider) {
+      throw new Error("Local folder access is not supported in this browser.");
+    }
+    workspace = await provider.openWorkspace(options || {});
+    return scanWorkspace(workspace);
   }
 
   ME.workspaceStore = {

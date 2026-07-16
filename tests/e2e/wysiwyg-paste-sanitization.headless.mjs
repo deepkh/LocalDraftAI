@@ -118,7 +118,11 @@ async function waitFor(send, expression, timeoutMs = 8000) {
 async function stopProcess(child) {
   if (!child || child.exitCode !== null) return;
   child.kill();
-  await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(1500)]);
+  const exited = await Promise.race([new Promise((resolve) => child.once("exit", () => resolve(true))), delay(1500).then(() => false)]);
+  if (!exited && child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(1500)]);
+  }
 }
 
 async function ensureMode(send, mode) {

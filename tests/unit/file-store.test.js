@@ -2,6 +2,9 @@ const assert = require("node:assert/strict");
 
 global.window = {};
 require("../../src/js/document-type.js");
+require("../../src/js/storage-resource.js");
+require("../../src/js/storage-provider-registry.js");
+require("../../src/js/local-filesystem-provider.js");
 require("../../src/js/file-store.js");
 
 const fileStore = window.MarkdownEditor.fileStore;
@@ -74,7 +77,8 @@ async function runTest(name, callback) {
           async write(value) { written = value; },
           async close() {}
         };
-      }
+      },
+      async getFile() { return bytesFile(new TextEncoder().encode(String(written || ""))); }
     };
     const session = {
       documentType: "json",
@@ -98,7 +102,8 @@ async function runTest(name, callback) {
           async write(value) { written = value; },
           async close() {}
         };
-      }
+      },
+      async getFile() { return bytesFile(new TextEncoder().encode(String(written || ""))); }
     };
     const session = {
       documentType: "json",

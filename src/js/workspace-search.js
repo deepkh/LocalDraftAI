@@ -67,18 +67,38 @@
     return matches;
   }
 
-  async function readFileText(fileItem) {
-    var file;
+  async function readFileText(fileItem, options) {
+    var provider;
+    var resource;
+    var result;
+    var content;
 
     if (typeof fileItem.text === "string") {
       return fileItem.text;
     }
-    if (!fileItem.handle || typeof fileItem.handle.getFile !== "function") {
+    options = options || {};
+    provider = options.provider || ME.storageProviders && ME.storageProviders.getForWorkspace(options.workspace) || ME.localFilesystemProvider;
+    resource = fileItem.resource;
+    if (!resource && fileItem.handle && provider && provider.resourceForHandle) {
+      resource = provider.resourceForHandle(fileItem.handle, {
+        workspaceId: options.workspace && options.workspace.id || "",
+        path: fileItem.path || "",
+        displayName: fileItem.name || ""
+      });
+    }
+    if (!provider || !resource || typeof provider.readText !== "function") {
       return "";
     }
 
-    file = await fileItem.handle.getFile();
-    return file.text();
+    result = await provider.readText(resource);
+    if (typeof result.text === "string") {
+      return result.text;
+    }
+    if (result.file && ME.fileStore && ME.fileStore.readTextDocument) {
+      content = await ME.fileStore.readTextDocument(result.file);
+      return content.markdownText;
+    }
+    return "";
   }
 
   async function searchFiles(files, query, options) {
@@ -107,7 +127,7 @@
         continue;
       }
 
-      text = await readFileText(fileItem);
+      text = await readFileText(fileItem, options);
       matches = findLineMatches(text, normalizedQuery, {
         maxMatchesPerFile: maxMatchesPerFile
       });
@@ -140,10 +160,20 @@
     };
   }
 
+  function searchWorkspace(options) {
+    var provider = options && options.provider || ME.storageProviders && ME.storageProviders.getForWorkspace(options && options.workspace);
+
+    if (!provider || typeof provider.searchText !== "function") {
+      return Promise.reject(new Error("Workspace search is not supported by this storage provider."));
+    }
+    return provider.searchText(options.workspace, options.query, options);
+  }
+
   ME.workspaceSearch = {
     createPreview: createPreview,
     findLineMatches: findLineMatches,
     normalizeQuery: normalizeQuery,
+    searchWorkspace: searchWorkspace,
     searchFiles: searchFiles
   };
 }());

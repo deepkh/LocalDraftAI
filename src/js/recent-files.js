@@ -159,9 +159,9 @@
     }
 
     async function openRecord(record) {
-      var file;
-      var content;
-      var descriptor;
+      var provider;
+      var resource;
+      var fileData;
 
       if (!isSupported()) {
         throw new Error("Recent files are not supported in this browser.");
@@ -172,34 +172,23 @@
       }
 
       try {
-        if (!(await ME.fileStore.ensurePermission(record.fileHandle, "read"))) {
-          throw new Error("Permission was not granted for this file.");
+        provider = ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider;
+        if (!provider || !provider.resourceForHandle || !ME.fileStore.openResource) {
+          throw new Error("Local file access is not supported in this browser.");
         }
-
-        file = await record.fileHandle.getFile();
-        descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(file.name || record.fileHandle.name || record.name);
-        if (!descriptor) {
-          throw new Error("This recent file type is not supported.");
-        }
-        content = await ME.fileStore.readTextDocument(file);
-        record.name = file.name || record.fileHandle.name || record.name || "Untitled.md";
+        resource = provider.resourceForHandle(record.fileHandle, {
+          displayName: record.fileHandle.name || record.name || "Untitled.md"
+        });
+        fileData = await ME.fileStore.openResource(resource);
+        record.name = fileData.title;
         record.lastOpened = Date.now();
 
         await withStore("readwrite", function (store) {
           return requestToPromise(store.put(record));
         });
 
-        return {
-          fileHandle: record.fileHandle,
-          title: record.name,
-          markdownText: content.markdownText,
-          documentType: descriptor.id,
-          extension: ME.documentType.extensionForName(record.name),
-          sourceOnly: !descriptor.allowWysiwyg,
-          preferredLineEnding: content.preferredLineEnding,
-          hasUtf8Bom: content.hasUtf8Bom,
-          hasFinalNewline: content.hasFinalNewline
-        };
+        fileData.fileHandle = record.fileHandle;
+        return fileData;
       } catch (error) {
         await remove(record.id);
         throw error;

@@ -12,6 +12,8 @@
   var documentType = ME.documentType;
   var documentValidation = ME.documentValidation;
   var assetStore = ME.assetStore;
+  var storageProviders = ME.storageProviders;
+  var localFilesystemProvider = ME.localFilesystemProvider;
   var recentStore = ME.recentFiles ? ME.recentFiles.create({ maxFiles: 10 }) : null;
   var editorMode = ME.editorMode;
   var EDITOR_MODES = editorMode.EDITOR_MODES;
@@ -196,8 +198,10 @@
   var workspaceState = {
     directories: [],
     id: "",
+    providerId: "",
     rootHandle: null,
     rootName: "",
+    workspace: null,
     files: [],
     tree: null,
     isScanning: false,
@@ -288,6 +292,10 @@
 
   function isWorkspaceSupported() {
     return workspaceStore && workspaceStore.isSupported();
+  }
+
+  function activeWorkspaceProvider() {
+    return storageProviders && storageProviders.getForWorkspace(workspaceState.workspace || workspaceState) || localFilesystemProvider || null;
   }
 
   function isImagePickerSupported() {
@@ -1618,6 +1626,24 @@
     return null;
   }
 
+  function storageResourceForWorkspaceFile(fileItem) {
+    var provider = activeWorkspaceProvider();
+
+    if (!fileItem) {
+      return null;
+    }
+    if (fileItem.resource) {
+      return fileItem.resource;
+    }
+    return provider && provider.resourceForHandle && fileItem.handle
+      ? provider.resourceForHandle(fileItem.handle, {
+        workspaceId: workspaceState.id,
+        path: fileItem.path,
+        displayName: fileItem.name
+      })
+      : null;
+  }
+
   function findSessionByWorkspacePath(path) {
     var sessions = tabs ? tabs.listSessions() : [];
     var i;
@@ -1776,10 +1802,16 @@
         ? workspaceSidebar.getCollapsedFolders()
         : [],
       openedTabs: workspaceSessionTabs(),
+      providerId: workspaceState.providerId || "local-fsa",
       sidebarScroll: workspaceSidebar && typeof workspaceSidebar.getScrollState === "function"
         ? workspaceSidebar.getScrollState()
         : null,
       workspaceHandle: workspaceState.rootHandle,
+      workspaceRef: {
+        localHandle: workspaceState.rootHandle,
+        connectionId: "",
+        remoteRootPath: ""
+      },
       workspaceName: workspaceState.rootName
     };
   }
@@ -1881,8 +1913,10 @@
     workspaceState = {
       directories: [],
       id: "",
+      providerId: "",
       rootHandle: null,
       rootName: "",
+      workspace: null,
       files: [],
       tree: null,
       isScanning: false,
@@ -1904,8 +1938,10 @@
     workspaceState = {
       directories: result.directories || [],
       id: result.workspaceId || workspaceState.id || "workspace-" + nextWorkspaceId++,
+      providerId: result.providerId || result.workspace && result.workspace.providerId || "local-fsa",
       rootHandle: result.rootHandle,
       rootName: result.rootName,
+      workspace: result.workspace || null,
       files: result.files || [],
       tree: result.tree || [],
       isScanning: false,
@@ -2040,6 +2076,9 @@
   }
 
   async function assignWorkspaceIdForScanResult(result) {
+    if (result && result.workspaceId) {
+      return result;
+    }
     if (
       result &&
       workspaceState.id &&
@@ -2071,7 +2110,7 @@
     }
 
     try {
-      result = await workspaceStore.openWorkspace();
+      result = await workspaceStore.openWorkspace({ provider: localFilesystemProvider });
       await assignWorkspaceIdForScanResult(result);
       restorableWorkspaceSession = null;
       if (!await closePreviousWorkspaceTabsForSwitch(result.rootHandle)) {
@@ -2094,8 +2133,8 @@
     var i;
     var tabData;
     var fileItem;
-    var file;
-    var content;
+    var fileData;
+    var resource;
     var session;
     var activeSession = null;
 
@@ -2116,30 +2155,33 @@
     for (i = 0; i < openedTabs.length; i += 1) {
       tabData = openedTabs[i];
       fileItem = findWorkspaceFile(tabData.path);
-      if (!fileItem || !fileItem.handle) {
+      resource = storageResourceForWorkspaceFile(fileItem);
+      if (!fileItem || !resource) {
         continue;
       }
 
       try {
-        file = await fileItem.handle.getFile();
-        content = await fileStore.readTextDocument(file);
+        fileData = await fileStore.openResource(resource);
         session = createSession({
           activeMode: tabData.mode,
           documentType: tabData.documentType || fileItem.documentType,
           dirty: tabData.dirty,
           editorMode: tabData.mode,
-          fileHandle: fileItem.handle,
-          hasFinalNewline: content.hasFinalNewline,
-          hasUtf8Bom: content.hasUtf8Bom,
+          fileHandle: fileData.fileHandle,
+          hasFinalNewline: fileData.hasFinalNewline,
+          hasUtf8Bom: fileData.hasUtf8Bom,
           markdownSelectionEnd: tabData.selectionEnd,
           markdownSelectionStart: tabData.selectionStart,
           markdownScrollTop: tabData.mode === EDITOR_MODES.MARKDOWN ? tabData.scrollTop : 0,
-          markdownText: content.markdownText,
-          preferredLineEnding: content.preferredLineEnding,
+          markdownText: fileData.markdownText,
+          preferredLineEnding: fileData.preferredLineEnding,
           softWrapEnabled: tabData.softWrap,
+          storageProviderId: fileData.storageProviderId,
+          storageResource: fileData.storageResource,
+          storageRevision: fileData.storageRevision,
           title: fileItem.name,
           workspaceDirHandle: workspaceState.rootHandle,
-          workspaceFileHandle: fileItem.handle,
+          workspaceFileHandle: fileData.fileHandle,
           workspaceId: workspaceState.id,
           workspacePath: fileItem.path,
           workspaceRootName: workspaceState.rootName,
@@ -2386,7 +2428,9 @@
     updateWorkspaceMenuControls();
 
     try {
-      result = await workspaceStore.scanWorkspace(workspaceState.rootHandle);
+      result = await workspaceStore.scanWorkspace(workspaceState.workspace || workspaceState.rootHandle, {
+        workspaceId: workspaceState.id
+      });
       applyWorkspaceScanResult(result);
     } catch (error) {
       showWorkspaceError("Could not read this workspace. Please open the folder again.");
@@ -2419,7 +2463,11 @@
     renderWorkspaceSidebar();
 
     try {
-      result = await workspaceSearch.searchFiles(workspaceState.files, searchQuery, {
+      result = await workspaceSearch.searchWorkspace({
+        provider: activeWorkspaceProvider(),
+        workspace: workspaceState.workspace,
+        files: workspaceState.files,
+        query: searchQuery,
         maxMatchesPerFile: 5,
         maxResults: 100
       });
@@ -2478,7 +2526,8 @@
         directoryPath: target && target.path || "",
         initialText: "",
         name: name,
-        rootHandle: workspaceState.rootHandle
+        provider: activeWorkspaceProvider(),
+        workspace: workspaceState.workspace
       });
       await refreshWorkspaceAfterOperation(result.path);
     } catch (error) {
@@ -2498,7 +2547,8 @@
       result = await workspaceOperations.createFolder({
         directoryPath: target && target.path || "",
         name: name,
-        rootHandle: workspaceState.rootHandle
+        provider: activeWorkspaceProvider(),
+        workspace: workspaceState.workspace
       });
       await refreshWorkspaceAfterOperation();
       if (workspaceSidebar && result.path) {
@@ -2527,10 +2577,11 @@
 
     try {
       result = await workspaceOperations.duplicateTextFile({
-        fileHandle: fileItem.handle,
         name: name,
         path: fileItem.path,
-        rootHandle: workspaceState.rootHandle
+        provider: activeWorkspaceProvider(),
+        resource: fileItem.resource,
+        workspace: workspaceState.workspace
       });
       await refreshWorkspaceAfterOperation(result.path);
     } catch (error) {
@@ -2559,14 +2610,18 @@
 
     try {
       result = await workspaceOperations.renameTextFile({
-        fileHandle: fileItem.handle,
         name: name,
         path: fileItem.path,
-        rootHandle: workspaceState.rootHandle
+        provider: activeWorkspaceProvider(),
+        resource: fileItem.resource,
+        workspace: workspaceState.workspace
       });
       if (session && !result.unchanged) {
         session.fileHandle = result.fileHandle;
         session.workspaceFileHandle = result.fileHandle;
+        session.storageProviderId = workspaceState.providerId;
+        session.storageResource = result.resource;
+        session.storageRevision = result.resource && result.resource.revision || null;
         session.title = result.name;
         session.workspacePath = result.path;
         fileStore.applyDocumentTypeToSession(session, result.name);
@@ -2635,29 +2690,38 @@
   }
 
   async function attachCurrentWorkspacePath(session) {
-    var pathParts;
+    var provider = activeWorkspaceProvider();
+    var resource;
     var path;
 
     if (
       !session ||
-      !workspaceState.rootHandle ||
-      !session.fileHandle ||
-      typeof workspaceState.rootHandle.resolve !== "function"
+      !workspaceState.workspace ||
+      !provider ||
+      typeof provider.resolveResource !== "function"
     ) {
       return false;
     }
 
+    resource = session.storageResource;
+    if (!resource && session.fileHandle && provider.resourceForHandle) {
+      resource = provider.resourceForHandle(session.fileHandle, {
+        displayName: session.title
+      });
+    }
+    if (!resource) {
+      return false;
+    }
     try {
-      pathParts = await workspaceState.rootHandle.resolve(session.fileHandle);
+      path = await provider.resolveResource(workspaceState.workspace, resource);
     } catch (error) {
-      pathParts = null;
+      path = "";
     }
 
-    if (!pathParts || !pathParts.length) {
+    if (!path) {
       return false;
     }
 
-    path = pathParts.join("/");
     if (!workspaceStore.isSupportedFileName(path)) {
       return false;
     }
@@ -2667,6 +2731,16 @@
     session.workspaceRootName = workspaceState.rootName;
     session.workspacePath = path;
     session.workspaceFileHandle = session.fileHandle;
+    session.storageProviderId = provider.id;
+    session.storageResource = provider.resourceForHandle
+      ? provider.resourceForHandle(session.fileHandle, {
+        workspaceId: workspaceState.id,
+        path: path,
+        displayName: session.title,
+        revision: session.storageRevision
+      })
+      : resource;
+    session.storageRevision = session.storageResource.revision;
     return true;
   }
 
@@ -2708,13 +2782,13 @@
   async function openWorkspaceFile(path, options) {
     var fileItem = findWorkspaceFile(path);
     var existingSession;
-    var file;
-    var content;
+    var fileData;
+    var resource = storageResourceForWorkspaceFile(fileItem);
     var session;
 
     options = options || {};
     closeWorkspaceMenu();
-    if (!fileItem || !fileItem.handle) {
+    if (!fileItem || !resource) {
       return;
     }
 
@@ -2722,13 +2796,18 @@
 
     existingSession = findSessionByWorkspacePath(fileItem.path);
     if (!existingSession) {
-      existingSession = await tabs.findSessionByFileHandle(fileItem.handle);
+      existingSession = tabs.findSessionByStorageResource
+        ? await tabs.findSessionByStorageResource(resource)
+        : await tabs.findSessionByFileHandle(fileItem.handle);
       if (existingSession) {
         existingSession.workspaceDirHandle = workspaceState.rootHandle;
         existingSession.workspaceId = workspaceState.id;
         existingSession.workspaceRootName = workspaceState.rootName;
         existingSession.workspacePath = fileItem.path;
         existingSession.workspaceFileHandle = fileItem.handle;
+        existingSession.storageProviderId = resource.providerId;
+        existingSession.storageResource = resource;
+        existingSession.storageRevision = resource.revision;
       }
     }
 
@@ -2744,20 +2823,22 @@
     }
 
     try {
-      file = await fileItem.handle.getFile();
-      content = await fileStore.readTextDocument(file);
+      fileData = await fileStore.openResource(resource);
       session = createSession({
         activeMode: getActiveMode(),
         documentType: fileItem.documentType,
         editorMode: getEditorMode(),
-        fileHandle: fileItem.handle,
-        hasFinalNewline: content.hasFinalNewline,
-        hasUtf8Bom: content.hasUtf8Bom,
-        markdownText: content.markdownText,
-        preferredLineEnding: content.preferredLineEnding,
+        fileHandle: fileData.fileHandle,
+        hasFinalNewline: fileData.hasFinalNewline,
+        hasUtf8Bom: fileData.hasUtf8Bom,
+        markdownText: fileData.markdownText,
+        preferredLineEnding: fileData.preferredLineEnding,
+        storageProviderId: fileData.storageProviderId,
+        storageResource: fileData.storageResource,
+        storageRevision: fileData.storageRevision,
         title: fileItem.name,
         workspaceDirHandle: workspaceState.rootHandle,
-        workspaceFileHandle: fileItem.handle,
+        workspaceFileHandle: fileData.fileHandle,
         workspaceId: workspaceState.id,
         workspacePath: fileItem.path,
         workspaceRootName: workspaceState.rootName
@@ -3522,6 +3603,9 @@
         hasUtf8Bom: fileData.hasUtf8Bom,
         markdownText: fileData.markdownText,
         preferredLineEnding: fileData.preferredLineEnding,
+        storageProviderId: fileData.storageProviderId,
+        storageResource: fileData.storageResource,
+        storageRevision: fileData.storageRevision,
         title: fileData.title
       });
       await attachCurrentWorkspacePath(session);
@@ -3612,6 +3696,9 @@
         hasUtf8Bom: fileData.hasUtf8Bom,
         markdownText: fileData.markdownText,
         preferredLineEnding: fileData.preferredLineEnding,
+        storageProviderId: fileData.storageProviderId,
+        storageResource: fileData.storageResource,
+        storageRevision: fileData.storageRevision,
         title: fileData.title
       });
       await attachCurrentWorkspacePath(session);
@@ -4459,6 +4546,7 @@
     async function loadWorkspaceForTest(files, restoreMetadata) {
       var fileItems;
       var rootHandle;
+      var workspaceDescriptor;
 
       testWorkspaceContents = Object.assign({}, files || {});
       fileItems = Object.keys(testWorkspaceContents).filter(function (path) {
@@ -4485,15 +4573,27 @@
           return match ? match.path.split("/") : null;
         }
       };
+      workspaceDescriptor = localFilesystemProvider.createWorkspaceDescriptor(rootHandle, {
+        id: "workspace-e2e"
+      });
+      fileItems.forEach(function (item) {
+        item.resource = localFilesystemProvider.resourceForHandle(item.handle, {
+          workspaceId: workspaceDescriptor.id,
+          path: item.path,
+          displayName: item.name
+        });
+      });
       workspaceState = {
         directories: [],
         error: "",
         files: fileItems,
         id: "workspace-e2e",
         isScanning: false,
+        providerId: "local-fsa",
         rootHandle: rootHandle,
         rootName: rootHandle.name,
-        tree: workspaceStore.buildTree(fileItems, [])
+        tree: workspaceStore.buildTree(fileItems, []),
+        workspace: workspaceDescriptor
       };
       renderWorkspaceSidebar();
       if (restoreMetadata) {
@@ -4643,6 +4743,10 @@
 
   function init() {
     var initialSession;
+
+    if (storageProviders && localFilesystemProvider && !storageProviders.get(localFilesystemProvider.id)) {
+      storageProviders.register(localFilesystemProvider);
+    }
 
     if (ME.statusBar) {
       statusBarController = ME.statusBar.create({

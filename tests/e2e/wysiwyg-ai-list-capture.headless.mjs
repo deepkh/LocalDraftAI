@@ -161,10 +161,14 @@ async function stopProcess(child) {
   }
 
   child.kill();
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    delay(1500)
+  const exited = await Promise.race([
+    new Promise((resolve) => child.once("exit", () => resolve(true))),
+    delay(1500).then(() => false)
   ]);
+  if (!exited && child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(1500)]);
+  }
 }
 
 async function main() {
@@ -298,7 +302,7 @@ async function main() {
     }
     await stopProcess(chrome.process);
     await stopProcess(server);
-    fs.rmSync(chrome.userDataDir, { force: true, recursive: true });
+    fs.rmSync(chrome.userDataDir, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 });
   }
 }
 

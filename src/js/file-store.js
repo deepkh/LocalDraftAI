@@ -5,11 +5,22 @@
 
   var supportedTextFileTypes = ME.documentType.getFilePickerTypes();
 
+  function localProvider() {
+    return ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider || null;
+  }
+
+  function providerForSession(session) {
+    return ME.storageProviders && ME.storageProviders.getForSession(session) || localProvider();
+  }
+
+  function providerForResource(resource) {
+    return ME.storageProviders && ME.storageProviders.get(resource && resource.providerId) || localProvider();
+  }
+
   function isSupported() {
-    return (
-      typeof window.showOpenFilePicker === "function" &&
-      typeof window.showSaveFilePicker === "function"
-    );
+    var provider = localProvider();
+
+    return Boolean(provider && provider.isAvailable());
   }
 
   function isAbortError(error) {
@@ -104,60 +115,104 @@
   }
 
   async function ensurePermission(fileHandle, mode) {
-    var options = { mode: mode || "read" };
-    var currentPermission;
-    var nextPermission;
+    var provider = localProvider();
 
-    if (!fileHandle || typeof fileHandle.queryPermission !== "function") {
-      return true;
-    }
-
-    if (typeof fileHandle.requestPermission === "function") {
-      try {
-        nextPermission = await fileHandle.requestPermission(options);
-        if (nextPermission === "granted") {
-          return true;
-        }
-      } catch (error) {
-        currentPermission = await fileHandle.queryPermission(options);
-        return currentPermission === "granted";
-      }
-    }
-
-    currentPermission = await fileHandle.queryPermission(options);
-    return currentPermission === "granted";
+    return provider && provider.ensurePermission
+      ? provider.ensurePermission(fileHandle, mode || "read")
+      : false;
   }
 
   async function writeTextDocument(fileHandle, text) {
-    var writable;
+    var provider = localProvider();
 
-    if (!(await ensurePermission(fileHandle, "readwrite"))) {
-      throw new Error("Permission was not granted for this file.");
+    if (!provider || !provider.writeHandle) {
+      throw new Error("Local file access is not supported in this browser.");
     }
-
-    writable = await fileHandle.createWritable();
-    await writable.write(String(text || ""));
-    await writable.close();
+    return provider.writeHandle(fileHandle, String(text || ""));
   }
 
-  async function openTextDocument() {
-    var handles = await window.showOpenFilePicker({
-      multiple: false,
-      types: supportedTextFileTypes
-    });
-    var fileHandle = handles[0];
-    var file = await fileHandle.getFile();
-    var title = displayName(fileHandle, file.name);
-    var descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(title);
+  async function contentFromProviderResult(result) {
+    var text;
+
+    if (result && result.file) {
+      return readTextDocument(result.file);
+    }
+    if (result && result.bytes) {
+      return readTextDocument({
+        arrayBuffer: function () { return Promise.resolve(result.bytes); }
+      });
+    }
+    text = String(result && result.text || "");
+    if (text.charCodeAt(0) === 0xfeff) {
+      return textMetadata(text.slice(1), true);
+    }
+    return textMetadata(text, false);
+  }
+
+  async function openResource(resource, options) {
+    var provider = providerForResource(resource);
+    var result;
+    var title;
+    var descriptor;
     var content;
 
+    if (!provider || typeof provider.readText !== "function") {
+      throw new Error("The storage provider for this document is unavailable.");
+    }
+    result = await provider.readText(resource, options || {});
+    resource = result.resource || resource;
+    title = resource.displayName || resource.path && resource.path.split("/").pop() || "Untitled.md";
+    descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(title);
     if (!descriptor) {
       throw new Error("This file type is not supported.");
     }
-    content = await readTextDocument(file);
+    content = await contentFromProviderResult(result);
+    return {
+      fileHandle: result.fileHandle || provider.getLegacyFileHandle && provider.getLegacyFileHandle(resource) || null,
+      storageProviderId: resource.providerId,
+      storageResource: resource,
+      storageRevision: result.revision || resource.revision,
+      title: title,
+      markdownText: content.markdownText,
+      documentType: descriptor.id,
+      extension: ME.documentType.extensionForName(title),
+      sourceOnly: !descriptor.allowWysiwyg,
+      preferredLineEnding: content.preferredLineEnding,
+      hasUtf8Bom: content.hasUtf8Bom,
+      hasFinalNewline: content.hasFinalNewline
+    };
+  }
+
+  async function openTextDocument(options) {
+    var provider = localProvider();
+    var opened;
+    var resource;
+    var fileHandle;
+    var title;
+    var descriptor;
+    var content;
+
+    if (!provider || typeof provider.openDocument !== "function") {
+      throw new Error("Local file access is not supported in this browser.");
+    }
+    opened = await provider.openDocument({
+      types: supportedTextFileTypes,
+      options: options || {}
+    });
+    resource = opened.resource;
+    fileHandle = opened.fileHandle || provider.getLegacyFileHandle && provider.getLegacyFileHandle(resource) || null;
+    title = resource && resource.displayName || displayName(fileHandle, opened.file && opened.file.name);
+    descriptor = ME.documentType && ME.documentType.getDocumentTypeForName(title);
+    if (!descriptor) {
+      throw new Error("This file type is not supported.");
+    }
+    content = await contentFromProviderResult(opened);
 
     return {
       fileHandle: fileHandle,
+      storageProviderId: provider.id,
+      storageResource: resource,
+      storageRevision: opened.revision || resource && resource.revision,
       title: title,
       markdownText: content.markdownText,
       documentType: descriptor.id,
@@ -170,40 +225,72 @@
   }
 
   async function saveSession(session) {
-    if (!session.fileHandle) {
+    var provider = providerForSession(session);
+    var result;
+
+    if (!provider) {
+      throw new Error("The storage provider for this document is unavailable.");
+    }
+    if (!session.storageResource && session.fileHandle && provider.resourceForHandle) {
+      session.storageResource = provider.resourceForHandle(session.fileHandle, {
+        workspaceId: session.workspaceId,
+        path: session.workspacePath,
+        displayName: session.title
+      });
+      session.storageProviderId = provider.id;
+    }
+    if (!session.storageResource && !session.fileHandle) {
       return saveSessionAs(session);
     }
 
-    await writeTextDocument(session.fileHandle, serializeSessionText(session));
-    session.title = displayName(session.fileHandle, session.title);
+    result = await provider.saveDocument(session, {
+      text: serializeSessionText(session)
+    });
+    session.storageProviderId = provider.id;
+    session.storageResource = result.resource || session.storageResource;
+    session.storageRevision = result.revision || session.storageResource && session.storageResource.revision || null;
+    session.fileHandle = result.fileHandle || provider.getLegacyFileHandle && provider.getLegacyFileHandle(session.storageResource) || session.fileHandle;
+    session.title = session.storageResource && session.storageResource.displayName || displayName(session.fileHandle, session.title);
     applyDocumentTypeToSession(session, session.title);
     session.dirty = false;
 
     return {
       fileHandle: session.fileHandle,
+      storageResource: session.storageResource,
       title: session.title
     };
   }
 
   async function saveSessionAs(session) {
-    var fileHandle = await window.showSaveFilePicker({
+    var provider = providerForSession(session) || localProvider();
+    var result;
+    var nextTitle;
+    var nextDescriptor;
+
+    if (!provider || typeof provider.saveDocumentAs !== "function") {
+      throw new Error("The storage provider for this document is unavailable.");
+    }
+    result = await provider.saveDocumentAs(session, {
       suggestedName: supportedFileName(session.title, session.documentType),
+      text: serializeSessionText(session),
       types: supportedTextFileTypes
     });
-    var nextTitle = displayName(fileHandle, session.title);
-    var nextDescriptor = ME.documentType && ME.documentType.getDocumentTypeForName(nextTitle);
-
+    nextTitle = result.resource && result.resource.displayName || displayName(result.fileHandle, session.title);
+    nextDescriptor = ME.documentType && ME.documentType.getDocumentTypeForName(nextTitle);
     if (!nextDescriptor) {
       throw new Error("Choose a supported document extension.");
     }
-    await writeTextDocument(fileHandle, serializeSessionText(session));
-    session.fileHandle = fileHandle;
+    session.storageProviderId = provider.id;
+    session.storageResource = result.resource;
+    session.storageRevision = result.revision || result.resource && result.resource.revision || null;
+    session.fileHandle = result.fileHandle || provider.getLegacyFileHandle && provider.getLegacyFileHandle(result.resource) || null;
     session.title = nextTitle;
     applyDocumentTypeToSession(session, nextTitle);
     session.dirty = false;
 
     return {
-      fileHandle: fileHandle,
+      fileHandle: session.fileHandle,
+      storageResource: session.storageResource,
       title: session.title
     };
   }
@@ -215,6 +302,7 @@
     isSupported: isSupported,
     openTextDocument: openTextDocument,
     openMarkdownFile: openTextDocument,
+    openResource: openResource,
     readTextDocument: readTextDocument,
     saveSession: saveSession,
     saveSessionAs: saveSessionAs,

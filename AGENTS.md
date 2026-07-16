@@ -31,6 +31,9 @@ src/js/activity-bar.js       Workbench view and sidebar routing
 src/js/theme.js              Application light/dark theme state, persistence, and control synchronization
 src/js/status-bar.js         Compact workspace, document, editor, and AI status
 src/js/document-session.js   Per-tab document state
+src/js/storage-resource.js   Provider-neutral document resource identity and revision metadata
+src/js/storage-provider-registry.js Storage provider lookup and normalized errors
+src/js/local-filesystem-provider.js Local File System Access provider
 src/js/document-type.js      Central supported-extension and document-capability registry
 src/js/document-validation.js Warning-only JSON and YAML syntax validation
 src/js/tab-manager.js        Multi-tab behavior
@@ -94,6 +97,9 @@ Use these routes:
   - `src/js/document-session.js`
 - Local file open/save and recent files:
   - `.agents/skills/file-access.md`
+  - `src/js/storage-resource.js`
+  - `src/js/storage-provider-registry.js`
+  - `src/js/local-filesystem-provider.js`
   - `src/js/file-store.js`
   - `src/js/recent-files.js`
 - Supported document types and structured validation:
@@ -140,12 +146,14 @@ If a new subsystem is added, create or update a small skill file in `.agents/ski
 ## Behavior Notes
 
 - Each open document tab owns its own title, dirty state, active mode, scroll state, undo/redo history, file handle, workspace folder, and image object URLs.
+- Every document session has a provider ID, normalized storage resource, and revision. Legacy local file and workspace handles remain compatibility fields; provider-neutral application code uses storage resources.
+- Local File System Access picker, read, write, directory traversal, and workspace mutation calls belong in `local-filesystem-provider.js`. Local asset storage may retain narrowly scoped browser file calls in `asset-store.js`.
 - The left workspace sidebar lists registered text documents (`.md`, `.markdown`, `.txt`, `.log`, `.json`, `.yml`, and `.yaml`), keeps unsupported files hidden, and opens supported workspace files in tabs.
 - Every supported extension and its editor, validation, formatting, and AI capabilities must be registered centrally in `document-type.js`; do not duplicate extension regular expressions across modules.
 - Markdown behavior must remain backward compatible. Only Markdown may enter Markdown-to-HTML or HTML-to-Markdown conversion, use WYSIWYG, or run Markdown formatting commands.
 - JSON and YAML remain source-only, are never automatically reformatted, and show warning-only validation. Invalid structured documents must remain editable and saveable.
 - The workspace sidebar supports expanded, minimized, and hidden modes, persists its mode and width in localStorage, supports Files, Search, and Related views, and lets folders in the Files tree collapse or expand with workspace-relative persisted state.
-- Workspace session restore uses IndexedDB for the previous workspace handle, up to 10 recent workspace handles, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. It must restore or reopen workspaces only after explicit user action and must not store full document contents for normal restore.
+- Workspace session restore uses IndexedDB schema version 3 for provider-aware workspace references, up to 10 recent workspace records, lightweight opened-tab metadata, workspace-relative collapsed folder paths, and sidebar scroll position. Version-2 `workspaceHandle` records normalize to `local-fsa` records indefinitely. Restore remains an explicit user action and normal restore must not store full document contents.
 - Switching to a different workspace removes supported workspace tabs owned by the previous workspace from the tab bar while preserving lightweight restore metadata for that workspace. If any of those tabs are dirty, the user must confirm before the switch completes.
 - Workspace file operations must stay safe: New File, New Folder, Duplicate, Copy Relative Path, and conservative Rename are allowed for registered document types; Delete is out of scope.
 - Workspace content search scans all registered text-document types and should cap matches to avoid runaway UI work.

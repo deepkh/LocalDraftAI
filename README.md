@@ -145,6 +145,12 @@ Use the `Table` toolbar button to insert a starter pipe table. Tables render in 
 
 ## Run It
 
+### Storage provider boundary
+
+Local file and folder behavior is routed through a small storage-provider interface. Document sessions store a provider ID, a normalized workspace-relative resource, and revision metadata; local browser handles remain provider-owned compatibility data. Text decoding and serialization stay shared, so UTF-8 BOM, LF/CRLF, final-newline, document-type, validation, and dirty-state behavior are unchanged.
+
+The current hosted and standalone UI still uses the `local-fsa` provider exclusively. The provider boundary is also the foundation for the optional bridge-served Remote SSH mode; SSH credentials and SSH implementation details do not belong in the static editor modules.
+
 Use the hosted static app:
 
 ```text

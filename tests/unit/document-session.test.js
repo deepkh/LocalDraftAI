@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 
 global.window = {};
 require("../../src/js/document-type.js");
+require("../../src/js/storage-resource.js");
 require("../../src/js/document-session.js");
 
 const createSession = window.MarkdownEditor.documentSession.create;
@@ -70,4 +71,21 @@ runTest("stores text preservation and validation metadata", function () {
   assert.equal(session.hasUtf8Bom, true);
   assert.equal(session.hasFinalNewline, true);
   assert.equal(session.validationState.status, "not-applicable");
+});
+
+runTest("stores provider-neutral resource and revision metadata", function () {
+  const handle = { name: "README.md" };
+  const session = createSession({
+    fileHandle: handle,
+    storageRevision: { size: 8, mtimeMs: 12, hash: "" },
+    title: "README.md",
+    workspaceId: "workspace-local",
+    workspacePath: "README.md"
+  });
+
+  assert.equal(session.storageProviderId, "local-fsa");
+  assert.equal(session.storageResource.path, "README.md");
+  assert.equal(session.storageResource.opaque.fileHandle, handle);
+  assert.equal(session.storageRevision.size, 8);
+  assert.equal(session.fileHandle, handle);
 });

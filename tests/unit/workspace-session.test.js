@@ -2,6 +2,9 @@ const assert = require("node:assert/strict");
 
 global.window = {};
 require("../../src/js/document-type.js");
+require("../../src/js/storage-resource.js");
+require("../../src/js/storage-provider-registry.js");
+require("../../src/js/local-filesystem-provider.js");
 require("../../src/js/workspace-session.js");
 
 const workspaceSession = window.MarkdownEditor.workspaceSession;

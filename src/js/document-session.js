@@ -9,6 +9,9 @@
     var documentTypeId;
     var extension;
     var sourceOnly;
+    var storageProviderId;
+    var storageResource;
+    var storageRevision;
     var text;
     var title;
 
@@ -30,6 +33,23 @@
       ? Boolean(options.sourceOnly)
       : Boolean(descriptor && !descriptor.allowWysiwyg);
     text = String(options.markdownText || "");
+    storageProviderId = String(
+      options.storageProviderId ||
+      options.storageResource && options.storageResource.providerId ||
+      "local-fsa"
+    );
+    storageResource = options.storageResource || null;
+    if (!storageResource && options.fileHandle && ME.storageResource) {
+      storageResource = ME.storageResource.create({
+        providerId: storageProviderId,
+        workspaceId: options.workspaceId || "",
+        path: options.workspacePath || "",
+        displayName: title,
+        opaque: { fileHandle: options.fileHandle },
+        revision: options.storageRevision
+      });
+    }
+    storageRevision = options.storageRevision || storageResource && storageResource.revision || null;
 
     var activeMode = sourceOnly || options.editorMode === "markdown" || options.activeEditorSource === "markdown" || options.activeMode === "markdown"
       ? "markdown"
@@ -52,9 +72,13 @@
       preferredLineEnding: options.preferredLineEnding === "\r\n" ? "\r\n" : "\n",
       hasUtf8Bom: Boolean(options.hasUtf8Bom),
       hasFinalNewline: options.hasFinalNewline != null ? Boolean(options.hasFinalNewline) : /\n$/.test(text),
+      storageProviderId: storageProviderId,
+      storageResource: storageResource,
+      storageRevision: storageRevision,
       fileHandle: options.fileHandle || null,
       workspaceFileHandle: options.workspaceFileHandle || options.fileHandle || null,
       workspaceDirHandle: options.workspaceDirHandle || null,
+      workspaceFolder: options.workspaceFolder || options.workspaceDirHandle || null,
       workspaceId: options.workspaceId || "",
       workspacePath: options.workspacePath || "",
       workspaceRootName: options.workspaceRootName || "",

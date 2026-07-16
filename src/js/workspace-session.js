@@ -4,7 +4,7 @@
   var ME = window.MarkdownEditor = window.MarkdownEditor || {};
 
   var DB_NAME = "localdraftai-workspace-session";
-  var DB_VERSION = 2;
+  var DB_VERSION = 3;
   var STORE_NAME = "sessions";
   var RECENT_WORKSPACES_STORE_NAME = "recentWorkspaces";
   var CURRENT_KEY = "current";
@@ -127,19 +127,35 @@
     };
   }
 
+  function normalizeWorkspaceRef(session, providerId) {
+    var source = session && session.workspaceRef || {};
+    var localHandle = source.localHandle || session && session.workspaceHandle || null;
+
+    return {
+      localHandle: providerId === "local-fsa" ? localHandle : null,
+      connectionId: providerId === "remote-ssh" ? String(source.connectionId || "") : "",
+      remoteRootPath: providerId === "remote-ssh" ? String(source.remoteRootPath || "") : ""
+    };
+  }
+
   function normalizeSessionMetadata(session) {
     var openedTabs = (session && session.openedTabs || []).map(normalizeTabMetadata).filter(function (tab) {
       return Boolean(tab.path);
     });
     var collapsedFolders = (session && session.collapsedFolders || []).map(normalizeCollapsedFolderPath).filter(Boolean);
+    var providerId = String(session && session.providerId || "local-fsa");
+    var workspaceRef = normalizeWorkspaceRef(session, providerId);
 
     return {
       activePath: String(session && session.activePath || ""),
       collapsedFolders: collapsedFolders,
       openedTabs: openedTabs,
+      providerId: providerId,
       savedAt: session && session.savedAt || Date.now(),
       sidebarScroll: normalizeSidebarScroll(session && session.sidebarScroll),
-      workspaceHandle: session && session.workspaceHandle || null,
+      workspaceRef: workspaceRef,
+      // Version-2 compatibility field. New code uses workspaceRef.
+      workspaceHandle: workspaceRef.localHandle,
       workspaceName: String(session && session.workspaceName || "Workspace")
     };
   }
@@ -151,6 +167,8 @@
       openedTabs: record && record.openedTabs,
       savedAt: record && record.savedAt,
       sidebarScroll: record && record.sidebarScroll,
+      providerId: record && record.providerId,
+      workspaceRef: record && record.workspaceRef,
       workspaceHandle: record && record.workspaceHandle,
       workspaceName: record && (record.workspaceName || record.workspaceHandle && record.workspaceHandle.name)
     });
@@ -161,8 +179,10 @@
       id: record && record.id,
       lastOpened: Math.max(0, Number(record && record.lastOpened) || 0),
       openedTabs: session.openedTabs,
+      providerId: session.providerId,
       savedAt: session.savedAt,
       sidebarScroll: session.sidebarScroll,
+      workspaceRef: session.workspaceRef,
       workspaceHandle: session.workspaceHandle,
       workspaceName: session.workspaceName
     };
@@ -200,7 +220,10 @@
 
   function hasRestorableSession() {
     return loadSession().then(function (session) {
-      return Boolean(session && session.workspaceHandle);
+      return Boolean(session && (
+        session.providerId === "local-fsa" && session.workspaceRef.localHandle ||
+        session.providerId === "remote-ssh" && session.workspaceRef.connectionId && session.workspaceRef.remoteRootPath
+      ));
     });
   }
 
@@ -216,7 +239,10 @@
     });
 
     return sortRecentWorkspaceRecords(records.map(normalizeRecentWorkspaceRecord).filter(function (record) {
-      return Boolean(record.workspaceHandle);
+      return Boolean(
+        record.providerId === "local-fsa" && record.workspaceRef.localHandle ||
+        record.providerId === "remote-ssh" && record.workspaceRef.connectionId && record.workspaceRef.remoteRootPath
+      );
     }));
   }
 
@@ -284,6 +310,12 @@
       record.sidebarScroll = sessionMetadata.sidebarScroll;
     }
     record.workspaceHandle = workspaceHandle;
+    record.providerId = "local-fsa";
+    record.workspaceRef = {
+      localHandle: workspaceHandle,
+      connectionId: "",
+      remoteRootPath: ""
+    };
     record.workspaceName = workspaceName || workspaceHandle.name || "Workspace";
     record.lastOpened = Date.now();
 
@@ -312,6 +344,8 @@
     record.savedAt = normalized.savedAt;
     record.sidebarScroll = normalized.sidebarScroll;
     record.workspaceHandle = normalized.workspaceHandle;
+    record.providerId = normalized.providerId;
+    record.workspaceRef = normalized.workspaceRef;
     record.workspaceName = normalized.workspaceName;
     record.lastOpened = record.lastOpened || Date.now();
 
@@ -330,43 +364,37 @@
       throw new Error("Recent workspaces are not supported in this browser.");
     }
 
-    if (!normalized.workspaceHandle) {
+    if (normalized.providerId !== "local-fsa" || !normalized.workspaceRef.localHandle) {
       throw new Error("Recent workspace entry was not found.");
     }
 
-    permission = await requestWorkspacePermission(normalized.workspaceHandle, "read");
+    permission = await requestWorkspacePermission(normalized.workspaceRef.localHandle, "read");
     if (permission !== "granted") {
       throw new Error("Permission was not granted for this workspace.");
     }
 
+    normalized.workspaceHandle = normalized.workspaceRef.localHandle;
     normalized.workspaceName = normalized.workspaceHandle.name || normalized.workspaceName || "Workspace";
     return normalized;
   }
 
   async function queryWorkspacePermission(handle, mode) {
-    if (!handle || typeof handle.queryPermission !== "function") {
-      return "granted";
-    }
+    var provider = ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider;
 
-    return handle.queryPermission({ mode: mode || "read" });
+    return provider && provider.queryPermission
+      ? provider.queryPermission(handle, mode || "read")
+      : "granted";
   }
 
   async function requestWorkspacePermission(handle, mode) {
-    var permission;
+    var provider = ME.storageProviders && ME.storageProviders.get("local-fsa") || ME.localFilesystemProvider;
 
     if (!handle) {
       return "denied";
     }
-    if (typeof handle.requestPermission !== "function") {
-      return queryWorkspacePermission(handle, mode);
-    }
-
-    permission = await queryWorkspacePermission(handle, mode);
-    if (permission === "granted") {
-      return permission;
-    }
-
-    return handle.requestPermission({ mode: mode || "read" });
+    return provider && provider.requestPermission
+      ? provider.requestPermission(handle, mode || "read")
+      : queryWorkspacePermission(handle, mode);
   }
 
   ME.workspaceSession = {

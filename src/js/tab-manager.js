@@ -233,12 +233,34 @@
       return null;
     }
 
+    async function findSessionByStorageResource(resource) {
+      var provider = ME.storageProviders && ME.storageProviders.get(resource && resource.providerId);
+      var i;
+
+      for (i = 0; i < sessions.length; i += 1) {
+        if (!sessions[i].storageResource) {
+          continue;
+        }
+        if (provider && typeof provider.sameResource === "function") {
+          if (await provider.sameResource(sessions[i].storageResource, resource)) {
+            return sessions[i];
+          }
+          continue;
+        }
+        if (ME.storageResource && ME.storageResource.sameResource(sessions[i].storageResource, resource)) {
+          return sessions[i];
+        }
+      }
+      return null;
+    }
+
     return {
       addSession: addSession,
       clearSessions: clearSessions,
       closeSession: closeSession,
       createUntitledSession: createUntitledSession,
       findSessionByFileHandle: findSessionByFileHandle,
+      findSessionByStorageResource: findSessionByStorageResource,
       getActiveSession: getActiveSession,
       getSession: getSession,
       hasSession: hasSession,

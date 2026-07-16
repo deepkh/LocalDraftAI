@@ -2,6 +2,9 @@ const assert = require("node:assert/strict");
 
 global.window = {};
 require("../../src/js/document-type.js");
+require("../../src/js/storage-resource.js");
+require("../../src/js/storage-provider-registry.js");
+require("../../src/js/local-filesystem-provider.js");
 require("../../src/js/workspace-related.js");
 require("../../src/js/workspace-operations.js");
 
@@ -103,10 +106,13 @@ function createMockDirectory() {
 
 (async function () {
   const root = createMockDirectory();
+  const provider = window.MarkdownEditor.localFilesystemProvider;
+  const workspace = provider.createWorkspaceDescriptor(root, { id: "workspace-test" });
 
   for (const name of ["notes.md", "notes.txt", "application.log", "settings.json", "config.yml", "workflow.yaml"]) {
     const created = await workspaceOperations.createTextFile({
-      rootHandle: root,
+      provider,
+      workspace,
       name,
       initialText: name
     });
@@ -115,8 +121,8 @@ function createMockDirectory() {
   }
 
   const duplicate = await workspaceOperations.duplicateTextFile({
-    rootHandle: root,
-    fileHandle: root.files["settings.json"].handle,
+    provider,
+    workspace,
     name: "settings copy",
     path: "settings.json"
   });
@@ -124,8 +130,8 @@ function createMockDirectory() {
   assert.equal(root.files["settings copy.json"].text, "settings.json");
 
   const renamed = await workspaceOperations.renameTextFile({
-    rootHandle: root,
-    fileHandle: root.files["workflow.yaml"].handle,
+    provider,
+    workspace,
     name: "workflow-renamed",
     path: "workflow.yaml"
   });

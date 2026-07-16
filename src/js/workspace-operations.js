@@ -81,95 +81,59 @@
     return [left, right].filter(Boolean).join("/");
   }
 
-  async function directoryForPath(rootHandle, directoryPath) {
-    var current = rootHandle;
-    var parts = String(directoryPath || "").split("/").filter(Boolean);
-    var i;
+  function providerAndWorkspace(options) {
+    var provider = options.provider || ME.storageProviders && ME.storageProviders.getForWorkspace(options.workspace) || ME.localFilesystemProvider;
+    var workspace = options.workspace;
 
-    for (i = 0; i < parts.length; i += 1) {
-      current = await current.getDirectoryHandle(parts[i]);
+    if (!provider) {
+      throw new Error("The workspace storage provider is unavailable.");
     }
-
-    return current;
-  }
-
-  async function ensureReadWrite(handle) {
-    if (ME.fileStore && typeof ME.fileStore.ensurePermission === "function") {
-      if (!(await ME.fileStore.ensurePermission(handle, "readwrite"))) {
-        throw new Error("Permission was not granted for this workspace.");
-      }
+    if (!workspace && options.rootHandle && provider.createWorkspaceDescriptor) {
+      workspace = provider.createWorkspaceDescriptor(options.rootHandle, {
+        id: options.workspaceId || "local-workspace-compat"
+      });
     }
-  }
-
-  async function writeText(fileHandle, text) {
-    var writable = await fileHandle.createWritable();
-
-    await writable.write(text == null ? "" : text);
-    await writable.close();
+    if (!workspace) {
+      throw new Error("The workspace is unavailable.");
+    }
+    return { provider: provider, workspace: workspace };
   }
 
   async function createTextFile(options) {
-    var rootHandle = options.rootHandle;
     var directoryPath = options.directoryPath || "";
     var validation = validateFileName(options.name, {
       enforceMarkdownExtension: true
     });
-    var directoryHandle;
-    var fileHandle;
+    var context;
 
     if (!validation.ok) {
       throw new Error(validation.message);
     }
 
-    await ensureReadWrite(rootHandle);
-    directoryHandle = await directoryForPath(rootHandle, directoryPath);
-    try {
-      await directoryHandle.getFileHandle(validation.normalizedName, { create: false });
-      throw new Error("A file with this name already exists.");
-    } catch (error) {
-      if (error && error.name !== "NotFoundError") {
-        throw error;
-      }
-    }
-
-    fileHandle = await directoryHandle.getFileHandle(validation.normalizedName, { create: true });
-    await writeText(fileHandle, options.initialText || "");
-
-    return {
-      fileHandle: fileHandle,
-      name: validation.normalizedName,
-      path: joinPath(directoryPath, validation.normalizedName)
-    };
+    context = providerAndWorkspace(options);
+    return context.provider.createTextFile(
+      context.workspace,
+      directoryPath,
+      validation.normalizedName,
+      options.initialText || ""
+    );
   }
 
   async function createFolder(options) {
-    var rootHandle = options.rootHandle;
     var directoryPath = options.directoryPath || "";
     var validation = validateFolderName(options.name);
-    var directoryHandle;
-    var folderHandle;
+    var context;
 
     if (!validation.ok) {
       throw new Error(validation.message);
     }
 
-    await ensureReadWrite(rootHandle);
-    directoryHandle = await directoryForPath(rootHandle, directoryPath);
-    try {
-      await directoryHandle.getDirectoryHandle(validation.normalizedName, { create: false });
-      throw new Error("A folder with this name already exists.");
-    } catch (error) {
-      if (error && error.name !== "NotFoundError") {
-        throw error;
-      }
-    }
-
-    folderHandle = await directoryHandle.getDirectoryHandle(validation.normalizedName, { create: true });
-    return {
-      folderHandle: folderHandle,
-      name: validation.normalizedName,
-      path: joinPath(directoryPath, validation.normalizedName)
-    };
+    context = providerAndWorkspace(options);
+    return context.provider.createDirectory(
+      context.workspace,
+      directoryPath,
+      validation.normalizedName
+    );
   }
 
   function suggestedDuplicateName(path) {
@@ -181,40 +145,11 @@
     return joinPath(dir, stem + " copy" + (extension || ".md"));
   }
 
-  async function uniqueCopyName(directoryHandle, suggestedName) {
-    var extension = extensionForName(suggestedName);
-    var stem = extension ? suggestedName.slice(0, -extension.length) : suggestedName;
-    var index = 1;
-    var candidate = suggestedName;
-
-    while (true) {
-      try {
-        await directoryHandle.getFileHandle(candidate, { create: false });
-        index += 1;
-        candidate = stem + " " + index + (extension || "");
-      } catch (error) {
-        if (error && error.name === "NotFoundError") {
-          return candidate;
-        }
-        throw error;
-      }
-    }
-  }
-
   async function duplicateTextFile(options) {
     var sourcePath = options.path;
-    var directoryPath = dirname(sourcePath);
-    var directoryHandle;
-    var sourceFile;
-    var text;
     var nameValidation;
-    var copyName;
-    var fileHandle;
+    var context;
 
-    await ensureReadWrite(options.rootHandle);
-    directoryHandle = await directoryForPath(options.rootHandle, directoryPath);
-    sourceFile = await options.fileHandle.getFile();
-    text = typeof sourceFile.arrayBuffer === "function" ? await sourceFile.arrayBuffer() : await sourceFile.text();
     nameValidation = validateFileName(options.name || basename(suggestedDuplicateName(sourcePath)), {
       defaultExtension: extensionForName(sourcePath) || ".md",
       enforceMarkdownExtension: true
@@ -223,69 +158,37 @@
       throw new Error(nameValidation.message);
     }
 
-    copyName = await uniqueCopyName(directoryHandle, nameValidation.normalizedName);
-    fileHandle = await directoryHandle.getFileHandle(copyName, { create: true });
-    await writeText(fileHandle, text);
-
-    return {
-      fileHandle: fileHandle,
-      name: copyName,
-      path: joinPath(directoryPath, copyName)
-    };
+    context = providerAndWorkspace(options);
+    return context.provider.duplicate(
+      context.workspace,
+      sourcePath,
+      nameValidation.normalizedName
+    );
   }
 
   async function renameTextFile(options) {
     var sourcePath = options.path;
-    var directoryPath = dirname(sourcePath);
     var oldName = basename(sourcePath);
     var validation = validateFileName(options.name, {
       defaultExtension: extensionForName(sourcePath) || ".md",
       enforceMarkdownExtension: true
     });
-    var directoryHandle;
-    var sourceFile;
-    var text;
-    var fileHandle;
+    var context;
 
     if (!validation.ok) {
       throw new Error(validation.message);
     }
     if (validation.normalizedName === oldName) {
-      return {
-        fileHandle: options.fileHandle,
-        name: oldName,
-        path: sourcePath,
-        unchanged: true
-      };
+      context = providerAndWorkspace(options);
+      return context.provider.rename(context.workspace, sourcePath, oldName);
     }
 
-    await ensureReadWrite(options.rootHandle);
-    directoryHandle = await directoryForPath(options.rootHandle, directoryPath);
-    if (typeof directoryHandle.removeEntry !== "function") {
-      throw new Error("Rename is not supported in this browser yet. Use Duplicate, then remove the old file manually.");
-    }
-
-    try {
-      await directoryHandle.getFileHandle(validation.normalizedName, { create: false });
-      throw new Error("A file with this name already exists.");
-    } catch (error) {
-      if (error && error.name !== "NotFoundError") {
-        throw error;
-      }
-    }
-
-    sourceFile = await options.fileHandle.getFile();
-    text = typeof sourceFile.arrayBuffer === "function" ? await sourceFile.arrayBuffer() : await sourceFile.text();
-    fileHandle = await directoryHandle.getFileHandle(validation.normalizedName, { create: true });
-    await writeText(fileHandle, text);
-    await fileHandle.getFile();
-    await directoryHandle.removeEntry(oldName);
-
-    return {
-      fileHandle: fileHandle,
-      name: validation.normalizedName,
-      path: joinPath(directoryPath, validation.normalizedName)
-    };
+    context = providerAndWorkspace(options);
+    return context.provider.rename(
+      context.workspace,
+      sourcePath,
+      validation.normalizedName
+    );
   }
 
   async function copyRelativePath(path, clipboard) {
