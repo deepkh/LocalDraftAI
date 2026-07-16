@@ -281,6 +281,24 @@ async function main() {
       assert.equal(tab.editorMode, "markdown", tab.title);
     });
 
+    await evaluate(send, `(() => {
+      document.querySelector("#newTabButton").click();
+      window.MarkdownEditor.__testApi.loadMarkdownForTest("Scratch.md", "Outside the workspace");
+      document.querySelector("#workspaceButton").click();
+      document.querySelector("#closeWorkspace").click();
+    })()`);
+    await waitFor(send, `document.querySelector("#workspaceStatus").textContent === "No Workspace" &&
+      window.MarkdownEditor.__testApi.getOpenTabsForTest().length === 1`);
+    assert.deepEqual(await evaluate(send, `({
+      metadata: window.MarkdownEditor.__testApi.getWorkspaceMetadataForTest(),
+      tabs: window.MarkdownEditor.__testApi.getOpenTabsForTest().map((tab) => tab.title),
+      title: window.MarkdownEditor.__testApi.getEditorStateForTest().title
+    })`), {
+      metadata: null,
+      tabs: ["Untitled.md"],
+      title: "Untitled.md"
+    });
+
     console.log("ok - plain-text file support headless");
   } finally {
     if (connection) connection.ws.close();

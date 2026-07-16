@@ -189,6 +189,7 @@
   var remoteConflictOverwrite = document.getElementById("remoteConflictOverwrite");
   var remoteConflictCancel = document.getElementById("remoteConflictCancel");
   var refreshWorkspaceButton = document.getElementById("refreshWorkspace");
+  var closeAllOpenFilesButton = document.getElementById("closeAllOpenFiles");
   var closeWorkspaceButton = document.getElementById("closeWorkspace");
   var expandWorkspaceFoldersButton = document.getElementById("expandWorkspaceFolders");
   var collapseWorkspaceFoldersButton = document.getElementById("collapseWorkspaceFolders");
@@ -2110,6 +2111,9 @@
     if (recentWorkspacesSelect) {
       recentWorkspacesSelect.disabled = !supported || !recentWorkspaceRecords.length;
     }
+    if (closeAllOpenFilesButton) {
+      closeAllOpenFilesButton.disabled = !tabs || !tabs.listSessions().length;
+    }
     if (closeWorkspaceButton) {
       closeWorkspaceButton.disabled = !hasWorkspace;
     }
@@ -3396,8 +3400,18 @@
 
   async function handleCloseWorkspace() {
     var provider = activeWorkspaceProvider();
+    var sessions = tabs ? tabs.listSessions() : [];
+    var activeSession = getActiveSession();
 
     closeWorkspaceMenu();
+    if (activeSession) {
+      flushActiveEditor();
+      sessions = tabs.listSessions();
+    }
+    if (!confirmCloseAllOpenTabs(sessions, { closeWorkspace: true })) {
+      focusActiveEditor();
+      return;
+    }
     if (hasActiveWorkspace() && provider && typeof provider.closeWorkspace === "function") {
       try {
         await provider.closeWorkspace(workspaceState.workspace);
@@ -3410,6 +3424,7 @@
     }
     resetWorkspaceState();
     restorableWorkspaceSession = null;
+    replaceAllOpenTabsWithUntitled(sessions, activeSession);
     if (workspaceSession && workspaceSession.clearSession) {
       workspaceSession.clearSession().catch(function () {});
     }
@@ -4319,6 +4334,77 @@
     return window.confirm(
       "Close " + session.title + " with unsaved changes?\n\nUnsaved changes will be discarded."
     );
+  }
+
+  function confirmCloseAllOpenTabs(sessions, options) {
+    var dirtySessions = sessions.filter(function (session) {
+      return session.dirty;
+    });
+    var tabCount = sessions.length;
+    var prompt;
+
+    options = options || {};
+    if (!dirtySessions.length) {
+      return true;
+    }
+
+    prompt = options.closeWorkspace
+      ? "Close the current workspace and all " + tabCount + " open tab" + (tabCount === 1 ? "" : "s") + "?"
+      : "Close all " + tabCount + " open tab" + (tabCount === 1 ? "" : "s") + "?";
+
+    return window.confirm(
+      prompt + "\n\n" +
+      dirtySessions.length + " tab" + (dirtySessions.length === 1 ? " has" : "s have") +
+      " unsaved changes that will be discarded."
+    );
+  }
+
+  function replaceAllOpenTabsWithUntitled(sessions, activeSession) {
+    var nextSession;
+
+    sessions.forEach(function (session) {
+      revokeAssetObjectUrls(session);
+    });
+    if (typeof tabs.clearSessions === "function") {
+      tabs.clearSessions();
+    } else {
+      sessions.forEach(function (session) {
+        tabs.closeSession(session.id);
+      });
+    }
+
+    nextSession = createSession({
+      activeMode: activeSession ? activeSession.activeMode : getActiveMode(),
+      editorMode: activeSession ? activeSession.editorMode : getEditorMode(),
+      markdownText: "",
+      title: "Untitled.md"
+    });
+    tabs.addSession(nextSession, { activate: false });
+    setActiveSession(nextSession, { restoreScroll: false });
+    focusActiveEditor();
+  }
+
+  function closeAllOpenTabs(options) {
+    var sessions = tabs ? tabs.listSessions() : [];
+    var activeSession = getActiveSession();
+
+    options = options || {};
+    if (activeSession) {
+      flushActiveEditor();
+      sessions = tabs.listSessions();
+    }
+    if (!options.skipConfirmation && !confirmCloseAllOpenTabs(sessions, options)) {
+      focusActiveEditor();
+      return false;
+    }
+
+    replaceAllOpenTabsWithUntitled(sessions, activeSession);
+    return true;
+  }
+
+  function handleCloseAllOpenFiles() {
+    closeWorkspaceMenu();
+    return closeAllOpenTabs();
   }
 
   async function closeTab(sessionId) {
@@ -5468,6 +5554,7 @@
       return handleRestoreWorkspaceSession("restore");
     });
     register("workspace.refresh", handleRefreshWorkspace);
+    register("workspace.closeAllFiles", handleCloseAllOpenFiles);
     register("workspace.close", handleCloseWorkspace);
     register("workspace.expandAll", function () {
       if (workspaceSidebar) {

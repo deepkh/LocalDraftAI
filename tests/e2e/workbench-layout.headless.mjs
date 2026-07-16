@@ -215,6 +215,16 @@ async function main() {
     });
 
     await evaluate(send, `document.querySelector("#workspaceButton").click()`);
+    assert.deepEqual(await evaluate(send, `(() => {
+      const button = document.querySelector("#closeAllOpenFiles");
+      return {
+        command: button.dataset.command,
+        label: button.textContent.trim()
+      };
+    })()`), {
+      command: "workspace.closeAllFiles",
+      label: "Close All Open Files"
+    });
     assert.deepEqual(await evaluate(send, `Array.from(document.querySelectorAll("#workspaceMenu [data-remote-command]"))
       .map((button) => ({ command: button.dataset.remoteCommand, disabled: button.disabled }))`), [
       { command: "remote.connectHost", disabled: true },
@@ -245,6 +255,36 @@ async function main() {
       await evaluate(send, `document.querySelector(${JSON.stringify(selector)}).click()`);
       await evaluate(send, `document.querySelector(${JSON.stringify(selector)}).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }))`);
     }
+
+    const closeAllResult = await evaluate(send, `(() => {
+      window.MarkdownEditor.__testApi.loadMarkdownForTest("First.md", "First tab");
+      document.querySelector("#newTabButton").click();
+      window.MarkdownEditor.__testApi.loadMarkdownForTest("Second.md", "Second tab");
+      if (window.MarkdownEditor.__testApi.getEditorStateForTest().editorMode !== "markdown") {
+        document.querySelector("#toggleEditorMode").click();
+      }
+      const editor = document.querySelector("#markdownEditor");
+      editor.value += " edited";
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+      const originalConfirm = window.confirm;
+      let confirmation = "";
+      window.confirm = (message) => {
+        confirmation = message;
+        return true;
+      };
+      document.querySelector("#workspaceButton").click();
+      document.querySelector("#closeAllOpenFiles").click();
+      window.confirm = originalConfirm;
+      return {
+        confirmation,
+        editor: window.MarkdownEditor.__testApi.getEditorStateForTest(),
+        tabs: window.MarkdownEditor.__testApi.getOpenTabsForTest()
+      };
+    })()`);
+    assert.match(closeAllResult.confirmation, /Close all 2 open tabs/);
+    assert.match(closeAllResult.confirmation, /1 tab has unsaved changes/);
+    assert.equal(closeAllResult.editor.markdownText, "");
+    assert.deepEqual(closeAllResult.tabs.map((tab) => tab.title), ["Untitled.md"]);
 
     await send("Emulation.setDeviceMetricsOverride", {
       deviceScaleFactor: 1,

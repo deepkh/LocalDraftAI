@@ -94,9 +94,11 @@ The sidebar can be expanded, minimized, hidden, searched, and resized. Its mode 
 
 When a workspace has been opened before, LocalDraftAI stores the directory handle and lightweight tab metadata in browser storage. On reload it offers to restore the previous workspace, reopen supported workspace tabs, restore tab order and the active tab, and recover document type, editor mode, selection, scroll, Soft Wrap, dirty metadata, folder collapse, and sidebar scroll. Source-only documents are always restored into source mode. Restore only happens after you click `Restore Workspace`; if the browser needs folder permission again, the prompt is tied to that click.
 
-The `Workspace` menu also remembers up to 10 recently opened workspaces. Use `Recent Workspaces` to reopen a folder from a date/time ordered list or remove an entry from the list. Reopening a recent workspace may ask for browser permission again before scanning the folder.
+The `Workspace` menu also remembers up to 10 recently opened workspaces. Use `Recent Workspaces` to reopen a folder from a date/time ordered list or remove an entry from the list. Reopening a recent workspace may ask for browser permission again before scanning the folder. `Close All Open Files` removes every current tab after one confirmation if any tab has unsaved changes, then opens a fresh `Untitled.md` tab.
 
 When you switch to a different workspace, open workspace tabs from the previous workspace are removed from the tab bar so the tab strip stays scoped to the active workspace. LocalDraftAI keeps lightweight restore metadata for reopening them later. If any removed tabs have unsaved changes, LocalDraftAI asks before discarding those edits.
+
+Closing the current workspace also closes every open tab, including files that are not owned by that workspace, and returns the editor to a fresh `Untitled.md` tab. Unsaved changes use the same aggregate confirmation as `Close All Open Files`.
 
 The sidebar has three views:
 
