@@ -45,6 +45,14 @@
   var themeToggleButton = document.getElementById("themeToggleButton");
   var workspaceSidebarElement = document.getElementById("workspaceSidebar");
   var workspaceSidebarResizer = document.getElementById("workspaceSidebarResizer");
+  var editorTopbar = document.getElementById("editorTopbar");
+  var toggleFormatToolbar = document.getElementById("toggleFormatToolbar");
+  var formatToolbar = document.getElementById("formatToolbar");
+  var formatMoreButton = document.getElementById("formatMoreButton");
+  var formatMoreMenu = document.getElementById("formatMoreMenu");
+  var documentMoreButton = document.getElementById("documentMoreButton");
+  var documentMoreMenu = document.getElementById("documentMoreMenu");
+  var compactAiButton = document.getElementById("compactAiButton");
   var toggleEditorMode = document.getElementById("toggleEditorMode");
   var toggleSoftWrap = document.getElementById("toggleSoftWrap");
   var modeLabel = document.getElementById("modeLabel");
@@ -203,16 +211,19 @@
   var tabScrollLeft = document.getElementById("tabScrollLeft");
   var tabScrollRight = document.getElementById("tabScrollRight");
   var newTabButton = document.getElementById("newTabButton");
-  var editorToolbar = document.querySelector(".toolbar");
   var editorArea = document.getElementById("editorArea");
   var toolbarButtons = Array.prototype.slice.call(document.querySelectorAll("[data-action]"));
   var viewModeMenuItem = document.querySelector('[data-command="view.toggleEditorMode"]');
-  var copyRenderedHtmlMenuItem = document.querySelector('[data-command="edit.copyRenderedHtml"]');
-  var insertImageButton = document.querySelector('[data-action="image"]');
+  var viewFormatToolbarMenuItem = document.getElementById("viewFormatToolbarMenuItem");
+  var softWrapCommandItems = Array.prototype.slice.call(document.querySelectorAll('[data-command="view.toggleSoftWrap"]'));
+  var focusModeCommandItems = Array.prototype.slice.call(document.querySelectorAll('[data-command="view.toggleFocusMode"]'));
+  var copyRenderedHtmlMenuItems = Array.prototype.slice.call(document.querySelectorAll('[data-command="edit.copyRenderedHtml"]'));
+  var insertImageButtons = Array.prototype.slice.call(document.querySelectorAll('[data-action="image"]'));
   var undoButton = document.querySelector('[data-action="undo"]');
   var redoButton = document.querySelector('[data-action="redo"]');
 
   var viewport;
+  var editorToolbarController;
   var statusBarController;
   var menuBarController;
   var aiPanelResizer;
@@ -1253,13 +1264,30 @@
     setActiveEditorSource(EDITOR_MODES.MARKDOWN);
   }
 
+  function syncEditorToolbarState() {
+    if (!editorToolbarController) {
+      return;
+    }
+
+    editorToolbarController.setMarkdownCommandsAllowed(
+      activeDocumentAllowsMarkdownCommands()
+    );
+    editorToolbarController.setFocusModeActive(focusModeEnabled);
+    editorToolbarController.sync();
+  }
+
   function applySoftWrapState() {
     markdownEditor.classList.toggle("is-soft-wrap", softWrapEnabled);
     wysiwygEditor.classList.toggle("is-soft-wrap", softWrapEnabled);
 
+    softWrapCommandItems.forEach(function (item) {
+      item.classList.toggle("is-active", softWrapEnabled);
+      item.setAttribute("aria-checked", String(softWrapEnabled));
+      if (item.hasAttribute("aria-pressed")) {
+        item.setAttribute("aria-pressed", String(softWrapEnabled));
+      }
+    });
     if (toggleSoftWrap) {
-      toggleSoftWrap.classList.toggle("is-active", softWrapEnabled);
-      toggleSoftWrap.setAttribute("aria-pressed", String(softWrapEnabled));
       toggleSoftWrap.title = softWrapEnabled
         ? "Disable Soft Wrap and allow horizontal scrolling"
         : "Enable Soft Wrap to visually wrap long lines";
@@ -1284,15 +1312,19 @@
         : mode === EDITOR_MODES.MARKDOWN
         ? "Switch to WYSIWYG editing"
         : "Switch to Markdown editing";
+      toggleEditorMode.setAttribute("aria-label", toggleEditorMode.title);
     }
 
     if (viewModeMenuItem) {
       viewModeMenuItem.disabled = sourceOnly;
       viewModeMenuItem.title = sourceOnly ? "WYSIWYG is available only for Markdown files" : "Switch editor mode";
     }
-    if (copyRenderedHtmlMenuItem) {
-      copyRenderedHtmlMenuItem.disabled = sourceOnly;
-    }
+    copyRenderedHtmlMenuItems.forEach(function (item) {
+      item.disabled = sourceOnly;
+      item.title = sourceOnly
+        ? "Rendered HTML is available only for Markdown files"
+        : "Copy the rendered Markdown as HTML";
+    });
     if (formatBlock) {
       formatBlock.disabled = !allowFormatting;
     }
@@ -1321,6 +1353,7 @@
     if (actions) {
       actions.updateFormatSelect();
     }
+    syncEditorToolbarState();
   }
 
   function toggleSoftWrapState() {
@@ -1343,6 +1376,9 @@
       return;
     }
 
+    if (editorToolbarController) {
+      editorToolbarController.closeMenus();
+    }
     window.clearTimeout(syncTimer);
     window.clearTimeout(validationTimer);
     previousSession = getActiveSession();
@@ -1634,12 +1670,21 @@
     document.body.classList.toggle("focus-mode", focusModeEnabled);
 
     if (toggleFocusMode) {
-      toggleFocusMode.textContent = focusModeEnabled ? "Exit Focus" : "Focus";
+      toggleFocusMode.textContent = "Focus Mode";
+      toggleFocusMode.setAttribute("aria-checked", String(focusModeEnabled));
       toggleFocusMode.setAttribute("aria-pressed", String(focusModeEnabled));
       toggleFocusMode.title = focusModeEnabled
         ? "Exit focus mode (Esc)"
         : "Focus mode (Ctrl/Cmd+Shift+F)";
     }
+    focusModeCommandItems.forEach(function (item) {
+      item.classList.toggle("is-active", focusModeEnabled);
+      item.setAttribute("aria-checked", String(focusModeEnabled));
+      if (item.hasAttribute("aria-pressed")) {
+        item.setAttribute("aria-pressed", String(focusModeEnabled));
+      }
+    });
+    syncEditorToolbarState();
 
     if (viewport && viewport.remember) {
       window.requestAnimationFrame(function () {
@@ -1650,6 +1695,16 @@
 
   function toggleFocusModeState() {
     setFocusMode(!focusModeEnabled);
+  }
+
+  function syncCompactAiButton(visible) {
+    if (!compactAiButton) {
+      return;
+    }
+    compactAiButton.classList.toggle("is-active", Boolean(visible));
+    compactAiButton.setAttribute("aria-pressed", String(Boolean(visible)));
+    compactAiButton.title = visible ? "Focus AI Assistant" : "Open AI Assistant";
+    compactAiButton.setAttribute("aria-label", compactAiButton.title);
   }
 
   function openAboutDialog() {
@@ -3650,11 +3705,11 @@
       ? "Save a copy inside the remote workspace"
       : "Save document as (Ctrl/Cmd+Shift+S)";
 
-    if (insertImageButton) {
-      insertImageButton.disabled = remoteSession
+    insertImageButtons.forEach(function (button) {
+      button.disabled = remoteSession
         ? !remoteBinaryAssets || !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands()
         : !isImagePickerSupported() || !activeDocumentAllowsMarkdownCommands();
-      insertImageButton.title = remoteSession
+      button.title = remoteSession
         ? !remoteBinaryAssets
           ? "Reconnect the SSH workspace before storing remote images"
           : !activeDocumentAllowsMarkdownCommands()
@@ -3667,7 +3722,7 @@
         : isImagePickerSupported()
         ? "Insert image"
         : "Image insertion requires browser file and folder access";
-    }
+    });
 
     if (!supported) {
       recentFilesSelect.disabled = true;
@@ -5511,6 +5566,11 @@
     register("edit.copyRenderedHtml", handleCopyRenderedHtml);
 
     register("view.toggleEditorMode", toggleEditorModeState);
+    register("view.toggleFormatToolbar", function () {
+      if (editorToolbarController) {
+        editorToolbarController.togglePreferredVisible();
+      }
+    });
     register("view.toggleSoftWrap", toggleSoftWrapState);
     register("view.toggleTheme", function () {
       if (ME.theme) {
@@ -5638,14 +5698,12 @@
     toggleEditorMode.addEventListener("pointerdown", function (event) {
       event.preventDefault();
     });
-    toggleSoftWrap.addEventListener("pointerdown", function (event) {
-      event.preventDefault();
-    });
     toggleEditorMode.addEventListener("click", toggleEditorModeState);
-    toggleSoftWrap.addEventListener("click", toggleSoftWrapState);
 
-    if (toggleFocusMode) {
-      toggleFocusMode.addEventListener("click", toggleFocusModeState);
+    if (compactAiButton && ME.commandRegistry) {
+      compactAiButton.addEventListener("click", function () {
+        ME.commandRegistry.executeCommand("ai.openAssistant");
+      });
     }
     if (themeToggleButton && ME.commandRegistry) {
       themeToggleButton.addEventListener("click", function () {
@@ -5678,6 +5736,9 @@
     }
 
     document.addEventListener("keydown", function (event) {
+      if (event.defaultPrevented) {
+        return;
+      }
       if (event.key === "Escape" && aiAssistant && aiAssistant.closeTransientUi()) {
         event.preventDefault();
       } else if (event.key === "Escape" && !aboutOverlay.hidden) {
@@ -5706,11 +5767,11 @@
       });
     });
 
-    editorToolbar.addEventListener("click", function (event) {
+    formatToolbar.addEventListener("click", function (event) {
       var button = event.target.closest("[data-action]");
       var action;
 
-      if (!button || !editorToolbar.contains(button)) {
+      if (!button || !formatToolbar.contains(button) || button.disabled) {
         return;
       }
 
@@ -5974,6 +6035,9 @@
         return;
       }
 
+      if (editorToolbarController) {
+        editorToolbarController.closeMenus();
+      }
       flushActiveEditor();
       session.title = filename || "Test.md";
       descriptor = documentType.getDocumentTypeForName(session.title) || documentType.getDocumentTypeById("markdown");
@@ -6243,6 +6307,21 @@
       wysiwygEditor: wysiwygEditor
     });
 
+    if (ME.editorToolbar) {
+      editorToolbarController = ME.editorToolbar.create({
+        commandRegistry: ME.commandRegistry,
+        documentMoreButton: documentMoreButton,
+        documentMoreMenu: documentMoreMenu,
+        formatMoreButton: formatMoreButton,
+        formatMoreMenu: formatMoreMenu,
+        formatToolbarElement: formatToolbar,
+        markdownCommandsAllowed: false,
+        preferenceMenuItem: viewFormatToolbarMenuItem,
+        rootElement: editorTopbar,
+        toggleFormatToolbarButton: toggleFormatToolbar
+      });
+    }
+
     if (ME.resizer && ME.resizer.createAiPanel) {
       aiPanelResizer = ME.resizer.createAiPanel({
         handle: aiPanelResizeHandle,
@@ -6396,6 +6475,7 @@
       aiAssistantPanelClose: aiAssistantPanelClose,
       aiAssistantPanelSettings: aiAssistantPanelSettings,
       onPanelVisibilityChange: function (visible) {
+        syncCompactAiButton(visible);
         if (activityBar) {
           activityBar.syncSecondarySidebar(visible);
         }
@@ -6406,6 +6486,7 @@
         }
       }
     });
+    syncCompactAiButton(aiAssistant.isPanelOpen());
 
     if (ME.activityBar && activityBarElement) {
       activityBar = ME.activityBar.create({

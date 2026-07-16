@@ -103,13 +103,17 @@
             aria-expanded="false" title="View">View</button>
           <div id="viewMenu" class="ai-menu view-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-command="view.toggleEditorMode">WYSIWYG / Markdown</button>
-            <button type="button" role="menuitem" data-command="view.toggleSoftWrap">Soft Wrap</button>
+            <button type="button" id="viewFormatToolbarMenuItem" role="menuitemcheckbox" aria-checked="false"
+              data-command="view.toggleFormatToolbar">Formatting Toolbar</button>
+            <button type="button" role="menuitemcheckbox" aria-checked="true"
+              data-command="view.toggleSoftWrap">Soft Wrap</button>
             <button type="button" id="darkThemeMenuItem" role="menuitemcheckbox" aria-checked="false"
               data-command="view.toggleTheme">Dark Theme</button>
             <div class="ai-menu-separator" role="separator"></div>
             <button type="button" role="menuitem" data-command="view.togglePrimarySidebar">Primary Sidebar</button>
             <button type="button" role="menuitem" data-command="view.toggleSecondarySidebar">AI Assistant</button>
-            <button type="button" role="menuitem" data-command="view.toggleFocusMode">Focus Mode</button>
+            <button type="button" role="menuitemcheckbox" aria-checked="false"
+              data-command="view.toggleFocusMode">Focus Mode</button>
             <div class="ai-menu-separator" role="separator"></div>
             <button type="button" role="menuitem" disabled title="Preview is not available in the current layout">Preview</button>
           </div>
@@ -186,22 +190,23 @@
 
             <div class="compact-document-actions" role="toolbar" aria-label="Document actions">
               <button id="toggleFormatToolbar" type="button" class="compact-action-button"
-                aria-label="Hide formatting toolbar" aria-controls="formatToolbar" aria-expanded="true"
-                title="Hide formatting toolbar">Format</button>
+                aria-label="Show formatting toolbar" aria-controls="formatToolbar" aria-expanded="false"
+                title="Show formatting toolbar">Format</button>
               <button type="button" id="toggleEditorMode" class="compact-action-button editor-mode-button"
                 aria-pressed="false" aria-label="Switch between WYSIWYG and Markdown editing"
                 title="Switch between WYSIWYG and Markdown editing">WYSIWYG</button>
               <button id="compactAiButton" type="button" class="compact-action-button"
-                aria-label="Toggle AI Assistant" title="Toggle AI Assistant">AI</button>
+                aria-label="Toggle AI Assistant" aria-pressed="false" title="Toggle AI Assistant">AI</button>
               <button id="documentMoreButton" type="button" class="compact-action-button compact-more-button"
                 aria-label="More document actions" aria-haspopup="menu" aria-controls="documentMoreMenu"
                 aria-expanded="false" title="More document actions">⋯</button>
               <div id="documentMoreMenu" class="ai-menu topbar-menu document-more-menu" role="menu" hidden>
                 <button type="button" id="toggleSoftWrap" class="is-active" role="menuitemcheckbox"
-                  aria-checked="true" aria-pressed="true"
+                  aria-checked="true" aria-pressed="true" data-command="view.toggleSoftWrap"
                   title="Wrap long lines visually without inserting line breaks">Soft Wrap</button>
                 <button type="button" id="toggleFocusMode" role="menuitemcheckbox" aria-checked="false"
-                  aria-pressed="false" title="Focus mode (Ctrl/Cmd+Shift+F)">Focus Mode</button>
+                  aria-pressed="false" data-command="view.toggleFocusMode"
+                  title="Focus mode (Ctrl/Cmd+Shift+F)">Focus Mode</button>
                 <div class="ai-menu-separator" role="separator"></div>
                 <button type="button" role="menuitem" data-command="document.validate">Validate Document</button>
                 <button type="button" role="menuitem" data-command="edit.copyRenderedHtml">Copy Rendered HTML</button>
@@ -209,7 +214,7 @@
             </div>
           </div>
 
-          <nav id="formatToolbar" class="toolbar format-toolbar" aria-label="Formatting">
+          <nav id="formatToolbar" class="toolbar format-toolbar" aria-label="Formatting" hidden>
             <div class="group format-priority-essential" aria-label="Text style">
               <select id="formatBlock" class="format-select" title="Text style" aria-label="Text style">
                 <option value="P">Text</option>
@@ -770,6 +775,7 @@ SOFTWARE.</pre>
   <script src="js/recent-files.js"></script>
   <script src="js/viewport.js"></script>
   <script src="js/editor-actions.js"></script>
+  <script src="js/editor-toolbar.js"></script>
   <script src="js/resizer.js"></script>
   <script src="js/vendor/js-yaml.min.js"></script>
   <script src="js/document-validation.js"></script>
