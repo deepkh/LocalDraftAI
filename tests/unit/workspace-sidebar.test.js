@@ -55,6 +55,7 @@ function createElement() {
     classList: createClassList(),
     hidden: false,
     listeners,
+    activeFile: null,
     parentElement: null,
     sidebarBody: null,
     style: {
@@ -78,6 +79,9 @@ function createElement() {
     querySelector(selector) {
       if (selector === ".workspace-sidebar-body") {
         return this.sidebarBody;
+      }
+      if (selector === ".workspace-tree-item.is-file.is-active") {
+        return this.activeFile;
       }
       return null;
     },
@@ -395,6 +399,54 @@ runTest("revealing the active file expands collapsed parent folders", function (
   assert.deepEqual(JSON.parse(storage.values[workspaceSidebar.COLLAPSED_FOLDERS_STORAGE_KEY]), {
     Project: []
   });
+});
+
+runTest("revealing a selected file scrolls its active Explorer row into view", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+  const calls = [];
+
+  view.root.activeFile = {
+    getAttribute(name) {
+      return name === "data-workspace-path" ? "docs/archive/archive.md" : "";
+    },
+    scrollIntoView(options) {
+      calls.push(options);
+    }
+  };
+  view.sidebar.revealSelection("docs/archive/archive.md");
+
+  assert.deepEqual(calls, [{
+    block: "nearest",
+    inline: "nearest"
+  }]);
+});
+
+runTest("selected-file reveal waits for Files without switching away from another view", function () {
+  const storage = createStorage();
+  const view = createSidebar(storage);
+  const calls = [];
+
+  view.sidebar.setPanel("search");
+  view.root.activeFile = {
+    getAttribute(name) {
+      return name === "data-workspace-path" ? "docs/ai-agent.md" : "";
+    },
+    scrollIntoView(options) {
+      calls.push(options);
+    }
+  };
+  view.sidebar.revealSelection("docs/ai-agent.md");
+
+  assert.equal(view.sidebar.getPanel(), "search");
+  assert.deepEqual(calls, []);
+
+  view.sidebar.setPanel("files");
+
+  assert.deepEqual(calls, [{
+    block: "nearest",
+    inline: "nearest"
+  }]);
 });
 
 runTest("file filtering temporarily expands matched collapsed folders", function () {

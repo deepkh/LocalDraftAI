@@ -54,6 +54,8 @@ async function main() {
     await fixture.waitFor(`document.querySelector("[data-workspace-related-path='linked/target.md']") && !document.querySelector("[data-workspace-related-path='linked/target.md']").disabled`);
 
     await fixture.evaluate(`document.querySelector('[data-workbench-view="files"]').click()`);
+    await fixture.waitFor(`Boolean(document.querySelector("[data-workspace-path='deep/remote.md']"))`);
+    assert.equal(await fixture.evaluate(`document.querySelector("[data-workspace-path='deep/remote.md']").classList.contains("is-active")`), true);
     for (const [folder, file] of [["archive", "archive/missing.md"], ["plans", "plans/project.md"]]) {
       await fixture.evaluate(`document.querySelector("[data-workspace-folder-path='${folder}']").click()`);
       await fixture.waitFor(`Boolean(document.querySelector("[data-workspace-path='${file}']"))`);

@@ -215,6 +215,7 @@
     var searchTimer = 0;
     var contextMenu = null;
     var renderedPanel = activePanel;
+    var pendingRevealPath = "";
     var collapsedFolderPaths = lookupFromPaths(
       readJsonStorage(storage, COLLAPSED_FOLDERS_STORAGE_KEY)[workspaceStorageKey(state.rootName)]
     );
@@ -298,6 +299,34 @@
 
       body.scrollTop = scrollState.scrollTop;
       body.scrollLeft = scrollState.scrollLeft;
+    }
+
+    function scrollPendingFileIntoView() {
+      var fileElement;
+
+      if (
+        !pendingRevealPath ||
+        mode !== SIDEBAR_MODES.EXPANDED ||
+        activePanel !== PANELS.FILES ||
+        !rootElement.querySelector
+      ) {
+        return;
+      }
+
+      fileElement = rootElement.querySelector(".workspace-tree-item.is-file.is-active");
+      if (
+        !fileElement ||
+        fileElement.getAttribute("data-workspace-path") !== pendingRevealPath ||
+        typeof fileElement.scrollIntoView !== "function"
+      ) {
+        return;
+      }
+
+      pendingRevealPath = "";
+      fileElement.scrollIntoView({
+        block: "nearest",
+        inline: "nearest"
+      });
     }
 
     function getScrollState() {
@@ -705,6 +734,7 @@
       renderExpanded();
       restoreSidebarScroll(scrollState);
       renderedPanel = activePanel;
+      scrollPendingFileIntoView();
     }
 
     function setMode(nextMode) {
@@ -718,6 +748,9 @@
       activePanel = normalizePanel(nextPanel);
       writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
       contextMenu = null;
+      if (activePanel === PANELS.FILES && pendingRevealPath) {
+        fileSearchQuery = "";
+      }
       render();
       onPanelChange(activePanel);
     }
@@ -742,15 +775,44 @@
       };
       if (state.rootName !== previousRootName) {
         loadCollapsedFolders(state.rootName);
+        pendingRevealPath = "";
       }
       expandParentFolders(selectedPath, true);
       render();
     }
 
     function setSelection(path) {
-      selectedPath = path || "";
+      path = path || "";
+      if (path !== selectedPath) {
+        pendingRevealPath = "";
+      }
+      selectedPath = path;
       expandParentFolders(selectedPath, true);
       render();
+    }
+
+    function revealSelection(path, options) {
+      var previousPanel = activePanel;
+
+      options = options || {};
+      selectedPath = path || selectedPath;
+      if (!selectedPath) {
+        return;
+      }
+
+      pendingRevealPath = selectedPath;
+      if (options.activatePanel !== false) {
+        activePanel = PANELS.FILES;
+        writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
+      }
+      if (options.clearFilter !== false && activePanel === PANELS.FILES) {
+        fileSearchQuery = "";
+      }
+      expandParentFolders(selectedPath, true);
+      render();
+      if (activePanel !== previousPanel || options.notifyPanelChange) {
+        onPanelChange(activePanel);
+      }
     }
 
     function setDirtyPaths(paths) {
@@ -782,10 +844,16 @@
         };
         if (state.rootName !== previousRootName) {
           loadCollapsedFolders(state.rootName);
+          pendingRevealPath = "";
         }
       }
       if (Object.prototype.hasOwnProperty.call(nextState, "selectedPath")) {
-        selectedPath = nextState.selectedPath || "";
+        var nextSelectedPath = nextState.selectedPath || "";
+
+        if (nextSelectedPath !== selectedPath) {
+          pendingRevealPath = "";
+        }
+        selectedPath = nextSelectedPath;
       }
       expandParentFolders(selectedPath, true);
       if (Object.prototype.hasOwnProperty.call(nextState, "dirtyPaths")) {
@@ -1048,13 +1116,10 @@
       },
       getScrollState: getScrollState,
       revealFile: function (path) {
-        selectedPath = path || selectedPath;
-        activePanel = PANELS.FILES;
-        fileSearchQuery = "";
-        writeStorage(storage, PANEL_STORAGE_KEY, activePanel);
-        expandParentFolders(selectedPath, true);
-        render();
-        onPanelChange(activePanel);
+        revealSelection(path, { notifyPanelChange: true });
+      },
+      revealSelection: function (path) {
+        revealSelection(path, { activatePanel: false });
       },
       setDirtyPaths: setDirtyPaths,
       setCollapsedFolders: setCollapsedFolders,

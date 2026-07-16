@@ -30,6 +30,12 @@ const workspaceFixture = {
     "assets/logo.png": "not a real image"
   }
 };
+const revealWorkspaceFixture = Object.fromEntries(
+  Array.from({ length: 30 }, (_, index) => [
+    `scroll-${String(index).padStart(2, "0")}.md`,
+    `# Scroll file ${index}\n`
+  ])
+);
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -247,6 +253,62 @@ async function main() {
       hiddenAfterCollapse: true,
       visibleAfterExpand: true
     });
+
+    await evaluate(
+      send,
+      `window.MarkdownEditor.__testApi.loadWorkspaceForTest(${JSON.stringify(revealWorkspaceFixture)})`
+    );
+    await evaluate(send, `window.MarkdownEditor.__testApi.openWorkspaceFileForTest("scroll-15.md")`);
+    await evaluate(send, `window.MarkdownEditor.__testApi.openWorkspaceFileForTest("scroll-29.md")`);
+    const beforeOpenReveal = await evaluate(send, `(() => {
+      const body = document.querySelector(".workspace-sidebar-body");
+      body.style.flex = "0 0 80px";
+      body.style.height = "80px";
+      body.scrollTop = body.scrollHeight;
+      return body.scrollTop;
+    })()`);
+    await evaluate(send, `window.MarkdownEditor.__testApi.openWorkspaceFileForTest("scroll-00.md")`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().title === "scroll-00.md"`);
+    const openedFileReveal = await evaluate(send, `(() => {
+      const body = document.querySelector(".workspace-sidebar-body");
+      const row = document.querySelector('[data-workspace-path="scroll-00.md"]');
+      const bodyRect = body.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      return {
+        active: row.classList.contains("is-active"),
+        scrollTop: body.scrollTop,
+        visible: rowRect.top >= bodyRect.top - 1 && rowRect.bottom <= bodyRect.bottom + 1
+      };
+    })()`);
+    assert.equal(openedFileReveal.active, true);
+    assert.equal(openedFileReveal.visible, true);
+    assert.ok(openedFileReveal.scrollTop < beforeOpenReveal);
+
+    const beforeTabReveal = await evaluate(send, `(() => {
+      const body = document.querySelector(".workspace-sidebar-body");
+      body.scrollTop = 0;
+      return body.scrollTop;
+    })()`);
+    await evaluate(send, `(() => {
+      const tab = Array.from(document.querySelectorAll(".doc-tab"))
+        .find((item) => item.querySelector(".tab-title").textContent === "scroll-29.md");
+      tab.click();
+    })()`);
+    await waitFor(send, `window.MarkdownEditor.__testApi.getEditorStateForTest().title === "scroll-29.md"`);
+    const selectedTabReveal = await evaluate(send, `(() => {
+      const body = document.querySelector(".workspace-sidebar-body");
+      const row = document.querySelector('[data-workspace-path="scroll-29.md"]');
+      const bodyRect = body.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      return {
+        active: row.classList.contains("is-active"),
+        scrollTop: body.scrollTop,
+        visible: rowRect.top >= bodyRect.top - 1 && rowRect.bottom <= bodyRect.bottom + 1
+      };
+    })()`);
+    assert.equal(selectedTabReveal.active, true);
+    assert.equal(selectedTabReveal.visible, true);
+    assert.ok(selectedTabReveal.scrollTop > beforeTabReveal);
     assert.deepEqual(connection.exceptions, []);
 
     console.log("ok - relevant local explorer folders headless");

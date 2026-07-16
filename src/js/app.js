@@ -1369,6 +1369,7 @@
   function setActiveSession(session, options) {
     var previousSession;
     var activeSession;
+    var shouldRevealWorkspaceFile;
 
     options = options || {};
 
@@ -1395,6 +1396,11 @@
     if (!activeSession) {
       return;
     }
+    shouldRevealWorkspaceFile = Boolean(
+      options.revealWorkspaceFile ||
+      !previousSession ||
+      previousSession.id !== activeSession.id
+    );
 
     lastEditorAnchor = null;
     softWrapEnabled = activeSession.softWrapEnabled !== false;
@@ -1420,6 +1426,9 @@
     updateDocumentTitle();
     validateSession(activeSession);
     renderTabs();
+    if (shouldRevealWorkspaceFile) {
+      revealWorkspaceSessionInSidebar(activeSession);
+    }
     scheduleWorkspaceSessionSave();
 
     window.requestAnimationFrame(function () {
@@ -2180,6 +2189,18 @@
     });
   }
 
+  function revealWorkspaceSessionInSidebar(session) {
+    if (
+      !workspaceSidebar ||
+      !sessionBelongsToWorkspace(session) ||
+      typeof workspaceSidebar.revealSelection !== "function"
+    ) {
+      return;
+    }
+
+    workspaceSidebar.revealSelection(session.workspacePath);
+  }
+
   function updateWorkspaceMenuControls() {
     var hasWorkspace = hasActiveWorkspace();
     var supported = isWorkspaceSupported();
@@ -2689,6 +2710,39 @@
     workspaceState.files = result.files;
     workspaceState.directories = result.directories;
     renderWorkspaceSidebar();
+  }
+
+  async function loadWorkspaceFileParentDirectories(path) {
+    var directoryPath;
+    var parts;
+    var current = "";
+    var partIndex;
+    var node;
+    var result;
+
+    if (!workspaceState.lazy || !workspaceStore || !workspaceStore.loadDirectory) {
+      return;
+    }
+
+    directoryPath = workspaceRelated.dirname(path);
+    parts = String(directoryPath || "").split("/").filter(Boolean);
+    for (partIndex = 0; partIndex < parts.length; partIndex += 1) {
+      current = [current, parts[partIndex]].filter(Boolean).join("/");
+      node = workspaceStore.findTreeNode(workspaceState.tree, current);
+      if (!node || node.kind !== "directory") {
+        break;
+      }
+      if (node.loaded) {
+        continue;
+      }
+      result = await workspaceStore.loadDirectory(workspaceState.workspace, workspaceState.tree, current);
+      workspaceState.tree = result.tree;
+      workspaceState.files = result.files;
+      workspaceState.directories = result.directories;
+      if (result.error) {
+        break;
+      }
+    }
   }
 
   async function loadRemoteRestoreDirectories(sessionData) {
@@ -3642,6 +3696,7 @@
       return;
     }
 
+    await loadWorkspaceFileParentDirectories(fileItem.path);
     flushActiveEditor();
 
     existingSession = findSessionByWorkspacePath(fileItem.path);
@@ -3662,7 +3717,10 @@
     }
 
     if (existingSession) {
-      setActiveSession(existingSession, { restoreScroll: true });
+      setActiveSession(existingSession, {
+        restoreScroll: true,
+        revealWorkspaceFile: true
+      });
       await addRecentFile(fileItem.handle, fileItem.name);
       rememberWorkspacePath(fileItem.path);
       if (options.line) {
@@ -3694,7 +3752,10 @@
         workspaceRootName: workspaceState.rootName
       });
       tabs.addSession(session, { activate: false });
-      setActiveSession(session, { restoreScroll: false });
+      setActiveSession(session, {
+        restoreScroll: false,
+        revealWorkspaceFile: true
+      });
       await addRecentFile(fileItem.handle, fileItem.name);
       rememberWorkspacePath(fileItem.path);
       if (options.line) {
@@ -4359,6 +4420,7 @@
 
     if (activeSession && activeSession.id === session.id) {
       scrollActiveTabIntoView();
+      revealWorkspaceSessionInSidebar(session);
       focusActiveEditor();
       return;
     }
@@ -4591,7 +4653,10 @@
       existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
       if (existingSession) {
         await attachCurrentWorkspacePath(existingSession);
-        setActiveSession(existingSession, { restoreScroll: true });
+        setActiveSession(existingSession, {
+          restoreScroll: true,
+          revealWorkspaceFile: true
+        });
         await addRecentFile(fileData.fileHandle, fileData.title);
         focusActiveEditor();
         return;
@@ -4613,7 +4678,10 @@
       });
       await attachCurrentWorkspacePath(session);
       tabs.addSession(session, { activate: false });
-      setActiveSession(session, { restoreScroll: false });
+      setActiveSession(session, {
+        restoreScroll: false,
+        revealWorkspaceFile: true
+      });
       await addRecentFile(fileData.fileHandle, fileData.title);
       focusActiveEditor();
     } catch (error) {
@@ -5100,7 +5168,10 @@
       existingSession = await tabs.findSessionByFileHandle(fileData.fileHandle);
       if (existingSession) {
         await attachCurrentWorkspacePath(existingSession);
-        setActiveSession(existingSession, { restoreScroll: true });
+        setActiveSession(existingSession, {
+          restoreScroll: true,
+          revealWorkspaceFile: true
+        });
         await refreshRecentFiles();
         focusActiveEditor();
         return;
@@ -5122,7 +5193,10 @@
       });
       await attachCurrentWorkspacePath(session);
       tabs.addSession(session, { activate: false });
-      setActiveSession(session, { restoreScroll: false });
+      setActiveSession(session, {
+        restoreScroll: false,
+        revealWorkspaceFile: true
+      });
       await refreshRecentFiles();
       focusActiveEditor();
     } catch (error) {
